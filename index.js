@@ -1,0 +1,5668 @@
+(() => {
+  "use strict";
+
+  const TODAY = "2026-08-27";
+  const DAY_PATTERNS = [
+    { id: "Mon/Wed", days: ["Mon", "Wed"] },
+    { id: "Tue/Thu", days: ["Tue", "Thu"] },
+    { id: "Mon/Thu", days: ["Mon", "Thu"] },
+    { id: "Wed/Fri", days: ["Wed", "Fri"] },
+    { id: "Fri", days: ["Fri"] },
+  ];
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+  const DAY_DATES = {
+    Mon: "2026-08-24",
+    Tue: "2026-08-25",
+    Wed: "2026-08-26",
+    Thu: "2026-08-27",
+    Fri: "2026-08-28",
+  };
+
+  function svg(paths) {
+    return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths.map((d) => `<path d="${d}"/>`).join("")}</svg>`;
+  }
+  const ICONS = {
+    home: svg(["M3 10.5 12 3l9 7.5V21H3z", "M9 21v-8h6v8"]),
+    people: svg(["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8"]),
+    cal: svg(["M4 6h16v14H4z", "M4 10h16", "M8 3v4", "M16 3v4"]),
+    map: svg(["M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"]),
+    bolt: svg(["M13 2 4 14h7l-1 8 9-12h-7z"]),
+    alert: svg(["M12 3 2 21h20z", "M12 9v5", "M12 17h.01"]),
+    clock: svg(["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18", "M12 7v5l3 2"]),
+    route: svg(["M4 6h7", "M17 18h3", "M8 6v12"]),
+    bill: svg(["M6 3h12v18H6z", "M9 8h6", "M9 12h6", "M9 16h4"]),
+    pay: svg(["M3 7h18v12H3z", "M3 11h18"]),
+    renew: svg(["M3 12a9 9 0 0 1 15-6l3 2", "M21 12a9 9 0 0 1-15 6l-3-2"]),
+    star: svg(["M12 3l2.4 5.2L20 9.2l-4 3.8.9 5.5L12 16.2 7.1 18.5 8 13 4 9.2l5.6-1z"]),
+    file: svg(["M7 3h7l5 5v13H7z"]),
+    chat: svg(["M4 5h16v10H8l-4 4z"]),
+    memo: svg(["M5 4h10l4 4v12H5z", "M9 12h6"]),
+    chart: svg(["M4 20V4", "M4 20h16", "M8 16v-5", "M12 16V8", "M16 16v-8"]),
+    users: svg(["M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2", "M9 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8"]),
+    list: svg(["M8 6h13", "M8 12h13", "M8 18h13", "M4 6v.01", "M4 12v.01", "M4 18v.01"]),
+    trap: svg(["M12 3v4", "M8 21h8", "M7 11h10l-1 10H8z", "M9 11V8a3 3 0 0 1 6 0v3"]),
+    mail: svg(["M3 6h18v12H3z", "M3 6l9 7 9-7"]),
+    cog: svg(["M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6", "M4 12h2", "M18 12h2", "M12 4v2", "M12 18v2"]),
+    phone: svg(["M7 2h10v20H7z", "M11 18h2"]),
+    plus: svg(["M12 5v14", "M5 12h14"]),
+  };
+
+  const ROLES = {
+    owner: {
+      id: "owner",
+      name: "Tom",
+      title: "Owner",
+      initials: "TM",
+      color: "#c4a24a",
+      access: "Every module, and records are editable. Day-to-day posting still sits with Ops and Admin.",
+      chips: ["All modules", "Can edit", "Dashboards"],
+    },
+    ops: {
+      id: "ops",
+      name: "Rick Torgerson",
+      title: "Operations / Dispatcher",
+      initials: "RT",
+      color: "#2d6a4c",
+      access: "Normal day: payment register → create the service → assign on the map. Click a technician’s home to see their properties. No commission or payroll.",
+      chips: ["Register", "Create service", "Assign on map"],
+    },
+    admin: {
+      id: "admin",
+      name: "Christy Brown",
+      title: "Administration Director",
+      initials: "CB",
+      color: "#1d6a75",
+      access: "Team puts payments on the register. You check the list → open Bill-To → mark invoice paid (link and external). Renewal messages for expiring plans — not re-quotes.",
+      chips: ["Register", "Mark invoice paid", "Renewals"],
+    },
+    sales: {
+      id: "sales",
+      name: "Rocco",
+      title: "Sales / Intake",
+      initials: "RC",
+      color: "#b4532a",
+      access: "A call or message comes in. Add the customer on the location form — name, address, instructions, and whether they accept messages. Then the client exists.",
+      chips: ["Incoming call", "Add customer"],
+    },
+    tech: {
+      id: "tech",
+      name: "Johnny",
+      title: "Technician (Trapper)",
+      initials: "JN",
+      color: "#40916c",
+      techId: "johnny",
+      access: "Mobile app only. Route, check-in, removals, photos, Memo to Office. No pricing or payments.",
+      chips: ["Field app", "No pricing"],
+    },
+    sysadmin: {
+      id: "sysadmin",
+      name: "Avery Cole",
+      title: "System Administrator",
+      initials: "AC",
+      color: "#163528",
+      access: "Users, editable lists, templates, integration credentials, company settings.",
+      chips: ["SYS-01–05"],
+    },
+  };
+
+  const NAV = [
+    { id: "dashboard", label: "Dashboard", group: "Home", icon: "home", roles: ["owner", "ops", "admin", "sales", "sysadmin"] },
+    { id: "customers", label: "Customers", group: "CRM-lite", icon: "people", roles: ["owner", "ops", "admin", "sales"] },
+    { id: "quotes", label: "Quotes", group: "CRM-lite", icon: "mail", roles: ["sales", "owner", "admin"] },
+    { id: "schedule", label: "Schedule", group: "Operations", icon: "cal", roles: ["owner", "ops"] },
+    { id: "payments", label: "Payment register", group: "Start of day", icon: "pay", roles: ["ops", "owner", "admin"] },
+    { id: "map", label: "Map & routing", group: "Operations", icon: "map", roles: ["owner", "ops"] },
+    { id: "assign", label: "Assign technician", group: "Operations", icon: "bolt", roles: ["owner", "ops"] },
+    { id: "oneoffs", label: "One-off jobs", group: "Operations", icon: "bolt", roles: ["owner", "ops"] },
+    { id: "traps", label: "Trap assets", group: "Operations", icon: "trap", roles: ["owner", "ops"] },
+    { id: "noshows", label: "No-shows", group: "Operations", icon: "alert", roles: ["owner", "ops"] },
+    { id: "duration", label: "Duration report", group: "Operations", icon: "clock", roles: ["owner", "ops", "admin"] },
+    { id: "removals", label: "Removal report", group: "Operations", icon: "list", roles: ["owner", "ops"] },
+    { id: "workload", label: "Route workload", group: "Operations", icon: "route", roles: ["owner", "ops"] },
+    { id: "invoices", label: "Invoices", group: "Administration", icon: "bill", roles: ["owner", "admin"] },
+    { id: "renewals", label: "Renewal report", group: "Administration", icon: "renew", roles: ["owner", "admin"] },
+    { id: "commission", label: "Commission", group: "Administration", icon: "star", roles: ["owner", "admin"] },
+    { id: "documents", label: "Documents", group: "Administration", icon: "file", roles: ["owner", "ops", "admin"] },
+    { id: "comms", label: "Communication log", group: "Administration", icon: "chat", roles: ["owner", "ops", "admin"] },
+    { id: "mtos", label: "Memo to Office", group: "Internal", icon: "memo", roles: ["owner", "ops", "admin"] },
+    { id: "reports", label: "Reports", group: "Reporting", icon: "chart", roles: ["owner", "ops", "admin"] },
+    { id: "users", label: "Users", group: "System", icon: "users", roles: ["sysadmin", "owner"] },
+    { id: "lists", label: "Configurable lists", group: "System", icon: "list", roles: ["sysadmin", "owner"] },
+    { id: "templates", label: "Templates", group: "System", icon: "mail", roles: ["sysadmin", "admin", "owner"] },
+    { id: "settings", label: "Company settings", group: "System", icon: "cog", roles: ["sysadmin", "owner"] },
+    { id: "integrations", label: "Integrations", group: "System", icon: "cog", roles: ["sysadmin", "owner"] },
+    { id: "mobile", label: "Today's route", group: "Field", icon: "phone", roles: ["tech"] },
+  ];
+
+  const WRITE = {
+    "customer.create": ["sales", "admin"],
+    "customer.edit": ["sales", "admin", "ops", "owner"],
+    "quote.send": ["sales", "admin"],
+    "invoice.create": ["admin"],
+    "invoice.send": ["admin"],
+    "payment.post": ["admin"],
+    "payment.viewAmount": ["admin", "owner", "ops"],
+    "renewal.send": ["admin"],
+    "commission.enter": ["admin"],
+    "schedule.assign": ["ops"],
+    "schedule.reassign": ["ops"],
+    "schedule.generate": ["ops"],
+    "service.create": ["ops"],
+    "trap.update": ["ops"],
+    "location.add": ["admin", "sales", "ops"],
+    "location.request": ["admin", "ops"],
+    "oneoff.insert": ["ops"],
+    "noshow.mark": ["ops"],
+    "blackout.edit": ["ops", "sysadmin"],
+    "docs.upload": ["admin", "ops"],
+    "mto.reply": ["ops", "admin"],
+    "users.manage": ["sysadmin", "owner"],
+    "lists.edit": ["sysadmin", "owner"],
+    "settings.edit": ["sysadmin", "owner"],
+    "template.edit": ["sysadmin", "admin"],
+    "mobile.act": ["tech"],
+  };
+
+  const TECHS = [
+    { id: "johnny", name: "Johnny", home: "Deerfield Beach", color: "#2d6a4c", x: "28%", y: "42%" },
+    { id: "bobby", name: "Bobby", home: "Fort Lauderdale", color: "#1d6a75", x: "32%", y: "52%" },
+    { id: "pedro", name: "Pedro", home: "West Palm Beach", color: "#c4a24a", x: "38%", y: "28%" },
+    { id: "miguel", name: "Miguel", home: "Tampa", color: "#b4532a", x: "12%", y: "36%" },
+    { id: "alejo", name: "Alejo", home: "Naples", color: "#40916c", x: "18%", y: "72%" },
+  ];
+
+  const SERVICE_TYPES = [
+    { id: "1mon-res", code: "1 - 1 MON RES", label: "1-month residential", type: "res", duration: 10, months: 1 },
+    { id: "3mon-res", code: "3 - 3 MON RES", label: "3-month residential", type: "res", duration: 15, months: 3 },
+    { id: "6mon-res", code: "6 - 6 MON RES", label: "6-month residential", type: "res", duration: 20, months: 6 },
+    { id: "12mon-res", code: "12 - 12 MON RES", label: "12-month residential", type: "res", duration: 20, months: 12 },
+    { id: "1mon-com", code: "1 - 1 MON COM", label: "Commercial", type: "com", duration: 20, months: 1 },
+    { id: "hoa-2wk", code: "HOA 2 WK", label: "HOA / community", type: "hoa", duration: 45, months: 0.5 },
+    { id: "muni", code: "MUNI PARK", label: "Municipal / park", type: "muni", duration: 180, months: 12 },
+    { id: "callback", code: "CALLBACK", label: "Callback", type: "callback", duration: 10, months: 0 },
+  ];
+  const SERVICE_SCHEDULES = [
+    { id: "WK-MOWE", label: "WK - MO WE", days: "Mon/Wed" },
+    { id: "WK-TUTH", label: "WK - TU TH", days: "Tue/Thu" },
+    { id: "WK-MOTH", label: "WK - MO TH", days: "Mon/Thu" },
+    { id: "WK-WEFR", label: "WK - WE FR", days: "Wed/Fri" },
+    { id: "WK-FR", label: "WK - FR", days: "Fri" },
+  ];
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const TARGETS = ["IGUANA", "TEGU", "IGUANA / TEGU"];
+  const CHARGE_MODES = ["Production", "Flat", "Recurring"];
+  const TASK_TYPES = [
+    { id: "garage", label: "Animal in garage / live call" },
+    { id: "inspect", label: "Inspection" },
+    { id: "meeting", label: "Client meeting" },
+    { id: "other", label: "Other one-off" },
+  ];
+
+  const PROGRAMS = [
+    { id: "12pre", name: "12-month prepaid", months: 12, list: 2400, prepaid: 2000, freeMonths: 2, freq: "Bi-weekly" },
+    { id: "12mo", name: "12-month monthly", months: 12, list: 2400, prepaid: null, freeMonths: 0, freq: "Bi-weekly" },
+    { id: "6mo", name: "6-month", months: 6, list: 1400, prepaid: 1200, freeMonths: 0, freq: "Bi-weekly" },
+    { id: "3mo", name: "3-month", months: 3, list: 800, prepaid: null, freeMonths: 0, freq: "Weekly" },
+    { id: "1mo", name: "1-month", months: 1, list: 300, prepaid: null, freeMonths: 0, freq: "Weekly" },
+    { id: "hoa2", name: "HOA 2-week", months: 0.5, list: 180, prepaid: null, freeMonths: 0, freq: "Every 2 weeks" },
+  ];
+
+  const REASONS = [
+    { id: "mechanical", label: "Mechanical failure", fault: "company" },
+    { id: "sick", label: "Technician illness", fault: "company" },
+    { id: "weather", label: "Weather", fault: "company" },
+    { id: "gate", label: "Gated — no answer", fault: "customer" },
+    { id: "nothome", label: "Not home / no access", fault: "customer" },
+    { id: "dog", label: "Aggressive dog / unsafe", fault: "customer" },
+  ];
+
+  function seed() {
+    return {
+      customers: [
+        {
+          id: "C-1042",
+          name: "Diane Walsh",
+          phone: "(561) 555-0142",
+          email: "diane.walsh@email.com",
+          type: "residential",
+          billTo: "Diane Walsh",
+          status: "active",
+          programId: "12pre",
+          amount: 2000,
+          start: "2026-03-01",
+          expires: "2027-03-01",
+          paid: true,
+          autoPay: false,
+          municipal: false,
+          techId: "johnny",
+          backupId: "bobby",
+          days: "Mon/Wed",
+          durationMin: 20,
+          locations: [
+            { id: "L-1042a", name: "Residence", address: "418 NE 4th St, Boca Raton, FL", x: "30%", y: "40%", covered: true, techId: "johnny", days: "Mon/Wed", gps: "26.3587, -80.0831", programId: "12pre", amount: 2000, start: "2026-03-01", expires: "2027-03-01", paid: true },
+            { id: "L-1042b", name: "Rental", address: "902 NE 20th Ave, Fort Lauderdale, FL", x: "32%", y: "50%", covered: true, requestService: true, requestedAt: 2, programId: "6mo", amount: 1200, start: "2026-08-01", expires: "2027-02-01", paid: true },
+          ],
+          notes: "Gate code 4419. Dogs in backyard — use side path. Client asked to catch iguanas at the Fort Lauderdale rental too. Two properties, two plans, two invoices — Diane is the only Bill-To.",
+          opsNote: "Customer asked to skip the week of Labor Day if possible.",
+        },
+        {
+          id: "C-1108",
+          name: "Palm Cove HOA",
+          phone: "(954) 555-2201",
+          email: "board@palmcovehoa.org",
+          type: "hoa",
+          billTo: "Palm Cove HOA Board",
+          status: "active",
+          programId: "hoa2",
+          amount: 2100,
+          start: "2026-01-15",
+          expires: "2026-10-15",
+          paid: true,
+          autoPay: false,
+          municipal: false,
+          techId: "bobby",
+          backupId: "johnny",
+          days: "Tue/Thu",
+          durationMin: 90,
+          locations: [
+            { id: "L-1108a", name: "Clubhouse", address: "12 Palm Cove Dr, Fort Lauderdale, FL", x: "33%", y: "54%", covered: true, techId: "bobby", days: "Tue/Thu" },
+            { id: "L-1108b", name: "Lot 14", address: "14 Palm Cove Dr, Fort Lauderdale, FL", x: "34%", y: "55%", covered: true, techId: "bobby", days: "Tue/Thu" },
+            { id: "L-1108c", name: "Lot 22", address: "22 Palm Cove Dr, Fort Lauderdale, FL", x: "35%", y: "53%", covered: true, techId: "bobby", days: "Tue/Thu" },
+            { id: "L-1108d", name: "Lot 31", address: "31 Palm Cove Dr, Fort Lauderdale, FL", x: "36%", y: "56%", covered: false },
+            ...Array.from({ length: 18 }, (_, i) => ({
+              id: `L-1108n${i + 40}`,
+              name: `Lot ${i + 40}`,
+              address: `${i + 40} Palm Cove Dr, Fort Lauderdale, FL`,
+              x: `${32.2 + (i % 6) * 0.85}%`,
+              y: `${51.5 + Math.floor(i / 6) * 1.6 + (i % 2) * 0.35}%`,
+              covered: true,
+              techId: "bobby",
+              days: "Tue/Thu",
+            })),
+          ],
+          notes: "Bill-To covers the community this term. Lot 31 unpaid. Dense HOA — all lots stay visible on the map (no 20-stop cutoff).",
+          opsNote: "Split 90 min across Bobby (Tue) if volume spikes.",
+        },
+        {
+          id: "C-1112",
+          name: "Cypress Commons",
+          phone: "(954) 555-6112",
+          email: "ops@cypresscommons.org",
+          type: "hoa",
+          billTo: "Cypress Commons HOA",
+          status: "active",
+          programId: "hoa2",
+          amount: 1576,
+          start: "2026-02-01",
+          expires: "2026-10-10",
+          paid: true,
+          autoPay: false,
+          municipal: false,
+          techId: "johnny",
+          backupId: "bobby",
+          days: "Mon/Wed",
+          durationMin: 180,
+          locations: [{
+            id: "L-1112a",
+            name: "Canal & preserve",
+            address: "Cypress Commons preserve (manual pin), Fort Lauderdale, FL",
+            x: "34%",
+            y: "47%",
+            covered: true,
+            shared: true,
+            gps: "26.1358, -80.1412",
+            manualPin: true,
+          }],
+          notes: "Six hours a week on one property — split across two trappers on different days. Gray pin on the map.",
+          opsNote: "Johnny Mon 3 hrs · Bobby Wed 3 hrs. Do not copy the stop — each trapper has their own service.",
+        },
+        {
+          id: "C-1091",
+          name: "Sarah Chen",
+          phone: "(561) 555-0881",
+          email: "sarah.chen@email.com",
+          type: "residential",
+          billTo: "Sarah Chen",
+          status: "renewal",
+          programId: "12pre",
+          amount: 2000,
+          start: "2025-09-24",
+          expires: "2026-09-24",
+          paid: true,
+          autoPay: false,
+          municipal: false,
+          techId: "pedro",
+          backupId: "johnny",
+          days: "Mon/Wed",
+          durationMin: 25,
+          locations: [{ id: "L-1091a", name: "Residence", address: "880 Northlake Blvd, West Palm Beach, FL", x: "40%", y: "26%" }],
+          notes: "Standard prepaid rate. Review and send.",
+          opsNote: "",
+        },
+        {
+          id: "C-1066",
+          name: "Harbor Oaks",
+          phone: "(813) 555-4410",
+          email: "mgr@harboroaks.com",
+          type: "commercial",
+          billTo: "Harbor Oaks Management",
+          status: "past_due",
+          programId: "6mo",
+          amount: 1400,
+          start: "2026-04-01",
+          expires: "2026-10-01",
+          paid: false,
+          autoPay: true,
+          municipal: false,
+          failedPayment: true,
+          techId: "miguel",
+          backupId: "alejo",
+          days: "Tue/Thu",
+          durationMin: 40,
+          locations: [{ id: "L-1066a", name: "Campus", address: "210 Harbor Oaks Rd, Tampa, FL", x: "14%", y: "38%" }],
+          notes: "Auto-pay declined 2026-08-26. Do not dispatch until paid (BR-01).",
+          opsNote: "Card declined — leave off tomorrow's route until Admin clears it.",
+        },
+        {
+          id: "C-1020",
+          name: "Coastal Municipal Parks",
+          phone: "(239) 555-1000",
+          email: "ap@coastalparks.gov",
+          type: "municipal",
+          billTo: "City of Coastal Parks",
+          status: "active",
+          programId: "12mo",
+          amount: 0,
+          start: "2026-01-01",
+          expires: "2026-12-31",
+          paid: false,
+          autoPay: false,
+          municipal: true,
+          po: "PO-4481",
+          poCapHours: 120,
+          hoursUsed: 86,
+          techId: "alejo",
+          backupId: "miguel",
+          days: "Fri",
+          durationMin: 180,
+          locations: [{ id: "L-1020a", name: "Riverside Park", address: "Riverside Park (manual pin), Naples, FL", x: "20%", y: "74%", gps: "26.1420, -81.7948", manualPin: true }],
+          notes: "PO account — may schedule before invoice payment (ADM-24).",
+          opsNote: "Pin is GPS-overridden; techs must tap-to-navigate.",
+        },
+        {
+          id: "C-1180",
+          name: "Elena Vasquez",
+          phone: "(954) 555-0199",
+          email: "elena.v@email.com",
+          type: "residential",
+          billTo: "Elena Vasquez",
+          status: "inquiry",
+          programId: null,
+          amount: 0,
+          start: null,
+          expires: null,
+          paid: false,
+          autoPay: false,
+          municipal: false,
+          techId: null,
+          backupId: null,
+          days: null,
+          durationMin: 20,
+          locations: [{ id: "L-1180a", name: "Residence", address: "55 SE 2nd Ave, Fort Lauderdale, FL", x: "31%", y: "50%" }],
+          notes: "Quote sent with plan options. Waiting for Elena to say which program she wants — then Christy creates and sends the invoice.",
+          opsNote: "",
+        },
+        {
+          id: "C-1188",
+          name: "Nina Patel",
+          phone: "(954) 555-0288",
+          email: "nina.patel@email.com",
+          type: "residential",
+          billTo: "Nina Patel",
+          status: "active",
+          programId: "6mo",
+          amount: 1200,
+          start: "2026-08-27",
+          expires: "2027-02-27",
+          paid: false,
+          autoPay: false,
+          municipal: false,
+          techId: null,
+          backupId: null,
+          days: null,
+          durationMin: 20,
+          handedToOps: true,
+          handedAt: 1,
+          createdBy: "admin",
+          locations: [
+            { id: "L-1188a", name: "Residence", address: "210 SE 3rd Ave, Fort Lauderdale, FL", x: "31%", y: "51%", covered: true, requestService: true, requestedAt: 1, programId: "6mo", amount: 1200, start: "2026-08-27", expires: "2027-02-27", paid: false },
+            { id: "L-1188b", name: "Canal house", address: "44 SE 10th St, Deerfield Beach, FL", x: "29%", y: "43%", covered: true, requestService: true, requestedAt: 3, programId: "12pre", amount: 2000, start: "2026-08-27", expires: "2027-08-27", paid: false },
+          ],
+          notes: "Christy converted this account today. Two properties, two plans, two invoices — Nina is the only Bill-To.",
+          opsNote: "New from Administration — assign each property from the map.",
+        },
+        {
+          id: "C-1210",
+          name: "Jony Morales",
+          firstName: "Jony",
+          lastName: "Morales",
+          phone: "(954) 555-1210",
+          email: "jony.morales@email.com",
+          type: "residential",
+          billTo: "Jony Morales",
+          status: "active",
+          programId: "12pre",
+          amount: 3200,
+          start: "2026-08-20",
+          expires: "2027-02-20",
+          paid: true,
+          autoPay: false,
+          municipal: false,
+          techId: "johnny",
+          backupId: "bobby",
+          days: "Mon/Wed",
+          durationMin: 20,
+          handedToOps: true,
+          handedAt: 4,
+          createdBy: "sales",
+          locations: [
+            { id: "L-1210a", name: "Boca house", address: "610 NE 3rd Ave, Boca Raton, FL", x: "29%", y: "41%", covered: true, techId: "johnny", days: "Mon/Wed", programId: "12pre", amount: 2000, start: "2026-08-20", expires: "2027-08-20", paid: true, gps: "26.3591, -80.0822" },
+            { id: "L-1210b", name: "Deerfield rental", address: "88 SE 8th St, Deerfield Beach, FL", x: "28%", y: "44%", covered: true, techId: "bobby", days: "Tue/Thu", programId: "6mo", amount: 1200, start: "2026-08-20", expires: "2027-02-20", paid: true },
+          ],
+          notes: "Jony called for two properties. Bill-To is only Jony. Boca house is 12-month prepaid; the rental is 6-month. Two invoices, two services.",
+          opsNote: "Do not merge these into one job. Each address has its own trapper and invoice.",
+        },
+        {
+          id: "C-1077",
+          name: "Rita Gomez",
+          phone: "(561) 555-0177",
+          email: "rita.gomez@email.com",
+          type: "residential",
+          billTo: "Rita Gomez",
+          status: "renewal",
+          programId: "1mo",
+          amount: 300,
+          start: "2026-08-22",
+          expires: "2026-09-22",
+          paid: true,
+          autoPay: false,
+          municipal: false,
+          techId: "johnny",
+          backupId: "bobby",
+          days: "Thu",
+          durationMin: 25,
+          locations: [{ id: "L-1077a", name: "Residence", address: "900 E Camino Real, Boca Raton, FL", x: "27%", y: "44%", gps: "26.3502, -80.0849" }],
+          notes: "Short-term 1-month. Do not send another 1-month as the renewal — offer a 6- or 12-month rollover.",
+          opsNote: "Prefers morning window before 9:30.",
+        },
+        {
+          id: "C-1004",
+          name: "Martin Ruiz",
+          phone: "(561) 555-3002",
+          email: "m.ruiz@email.com",
+          type: "residential",
+          billTo: "Martin Ruiz",
+          status: "lapsed",
+          programId: "12pre",
+          amount: 2000,
+          start: "2025-07-01",
+          expires: "2026-07-01",
+          paid: false,
+          autoPay: false,
+          municipal: false,
+          techId: "johnny",
+          backupId: "bobby",
+          days: null,
+          durationMin: 15,
+          locations: [{ id: "L-1004a", name: "Residence", address: "1901 N Federal Hwy, Boca Raton, FL", x: "29%", y: "38%" }],
+          notes: "Did not renew. Off active routing. Trap IC-208 is still in the field — retrieve it.",
+          opsNote: "",
+        },
+      ],
+      quotes: [
+        { id: "Q-2201", customerId: "C-1180", locationIds: ["L-1180a"], locationId: "L-1180a", programId: null, optionsSent: true, sent: true, previewed: true, date: "2026-08-26" },
+      ],
+      invoices: [
+        { id: "INV-4419", customerId: "C-1042", locationId: "L-1042a", amount: 2000, status: "paid", sent: "2026-02-20", paidOn: "2026-02-21", kind: "initial" },
+        { id: "INV-4420", customerId: "C-1042", locationId: "L-1042b", amount: 1200, status: "paid", sent: "2026-08-01", paidOn: "2026-08-02", kind: "initial" },
+        { id: "INV-4502", customerId: "C-1108", locationId: "L-1108a", amount: 2100, status: "paid", sent: "2026-07-01", paidOn: "2026-07-03", kind: "renewal" },
+        { id: "INV-4510", customerId: "C-1091", locationId: "L-1091a", amount: 2000, status: "sent", sent: "2026-08-20", paidOn: null, kind: "renewal" },
+        { id: "INV-4531", customerId: "C-1077", locationId: "L-1077a", amount: 300, status: "paid", sent: "2026-08-20", paidOn: "2026-08-26", kind: "initial" },
+        { id: "INV-4601", customerId: "C-1020", locationId: "L-1020a", amount: 0, status: "draft", sent: null, paidOn: null, kind: "municipal", period: "August 2026" },
+        { id: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 233, status: "failed", sent: "2026-08-01", paidOn: null, kind: "autopay" },
+        { id: "INV-4301", customerId: "C-1004", locationId: "L-1004a", amount: 2000, status: "paid", sent: "2025-06-20", paidOn: "2025-06-22", kind: "initial" },
+        { id: "INV-4688", customerId: "C-1188", locationId: "L-1188a", amount: 1200, status: "sent", sent: "2026-08-27", paidOn: null, kind: "initial" },
+        { id: "INV-4689", customerId: "C-1188", locationId: "L-1188b", amount: 2000, status: "sent", sent: "2026-08-27", paidOn: null, kind: "initial" },
+        { id: "INV-4710", customerId: "C-1210", locationId: "L-1210a", amount: 2000, status: "paid", sent: "2026-08-20", paidOn: "2026-08-21", kind: "initial" },
+        { id: "INV-4711", customerId: "C-1210", locationId: "L-1210b", amount: 1200, status: "paid", sent: "2026-08-20", paidOn: "2026-08-21", kind: "initial" },
+      ],
+      payments: [
+        { id: "P-9001", invoiceId: "INV-4419", customerId: "C-1042", locationId: "L-1042a", amount: 2000, method: "Card", last4: "4419", source: "portal", date: "2026-02-21", memo: "Portal · Visa 4419 · Diane Walsh · Residence", invoiceMarked: true, linkPay: true },
+        { id: "P-9002", invoiceId: "INV-4420", customerId: "C-1042", locationId: "L-1042b", amount: 1200, method: "ACH", last4: "", source: "ach", date: "2026-08-02", memo: "ACH · Diane Walsh · Rental 6-month", invoiceMarked: true, linkPay: true },
+        { id: "P-9114", invoiceId: "INV-4502", customerId: "C-1108", locationId: "L-1108a", amount: 2100, method: "ACH", last4: "", source: "ach", date: "2026-07-03", memo: "Palm Cove HOA · July · team entered on register", invoiceMarked: true, linkPay: false },
+        { id: "P-9115", invoiceId: "INV-4502", customerId: "C-1108", locationId: "L-1108b", amount: 2100, method: "Zelle", last4: "", source: "zelle", date: "2026-07-29", memo: "Zelle · team entered on register · Palm Cove", invoiceMarked: true, linkPay: false },
+        { id: "P-9116", invoiceId: "INV-4419", customerId: "C-1042", locationId: "L-1042a", amount: 200, method: "Check", last4: "2201", source: "check", date: "2026-07-30", memo: "Check #2201 · team entered · Diane", invoiceMarked: true, linkPay: false },
+        { id: "P-9180", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 233, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-08-26", memo: "Declined — Harbor Oaks monthly", invoiceMarked: false, failed: true, linkPay: true },
+        { id: "P-9260", invoiceId: "INV-4419", customerId: "C-1042", locationId: "L-1042a", amount: 2000, method: "Website", last4: "2291", source: "website", date: "2026-02-22", memo: "Website checkout · Diane Walsh", invoiceMarked: true, linkPay: true },
+        { id: "P-9230", invoiceId: "INV-4531", customerId: "C-1077", locationId: "L-1077a", amount: 300, method: "Card", last4: "7712", source: "portal", date: "2026-08-26", memo: "Portal link · Rita Gomez — Christy marked paid", invoiceMarked: true, linkPay: true },
+        { id: "P-9231", invoiceId: "INV-4510", customerId: "C-1091", locationId: "L-1091a", amount: 2000, method: "Card", last4: "1091", source: "portal", date: "2026-08-27", memo: "Portal renewal link · Sarah Chen — on register, mark invoice paid", invoiceMarked: false, linkPay: true },
+        { id: "P-9288", invoiceId: "INV-4688", customerId: "C-1188", locationId: "L-1188a", amount: 1200, method: "Portal", last4: "1188", source: "portal", date: "2026-08-27", memo: "Portal link · Nina Patel Residence — on register, mark invoice paid", invoiceMarked: false, linkPay: true },
+        { id: "P-9289", invoiceId: "INV-4689", customerId: "C-1188", locationId: "L-1188b", amount: 2000, method: "Check", last4: "9901", source: "check", date: "2026-08-27", memo: "Check #9901 · team entered · Nina Canal house — mark invoice paid", invoiceMarked: false, linkPay: false },
+        { id: "P-9310", invoiceId: "INV-4710", customerId: "C-1210", locationId: "L-1210a", amount: 2000, method: "Card", last4: "1210", source: "portal", date: "2026-08-21", memo: "Portal · Jony Morales Boca — marked paid", invoiceMarked: true, linkPay: true },
+        { id: "P-9311", invoiceId: "INV-4711", customerId: "C-1210", locationId: "L-1210b", amount: 1200, method: "ACH", last4: "", source: "ach", date: "2026-08-21", memo: "ACH · Jony Morales Deerfield — marked paid", invoiceMarked: true, linkPay: true },
+        { id: "P-9340", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 233, method: "Zelle", last4: "", source: "zelle", date: "2026-08-27", memo: "Zelle replacement · team entered · Harbor Oaks — mark invoice paid", invoiceMarked: false, linkPay: false },
+      ],
+      mail: [],
+      services: [
+        { id: "SVC-1042a", customerId: "C-1042", locationId: "L-1042a", type: "12mon-res", status: "live", techId: "johnny", days: "Mon/Wed", durationMin: 20, generated: true, schedule: "WK-MOWE", target: "IGUANA", charge: "Production", start: "2026-03-01", expires: "2027-03-01", renewal: "2027-03-01" },
+        { id: "SVC-1091a", customerId: "C-1091", locationId: "L-1091a", type: "12mon-res", status: "live", techId: "pedro", days: "Mon/Wed", durationMin: 25, generated: true, schedule: "WK-MOWE", target: "IGUANA", charge: "Production", start: "2025-09-24", expires: "2026-09-24", renewal: "2026-09-24" },
+        { id: "SVC-1108a", customerId: "C-1108", locationId: "L-1108a", type: "hoa-2wk", status: "live", techId: "bobby", days: "Tue/Thu", durationMin: 45, generated: true, schedule: "WK-TUTH", target: "IGUANA", charge: "Production", start: "2026-01-15", expires: "2026-10-15", renewal: "2026-10-15" },
+        { id: "SVC-1108b", customerId: "C-1108", locationId: "L-1108b", type: "hoa-2wk", status: "live", techId: "bobby", days: "Tue/Thu", durationMin: 45, generated: true, schedule: "WK-TUTH", target: "IGUANA", charge: "Production", start: "2026-01-15", expires: "2026-10-15", renewal: "2026-10-15" },
+        { id: "SVC-1066a", customerId: "C-1066", locationId: "L-1066a", type: "1mon-com", status: "live", techId: "miguel", days: "Tue/Thu", durationMin: 40, generated: true, schedule: "WK-TUTH", target: "IGUANA", charge: "Production", start: "2026-04-01", expires: "2026-10-01", renewal: "2026-10-01" },
+        { id: "SVC-1020a", customerId: "C-1020", locationId: "L-1020a", type: "muni", status: "live", techId: "alejo", days: "Fri", durationMin: 180, generated: true, schedule: "WK-FR", target: "IGUANA", charge: "Production", start: "2026-01-01", expires: "2026-12-31", renewal: "2026-12-31", po: "PO-4481" },
+        { id: "SVC-1077a", customerId: "C-1077", locationId: "L-1077a", type: "6mon-res", status: "live", techId: "johnny", days: "Thu", durationMin: 25, generated: true, schedule: "WK-FR", target: "IGUANA", charge: "Production", start: "2026-05-01", expires: "2026-11-01", renewal: "2026-11-01" },
+        { id: "SVC-1112a", customerId: "C-1112", locationId: "L-1112a", type: "hoa-2wk", status: "live", techId: "johnny", days: "Mon", durationMin: 180, generated: true, schedule: "WK-MOWE", target: "IGUANA", charge: "Production", start: "2026-02-01", expires: "2026-11-01", renewal: "2026-11-01" },
+        { id: "SVC-1112b", customerId: "C-1112", locationId: "L-1112a", type: "hoa-2wk", status: "live", techId: "bobby", days: "Wed", durationMin: 180, generated: true, schedule: "WK-MOWE", target: "IGUANA", charge: "Production", start: "2026-02-01", expires: "2026-11-01", renewal: "2026-11-01" },
+        { id: "SVC-1210a", customerId: "C-1210", locationId: "L-1210a", type: "12mon-res", status: "live", techId: "johnny", days: "Mon/Wed", durationMin: 20, generated: true, schedule: "WK-MOWE", target: "IGUANA", charge: "Production", start: "2026-08-20", expires: "2027-08-20", renewal: "2027-08-20" },
+        { id: "SVC-1210b", customerId: "C-1210", locationId: "L-1210b", type: "6mon-res", status: "live", techId: "bobby", days: "Tue/Thu", durationMin: 25, generated: true, schedule: "WK-TUTH", target: "IGUANA", charge: "Production", start: "2026-08-20", expires: "2027-02-20", renewal: "2027-02-20" },
+      ],
+      commissions: [
+        { id: "B-12", paymentId: "P-9114", customerId: "C-1108", amount: 42, splits: [{ techId: "bobby", pct: 60, dollars: 25.2 }, { techId: "johnny", pct: 40, dollars: 16.8 }], period: "2026-07" },
+      ],
+      stops: [
+        { id: "S-1", customerId: "C-1042", locationId: "L-1042a", techId: "johnny", day: "Mon", time: "08:10", durationMin: 20, type: "service", status: "complete", actualMin: 18, removals: { count: 2, weight: 7.1 } },
+        { id: "S-2", customerId: "C-1091", locationId: "L-1091a", techId: "pedro", day: "Mon", time: "09:00", durationMin: 25, type: "service", status: "complete", actualMin: 24, removals: { count: 0, weight: 0 } },
+        { id: "S-3", customerId: "C-1042", locationId: "L-1042a", techId: "johnny", day: "Wed", time: "08:15", durationMin: 20, type: "service", status: "scheduled", actualMin: null, removals: null },
+        { id: "S-4", customerId: "C-1091", locationId: "L-1091a", techId: "pedro", day: "Wed", time: "09:10", durationMin: 25, type: "service", status: "scheduled", actualMin: null, removals: null },
+        { id: "S-5", customerId: "C-1108", locationId: "L-1108a", techId: "bobby", day: "Tue", time: "08:00", durationMin: 45, type: "service", status: "complete", actualMin: 41, removals: { count: 3, weight: 11.4 } },
+        { id: "S-6", customerId: "C-1108", locationId: "L-1108b", techId: "bobby", day: "Thu", time: "08:00", durationMin: 45, type: "service", status: "scheduled", actualMin: null, removals: null },
+        { id: "S-7", customerId: "C-1066", locationId: "L-1066a", techId: "miguel", day: "Tue", time: "10:30", durationMin: 40, type: "service", status: "blocked", actualMin: null, removals: null },
+        { id: "S-8", customerId: "C-1020", locationId: "L-1020a", techId: "alejo", day: "Fri", time: "07:30", durationMin: 180, type: "service", status: "scheduled", actualMin: null, removals: null },
+        { id: "S-9", customerId: null, locationId: null, techId: "johnny", day: "Thu", time: "11:40", durationMin: 25, type: "oneoff", status: "unassigned_done", actualMin: null, removals: null, label: "Iguana in garage — walk-up, Boca", address: "Near Mizner Park", pending: true, taskType: "garage", x: "29%", y: "41%" },
+        { id: "S-10", customerId: "C-1077", locationId: "L-1077a", techId: "johnny", day: "Thu", time: "08:20", durationMin: 25, type: "service", status: "scheduled", actualMin: null, removals: null },
+        { id: "S-11", customerId: "C-1112", locationId: "L-1112a", techId: "johnny", day: "Mon", time: "13:00", durationMin: 180, type: "service", status: "scheduled", actualMin: null, removals: null },
+        { id: "S-12", customerId: "C-1112", locationId: "L-1112a", techId: "bobby", day: "Wed", time: "13:00", durationMin: 180, type: "service", status: "scheduled", actualMin: null, removals: null },
+        { id: "S-13", customerId: "C-1210", locationId: "L-1210a", techId: "johnny", day: "Mon", time: "10:20", durationMin: 20, type: "service", status: "scheduled", actualMin: null, removals: null },
+        { id: "S-14", customerId: "C-1210", locationId: "L-1210b", techId: "bobby", day: "Tue", time: "11:00", durationMin: 25, type: "service", status: "scheduled", actualMin: null, removals: null },
+      ],
+      mtos: [
+        { id: "M-1", from: "johnny", dept: "ops", customerId: "C-1042", text: "Gate keypad sticking. Side path still works. Property issue, not billing.", date: "2026-08-24 08:32", read: false },
+        { id: "M-2", from: "bobby", dept: "admin", customerId: "C-1108", text: "HOA manager asked whether Lot 31 is covered this term — they think they paid for all four.", date: "2026-08-25 08:51", read: false },
+        { id: "M-3", from: "alejo", dept: "ops", customerId: "C-1020", text: "Park pin is correct. Native maps launch from the coordinate now.", date: "2026-08-22 16:10", read: true },
+      ],
+      comms: [
+        { id: "CM-1", customerId: "C-1091", who: "Christy Brown", channel: "Email", date: "2026-08-20", text: "Previewed renewal notice. Holding send until she confirms prepaid vs monthly." },
+        { id: "CM-2", customerId: "C-1066", who: "Christy Brown", channel: "Call", date: "2026-08-26", text: "Left voicemail: auto-pay declined. Service paused until payment (BR-01)." },
+        { id: "CM-3", customerId: "C-1042", who: "Rick Torgerson", channel: "Call", date: "2026-08-18", text: "Diane asked to pause the Labor Day week. Noted on the account." },
+        { id: "CM-4", customerId: "C-1180", who: "Rocco", channel: "Web form", date: "2026-08-26", text: "Inquiry: 12-month program for a Boca/Fort Lauderdale residence." },
+      ],
+      documents: [
+        { id: "D-1", customerId: "C-1020", name: "COI — Coastal Parks 2026.pdf", by: "Christy Brown", date: "2026-01-06" },
+        { id: "D-2", customerId: "C-1108", name: "HOA board approval.pdf", by: "Michelle", date: "2026-01-12" },
+        { id: "D-3", customerId: "C-1042", name: "Gate photo.jpg", by: "Johnny", date: "2026-08-24" },
+      ],
+      traps: [
+        { id: "T-441", serial: "IC-441", customerId: "C-1042", locationId: "L-1042a", status: "deployed", value: 80, lastSeen: "2026-08-24", note: "Back canal. Johnny confirmed on Mon." },
+        { id: "T-208", serial: "IC-208", customerId: "C-1004", locationId: "L-1004a", status: "out", value: 80, lastSeen: "2026-07-01", note: "Contract ended — still in the field. Retrieve." },
+        { id: "T-119", serial: "IC-119", customerId: "C-1020", locationId: "L-1020a", status: "retrieved", value: 80, lastSeen: "2026-08-22", note: "Pulled after the Friday park run." },
+        { id: "T-330", serial: "IC-330", customerId: "C-1112", locationId: "L-1112a", status: "missing", value: 80, lastSeen: "2026-08-10", note: "Preserve pin. Not at last GPS." },
+        { id: "T-512", serial: "IC-512", customerId: "C-1108", locationId: "L-1108a", status: "deployed", value: 80, lastSeen: "2026-08-25", note: "Clubhouse pond." },
+      ],
+      users: [
+        { id: "u1", name: "Tom", role: "owner", active: true },
+        { id: "u2", name: "Rick Torgerson", role: "ops", active: true },
+        { id: "u3", name: "Christy Brown", role: "admin", active: true },
+        { id: "u4", name: "Michelle", role: "admin", active: true },
+        { id: "u5", name: "Rocco", role: "sales", active: true },
+        { id: "u6", name: "Johnny", role: "tech", active: true },
+        { id: "u7", name: "Bobby", role: "tech", active: true },
+        { id: "u8", name: "Pedro", role: "tech", active: true },
+        { id: "u9", name: "Miguel", role: "tech", active: true },
+        { id: "u10", name: "Alejo", role: "tech", active: true },
+        { id: "u11", name: "Avery Cole", role: "sysadmin", active: true },
+      ],
+      holidays: ["2026-09-07", "2026-11-26", "2026-12-25", "2027-01-01", "2027-07-04"],
+      blackout: [],
+      settings: { commissionPct: 2, renewalWindow: 60, reminder: "email", extraReasons: [] },
+      templates: {
+        proposal: "Hello {customer_name},\nAccount {account_id}.\nYour iguana removal program quote is ready.",
+        invoice: "Hello {customer_name},\nInvoice {invoice_or_quote} is due.\nPay by invoice link, website, ACH, or bank transfer.",
+        renewal: "Hello {customer_name},\nAccount {account_id} is in the renewal window.\nSame terms unless Administration notes otherwise.",
+        visit: "Hi {customer_name}, a technician is scheduled in two days. This is an automated message — you cannot reply.",
+      },
+      integrations: { mapsKey: "", processor: "", sendgrid: "", notes: "" },
+      inbound: [
+        { id: "IN-1", channel: "Call", firstName: "Maria", lastName: "Lopez", phone: "(954) 555-0199", city: "Deerfield Beach", note: "Iguanas on the canal behind the house. Gate on the left. Dogs in the yard — go around the side.", time: "8:14 AM", used: false },
+        { id: "IN-2", channel: "Text", firstName: "James", lastName: "Ortiz", phone: "(561) 555-4410", city: "Boca Raton", note: "Saw the truck. Wants someone to look at the backyard. Park on the street, not the driveway.", time: "8:41 AM", used: false },
+        { id: "IN-3", channel: "Voicemail", company: "Lakeside HOA", firstName: "", lastName: "", phone: "(954) 555-7702", city: "Fort Lauderdale", locationType: "hoa", note: "Board called. Meet at the clubhouse. Ask for the manager. Canal lots behind building B.", time: "Yesterday", used: false },
+      ],
+      seq: 100,
+    };
+  }
+
+  const session = window.IguanaStore ? IguanaStore.loadSession() : {};
+  const state = {
+    role: session.role || null,
+    page: session.page || "dashboard",
+    selectedCustomer: session.selectedCustomer || null,
+    selectedStop: null,
+    toast: null,
+    modal: null,
+    data: window.IguanaStore ? IguanaStore.load(seed) : seed(),
+    mobileStop: null,
+    payView: false,
+    payInvoice: "",
+    assignId: null,
+    assignLocId: null,
+    assignDays: "Mon/Wed",
+    assignFocus: null,
+    schedView: "week",
+    mapTech: null,
+    mapSelect: [],
+    mapLasso: false,
+    mapDay: null,
+    mapClient: null,
+    mapLoc: null,
+    inboundId: session.inboundId || null,
+    locCount: 1,
+    renewPick: [],
+    payFilter: "month",
+    payFocusId: null,
+  };
+
+  const $app = document.getElementById("app");
+
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function role() { return ROLES[state.role] || null; }
+  function can(action) { return (WRITE[action] || []).includes(state.role); }
+  function canPage(id) {
+    return NAV.some((n) => n.id === id && (n.roles || []).includes(state.role));
+  }
+  function isRecordPage(id) {
+    return id === "customer" || id === "add-customer";
+  }
+  function resolveWho(id) {
+    if (ROLES[id]) return id;
+    const raw = String(id || "").trim().toLowerCase();
+    if (raw.includes("christy") || raw === "admin") return "admin";
+    if (raw.includes("rocco") || raw.includes("sales")) return "sales";
+    if (raw.includes("rick") || raw === "ops") return "ops";
+    if (raw.includes("johnny") || raw === "tech") return "tech";
+    if (raw.includes("avery") || raw.includes("sys")) return "sysadmin";
+    if (raw.includes("tom") || raw.includes("owner")) return "owner";
+    return null;
+  }
+  function enterAs(id) {
+    const who = resolveWho(id);
+    if (!who) return;
+    state.role = who;
+    state.payView = false;
+    state.modal = null;
+    state.mobileStop = null;
+    state.inboundId = null;
+    state.selectedCustomer = null;
+    state.locCount = 1;
+    state.page = who === "tech" ? "mobile" : who === "admin" ? "payments" : "dashboard";
+    state.payFilter = "month";
+    state.payFocusId = null;
+    render();
+  }
+  function ensureData() {
+    if (!state.data) state.data = seed();
+    const d = state.data;
+    ["customers", "quotes", "invoices", "payments", "stops", "comms", "mtos", "mail", "documents", "users", "holidays", "commissions", "traps", "inbound", "services"].forEach((k) => {
+      if (!Array.isArray(d[k])) d[k] = [];
+    });
+    if (!d.settings) d.settings = { commissionPct: 2, renewalWindow: 60, reminder: "email", extraReasons: [] };
+    if (!d.templates) d.templates = {};
+    if (!d.integrations) d.integrations = {};
+    d.customers.forEach((c) => {
+      if (!Array.isArray(c.locations)) c.locations = [];
+      const anyLocProgram = c.locations.some((l) => l.programId);
+      c.locations.forEach((l) => {
+        if (l.programId || !c.programId) return;
+        const hasBilling = !!(l.paid || l.amount != null || l.start || (d.invoices || []).some((i) => i.customerId === c.id && i.locationId === l.id));
+        const legacyAllEmpty = !anyLocProgram && c.status !== "inquiry";
+        if (!(hasBilling || legacyAllEmpty)) return;
+        l.programId = c.programId;
+        if (l.amount == null) l.amount = c.amount;
+        if (!l.start) l.start = c.start;
+        if (!l.expires) l.expires = c.expires;
+        if (l.paid == null) l.paid = !!c.paid;
+      });
+      syncCustomerFromLocations(c);
+    });
+    d.invoices.forEach((inv) => {
+      if (inv.locationId) return;
+      const c = d.customers.find((x) => x.id === inv.customerId);
+      if (c?.locations?.[0]) inv.locationId = c.locations[0].id;
+    });
+    d.quotes.forEach((q) => {
+      if (!Array.isArray(q.locationIds) || !q.locationIds.length) {
+        if (q.locationId) q.locationIds = [q.locationId];
+        else {
+          const c = d.customers.find((x) => x.id === q.customerId);
+          if (c?.locations?.[0]) q.locationIds = [c.locations[0].id];
+        }
+      }
+      if (q.locationId) return;
+      if (q.locationIds?.[0]) q.locationId = q.locationIds[0];
+    });
+    if (!Array.isArray(state.renewPick)) state.renewPick = [];
+    if (!Array.isArray(state.mapSelect)) state.mapSelect = [];
+  }
+  function custBtn(id, label) {
+    if (!id) return esc(label || "—");
+    return `<button class="btn btn-ghost linkish" data-act="open-customer" data-id="${esc(id)}">${esc(label || id)}</button>`;
+  }
+  function techBy(id) { return TECHS.find((t) => t.id === id); }
+  function techName(id) { return techBy(id)?.name || "—"; }
+  function custBy(id) { return state.data.customers.find((c) => c.id === id); }
+  function progBy(id) { return PROGRAMS.find((p) => p.id === id); }
+  function programAmount(p) { return p.prepaid != null ? p.prepaid : p.list; }
+  function addMonths(iso, months) {
+    const d = new Date(iso + "T12:00:00");
+    const whole = Math.floor(months);
+    const extraDays = Math.round((months - whole) * 30);
+    d.setMonth(d.getMonth() + whole);
+    d.setDate(d.getDate() + extraDays);
+    return d.toISOString().slice(0, 10);
+  }
+  function programOptionLabel(p) {
+    const now = programAmount(p);
+    const promo = p.prepaid != null ? ` · billed ${money(now)}` : "";
+    const free = p.freeMonths ? ` · ${p.freeMonths} mo promotional` : "";
+    return `${p.name} — list ${money(p.list)}${promo}${free}`;
+  }
+  function locBy(cid, lid) {
+    const c = custBy(cid);
+    return c?.locations?.find((l) => l.id === lid);
+  }
+  function locPlan(c, l) {
+    if (!c) return { programId: null, amount: 0, start: null, expires: null, paid: false, autoPay: false };
+    const loc = l || null;
+    return {
+      programId: loc?.programId || null,
+      amount: loc?.amount != null && loc.amount !== "" ? Number(loc.amount) : 0,
+      start: loc?.start || null,
+      expires: loc?.expires || null,
+      paid: loc?.paid != null ? !!loc.paid : false,
+      autoPay: loc?.autoPay != null ? !!loc.autoPay : !!c.autoPay,
+    };
+  }
+  function locInvoices(cid, lid) {
+    return (state.data.invoices || []).filter((i) => i.customerId === cid && (!lid || i.locationId === lid));
+  }
+  function locPaid(c, l) {
+    if (!c || !l) return false;
+    if (c.municipal) return true;
+    if (l.paid) return true;
+    return locInvoices(c.id, l.id).some((i) => i.status === "paid");
+  }
+  function invProperty(inv) {
+    if (!inv) return "—";
+    const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
+    return loc ? loc.name : "—";
+  }
+  function invOptionLabel(i) {
+    const c = custBy(i.customerId);
+    const loc = i.locationId ? locBy(i.customerId, i.locationId) : null;
+    const who = c?.billTo || c?.name || "";
+    const prop = loc ? ` · ${loc.name}` : "";
+    return `${i.id} · ${who}${prop} · ${money(i.amount)}`;
+  }
+  function applyPlanToLocation(l, programId, startDate) {
+    const p = progBy(programId) || PROGRAMS[0];
+    const start = startDate || l.start || TODAY;
+    l.programId = p.id;
+    l.amount = programAmount(p);
+    l.start = start;
+    l.expires = addMonths(start, p.months);
+    if (p.id === "12mo") l.autoPay = true;
+    return p;
+  }
+  function syncCustomerFromLocations(c) {
+    if (!c) return;
+    const locs = (c.locations || []).filter((l) => l.covered !== false);
+    if (!locs.length) return;
+    const plans = locs.map((l) => locPlan(c, l));
+    const dates = plans.map((p) => p.expires).filter(Boolean).sort();
+    if (dates[0]) c.expires = dates[0];
+    c.amount = plans.reduce((a, p) => a + Number(p.amount || 0), 0);
+    c.paid = locs.every((l) => locPaid(c, l));
+    if (plans[0].programId) c.programId = plans[0].programId;
+    if (plans[0].start) c.start = plans[0].start;
+  }
+  function markLocPaidFromInvoice(inv) {
+    const c = custBy(inv?.customerId);
+    const loc = inv?.locationId ? locBy(inv.customerId, inv.locationId) : c?.locations?.[0];
+    if (loc) loc.paid = true;
+    if (!c) return;
+    c.failedPayment = false;
+    if (c.status === "inquiry" || c.status === "past_due") c.status = "active";
+    syncCustomerFromLocations(c);
+    handOffToOps(c);
+    state.data.stops.filter((s) => s.customerId === c.id && (!inv.locationId || s.locationId === inv.locationId) && s.status === "blocked").forEach((s) => { s.status = "scheduled"; });
+  }
+  function locNeedsInvoice(c, l) {
+    if (!c || !l || l.covered === false) return false;
+    return !locInvoices(c.id, l.id).length;
+  }
+  function canInvoiceLocation(c, l) {
+    if (!c || !l || l.covered === false || locPaid(c, l)) return false;
+    const invs = locInvoices(c.id, l.id);
+    if (invs.some((i) => i.status === "paid" || i.status === "draft" || i.status === "sent" || i.status === "failed")) return false;
+    return true;
+  }
+  function quotesForCustomer(cid) {
+    return (state.data.quotes || []).filter((q) => q.customerId === cid);
+  }
+  function quoteCoversLoc(q, lid) {
+    if (!q || !lid) return false;
+    if (Array.isArray(q.locationIds) && q.locationIds.includes(lid)) return true;
+    return q.locationId === lid;
+  }
+  function locQuote(cid, lid) {
+    const list = quotesForCustomer(cid);
+    return list.find((q) => q.sent && quoteCoversLoc(q, lid)) || list.find((q) => quoteCoversLoc(q, lid));
+  }
+  function locNeedsQuote(c, l) {
+    if (!c || !l || l.covered === false) return false;
+    // Already paid, invoiced, or plan chosen — no quote
+    if (locPaid(c, l)) return false;
+    if (locInvoices(c.id, l.id).length) return false;
+    if (l.programId) return false;
+    const q = locQuote(c.id, l.id);
+    return !(q && q.sent);
+  }
+  function payNeedsMark(p) {
+    if (!p || p.failed) return false;
+    if (p.invoiceMarked === true) return false;
+    if (p.invoiceMarked === false) return true;
+    const inv = p.invoiceId ? (state.data.invoices || []).find((i) => i.id === p.invoiceId) : null;
+    return !!(inv && inv.status !== "paid");
+  }
+  function locPaymentAwaitingMark(c, l) {
+    if (!c || !l) return null;
+    return (state.data.payments || []).find((p) => {
+      if (p.customerId !== c.id || !payNeedsMark(p)) return false;
+      if (p.locationId === l.id) return true;
+      if (!p.invoiceId) return false;
+      const inv = (state.data.invoices || []).find((i) => i.id === p.invoiceId);
+      return !!(inv && inv.locationId === l.id);
+    }) || null;
+  }
+  function locInvoiceForMark(c, l, pay) {
+    if (pay?.invoiceId) {
+      const inv = (state.data.invoices || []).find((i) => i.id === pay.invoiceId);
+      if (inv && inv.status !== "paid") return inv;
+    }
+    return locInvoices(c.id, l.id).find((i) => i.status === "sent" || i.status === "failed") || null;
+  }
+  function payIsLink(p) {
+    return !!(p?.linkPay || p?.appliedAuto || ["portal", "website", "ach", "autopay"].includes(p?.source));
+  }
+  function quotePropertyLabel(q) {
+    const ids = Array.isArray(q.locationIds) && q.locationIds.length
+      ? q.locationIds
+      : (q.locationId ? [q.locationId] : []);
+    if (!ids.length) return "All properties";
+    if (ids.length === 1) {
+      const loc = locBy(q.customerId, ids[0]);
+      return loc?.name || "1 property";
+    }
+    return `${ids.length} properties`;
+  }
+  function programOptions(selected) {
+    return PROGRAMS.map((x) => `<option value="${x.id}" ${x.id === selected ? "selected" : ""}>${esc(x.name)}</option>`).join("");
+  }
+  function pct(v) { return parseFloat(String(v || "0")) || 0; }
+  const FL_PLACES = [
+    { k: ["deerfield"], x: 28, y: 42, place: "Deerfield Beach", zip: "33441" },
+    { k: ["west palm", "northlake"], x: 38, y: 28, place: "West Palm Beach", zip: "33401" },
+    { k: ["palm beach"], x: 36, y: 30, place: "Palm Beach", zip: "33480" },
+    { k: ["fort lauderdale", "ft. lauderdale", "ft lauderdale", "lauderdale"], x: 32, y: 52, place: "Fort Lauderdale", zip: "33301" },
+    { k: ["boca"], x: 29, y: 40, place: "Boca Raton", zip: "33432" },
+    { k: ["tampa", "harbor oaks"], x: 12, y: 36, place: "Tampa", zip: "33602" },
+    { k: ["naples"], x: 18, y: 72, place: "Naples", zip: "34102" },
+    { k: ["miami"], x: 34, y: 68, place: "Miami", zip: "33101" },
+    { k: ["orlando"], x: 28, y: 22, place: "Orlando", zip: "32801" },
+    { k: ["jacksonville", "jax"], x: 36, y: 8, place: "Jacksonville", zip: "32202" },
+    { k: ["sarasota"], x: 14, y: 48, place: "Sarasota", zip: "34236" },
+    { k: ["hollywood"], x: 33, y: 58, place: "Hollywood", zip: "33019" },
+    { k: ["pompano"], x: 31, y: 46, place: "Pompano Beach", zip: "33060" },
+    { k: ["delray"], x: 30, y: 36, place: "Delray Beach", zip: "33444" },
+  ];
+  function pinFromAddress(addr, fallback) {
+    const a = String(addr || "").toLowerCase();
+    const hit = FL_PLACES.find((c) => c.k.some((k) => a.includes(k)));
+    if (hit) return { x: hit.x + "%", y: hit.y + "%", place: hit.place, zip: hit.zip };
+    if (fallback) return { x: fallback.x, y: fallback.y, place: fallback.place || "Florida", zip: fallback.zip || "" };
+    return { x: "32%", y: "50%", place: addr ? "Florida" : "Type a city or drop a pin", zip: "" };
+  }
+  function placeFromPin(xPct, yPct) {
+    let best = FL_PLACES[0];
+    let bestD = Infinity;
+    FL_PLACES.forEach((c) => {
+      const d = (c.x - xPct) * (c.x - xPct) + (c.y - yPct) * (c.y - yPct);
+      if (d < bestD) { bestD = d; best = c; }
+    });
+    return best;
+  }
+  function miniMapHtml({ existing = [], preview = [], caption, drag = false, mapId = "mini-map", title = "Map preview" } = {}) {
+    const homes = TECHS.map((t) => `<div class="pin home-pin mini" style="left:${t.x};top:${t.y}" title="${esc(t.name)} home"><div class="pin-dot" style="background:${t.color}"></div></div>`);
+    const old = existing.map((p) => `<div class="pin mini" style="left:${p.x};top:${p.y}"><div class="pin-dot" style="background:${p.color || "#8a8680"}"></div><span>${esc(p.label || "")}</span></div>`);
+    const next = preview.map((p) => `<div class="pin mini client ${p.elId || "preview"} ${p.elId === "mini-preview2" ? "ghost" : ""}" id="${p.elId || "mini-preview"}" ${drag ? `data-drag-mini="1" data-x="${p.xId || "al-x"}" data-y="${p.yId || "al-y"}" data-fill-city="${p.fillCity || ""}" data-fill-street="${p.fillStreet || ""}" data-fill-zip="${p.fillZip || ""}" data-fill-lat="${p.fillLat || ""}" data-fill-lng="${p.fillLng || ""}" data-cap="${p.capId || "mini-cap"}"` : ""} style="left:${p.x};top:${p.y}"><div class="pin-dot"></div><span>${esc(p.label || "New location")}</span></div>`);
+    const capId = preview[0]?.capId || "mini-cap";
+    return `
+      <div class="mini-map-box">
+        <h3>${esc(title)}</h3>
+        <div class="mini-map" id="${esc(mapId)}">
+          <div class="map-bg"></div>
+          <div class="map-label" style="left:6%;top:16%">Gulf</div>
+          <div class="map-label" style="left:58%;top:16%">East</div>
+          ${homes.join("")}
+          ${old.join("")}
+          ${next.join("")}
+        </div>
+        <p class="tiny" id="${esc(capId)}">${esc(caption || "Type a city to move the pin. Drag or click the map to place it.")}</p>
+      </div>`;
+  }
+  function distMiles(ax, ay, bx, by) {
+    const dx = pct(ax) - pct(bx);
+    const dy = pct(ay) - pct(by);
+    return +(Math.sqrt(dx * dx + dy * dy) * 0.62).toFixed(1);
+  }
+  function patternDays(id) {
+    const p = DAY_PATTERNS.find((x) => x.id === id);
+    if (p) return p.days;
+    if (DAYS.includes(id)) return [id];
+    return String(id || "").split("/").map((d) => d.trim()).filter((d) => DAYS.includes(d));
+  }
+  function svcFor(cid, lid) {
+    return svcsFor(cid, lid)[0];
+  }
+  function svcsFor(cid, lid) {
+    return (state.data.services || []).filter((s) => s.customerId === cid && s.locationId === lid && s.status !== "cancelled");
+  }
+  function svcTypeLabel(id) {
+    const t = SERVICE_TYPES.find((x) => x.id === id);
+    return t ? `${t.code} · ${t.label}` : id || "Service";
+  }
+  function defaultServiceCode(c, l) {
+    if (c.type === "hoa") return "hoa-2wk";
+    if (c.type === "municipal") return "muni";
+    if (c.type === "commercial") return "1mon-com";
+    const pid = locPlan(c, l).programId;
+    if (pid === "12pre" || pid === "12mo") return "12mon-res";
+    if (pid === "6mo") return "6mon-res";
+    if (pid === "3mo") return "3mon-res";
+    return "1mon-res";
+  }
+  function fmtDur(min) {
+    const n = Number(min) || 0;
+    return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+  }
+  function parseDur(s) {
+    const m = String(s || "").match(/(\d+)\s*:\s*(\d+)/);
+    if (m) return Number(m[1]) * 60 + Number(m[2]);
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 10;
+  }
+  function checked(id) {
+    return !!document.getElementById(id)?.checked;
+  }
+  function opsGenerateQueue() {
+    return (state.data.services || []).filter((s) => s.techId && s.days && !s.generated && s.status !== "cancelled");
+  }
+  function locPinColor(c, l) {
+    if (locNeedsTech(c, l) || locNeedsService(c, l)) return "#c4a24a";
+    if (l.shared || svcsFor(c.id, l.id).length > 1) return "#8a8680";
+    if (l.covered === false) return "#b8b0a4";
+    const t = techBy(l.techId || svcsFor(c.id, l.id)[0]?.techId || c.techId);
+    return t?.color || "#888";
+  }
+  function todayDay() {
+    return "Thu";
+  }
+  function locOnDay(c, l, day) {
+    if (!day) return true;
+    if (locNeedsTech(c, l) || locNeedsService(c, l)) return true;
+    if (state.data.stops.some((s) => s.customerId === c.id && s.locationId === l.id && s.day === day && !s.pending)) return true;
+    const days = svcsFor(c.id, l.id).flatMap((s) => patternDays(s.days)).concat(patternDays(l.days || c.days));
+    return days.includes(day);
+  }
+  function overnightPaid() {
+    return state.data.payments.filter((p) => p.posted && !p.failed).slice(-4).reverse();
+  }
+  function locNeedsService(c, l) {
+    if (!c || !l || c.status === "lapsed" || l.covered === false) return false;
+    if (svcFor(c.id, l.id)) return false;
+    if (!(locPaid(c, l) || c.municipal)) return false;
+    return !!(c.handedToOps || l.requestService);
+  }
+  function locNeedsTech(c, l) {
+    const s = svcFor(c?.id, l?.id);
+    return !!(s && !s.techId);
+  }
+  function opsServiceQueue() {
+    const rows = [];
+    state.data.customers.forEach((c) => {
+      if (c.status === "lapsed") return;
+      (c.locations || []).forEach((l) => {
+        if (locNeedsService(c, l)) rows.push({ c, l, handedAt: l.requestedAt || c.handedAt || 0 });
+      });
+    });
+    return rows.sort((a, b) => b.handedAt - a.handedAt);
+  }
+  function opsAssignQueue() {
+    const rows = [];
+    state.data.customers.forEach((c) => {
+      if (c.status === "lapsed") return;
+      (c.locations || []).forEach((l) => {
+        if (locNeedsTech(c, l)) {
+          rows.push({ c, l, handedAt: l.requestedAt || c.handedAt || 0 });
+        }
+      });
+    });
+    return rows.sort((a, b) => b.handedAt - a.handedAt);
+  }
+  function opsNewClients() {
+    const seen = new Set();
+    return opsAssignQueue().map((r) => r.c).filter((c) => {
+      if (seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
+  }
+  function locSummary(c) {
+    const n = c.locations?.length || 0;
+    const a = c.locations?.[0]?.address || "—";
+    return n > 1 ? `${a} · ${n} properties` : a;
+  }
+  function stopLabel(s) {
+    const c = s.customerId ? custBy(s.customerId) : null;
+    const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+    const name = c ? c.name : s.label || "One-off";
+    if (c && c.locations.length > 1 && loc) return `${name} · ${loc.name}`;
+    return name;
+  }
+  function nextSlot(techId, day) {
+    const ss = state.data.stops
+      .filter((s) => s.techId === techId && s.day === day && !s.pending)
+      .slice()
+      .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    if (!ss.length) return "08:00";
+    const [h, m] = ss[ss.length - 1].time.split(":").map(Number);
+    const add = (ss[ss.length - 1].durationMin || 20) + 18;
+    const tot = h * 60 + m + add;
+    const hh = Math.min(16, Math.floor(tot / 60));
+    const mm = tot % 60;
+    return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  }
+  function expiryFrom(start, typeId) {
+    const t = SERVICE_TYPES.find((x) => x.id === typeId);
+    if (!start || t == null || !t.months) return start || "";
+    return addMonths(start, t.months);
+  }
+  function bestFitFor(c, loc, dayId) {
+    loc = loc || c?.locations[0];
+    if (!loc) return [];
+    const days = patternDays(dayId || state.assignDays);
+    return TECHS.map((t) => {
+      const homeMiles = distMiles(loc.x, loc.y, t.x, t.y);
+      let extraMiles = homeMiles;
+      let extraMin = Math.max(7, Math.round(homeMiles * 2.3 + 5));
+      let already = false;
+      const route = days.flatMap((d) => {
+        const stops = state.data.stops
+          .filter((s) => s.techId === t.id && s.day === d && !s.pending)
+          .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+        stops.forEach((s) => {
+          const sl = s.locationId ? locBy(s.customerId, s.locationId) : null;
+          const m = distMiles(loc.x, loc.y, sl?.x || t.x, sl?.y || t.y);
+          if (m < extraMiles) {
+            extraMiles = m;
+            extraMin = Math.max(0, Math.round(m * 2.3));
+            already = m < 0.5;
+          }
+        });
+        return stops.map((s) => {
+          const sl = s.locationId ? locBy(s.customerId, s.locationId) : null;
+          return { day: d, time: s.time, name: stopLabel(s), x: sl?.x || t.x, y: sl?.y || t.y };
+        });
+      });
+      return { t, miles: extraMiles, homeMiles, mins: extraMin, already, route };
+    }).sort((a, b) => a.miles - b.miles || a.homeMiles - b.homeMiles);
+  }
+  function fitCardsHtml(ranked, picked) {
+    const pick = picked || ranked[0]?.t.id;
+    return ranked.map((r, i) => `
+      <button class="bestfit-card ${r.t.id === pick ? "pick" : ""}" type="button" data-act="sv-pick-fit" data-tech="${r.t.id}">
+        <strong>${i === 0 ? "Suggested · " : ""}${esc(r.t.name)}</strong> · ${esc(r.t.home)}
+        <div class="tiny">${r.already ? "Already in this pocket · 0 extra min" : `${r.miles} mi extra · ~${r.mins} min drive from nearest stop`} · ${r.homeMiles} mi from home</div>
+        ${r.route.length ? `<div class="tiny">${r.route.map((s) => `${s.day} ${s.time} ${s.name}`).join(" → ")}</div>` : `<div class="tiny">Open day on this pattern.</div>`}
+      </button>
+    `).join("");
+  }
+  function fillSetupDates() {
+    const start = val("sv-start");
+    const exp = expiryFrom(start, val("sv-type"));
+    const el = document.getElementById("sv-expires");
+    const hid = document.getElementById("sv-renewal");
+    const next = document.getElementById("sv-nextgen");
+    if (el) el.value = exp;
+    if (hid) hid.value = exp;
+    if (next && start) next.value = start;
+  }
+  function refreshSetupFit() {
+    const c = custBy(state.setupId);
+    const loc = c?.locations.find((l) => l.id === val("sv-loc")) || locBy(state.setupId, state.setupLocId);
+    if (!c || !loc) return;
+    const sched = SERVICE_SCHEDULES.find((s) => s.id === val("sv-sched")) || SERVICE_SCHEDULES[0];
+    state.assignDays = sched.days;
+    state.setupLocId = loc.id;
+    const ranked = bestFitFor(c, loc, sched.days);
+    const box = document.getElementById("sv-fit");
+    if (box) box.innerHTML = fitCardsHtml(ranked, val("sv-trapper") || ranked[0]?.t.id);
+    const pin = document.getElementById("mini-preview");
+    if (pin && loc) {
+      pin.style.left = loc.x;
+      pin.style.top = loc.y;
+      const span = pin.querySelector("span");
+      if (span) span.textContent = loc.name;
+    }
+    const cap = document.getElementById("mini-cap");
+    if (cap && loc) cap.textContent = loc.address;
+  }
+  function pickSetupTrapper(techId) {
+    const t = techBy(techId);
+    const trapper = document.getElementById("sv-trapper");
+    const initial = document.getElementById("sv-initial");
+    const route = document.getElementById("sv-route");
+    const color = document.getElementById("sv-color");
+    if (trapper) trapper.value = techId;
+    if (initial) initial.value = techId;
+    if (route) route.value = techId;
+    if (color && t) color.value = t.color;
+    document.querySelectorAll("#sv-fit .bestfit-card").forEach((b) => b.classList.toggle("pick", b.dataset.tech === techId));
+  }
+  function pushLiveStops(svc, c, loc) {
+    const days = patternDays(svc.days);
+    const initial = svc.initialTechId && svc.initialTechId !== svc.techId ? svc.initialTechId : null;
+    days.forEach((d, i) => {
+      const tech = i === 0 && initial ? initial : svc.techId;
+      state.data.stops.push({
+        id: nid("S"), customerId: c.id, locationId: loc.id,
+        techId: tech, day: d, time: nextSlot(tech, d),
+        durationMin: svc.durationMin, type: "service",
+        status: "scheduled", actualMin: null, removals: null,
+      });
+    });
+    svc.generated = true;
+    svc.status = "live";
+  }
+  function handOffToOps(c) {
+    c.handedToOps = true;
+    c.handedAt = Date.now();
+    c.createdBy = c.createdBy || state.role;
+  }
+  function money(n) {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n || 0);
+  }
+  function money2(n) {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
+  }
+  function toast(msg) {
+    state.toast = msg;
+    render();
+    setTimeout(() => {
+      if (state.toast === msg) {
+        state.toast = null;
+        render();
+      }
+    }, 2800);
+  }
+  function nid(prefix) {
+    state.data.seq += 1;
+    return `${prefix}-${state.data.seq}`;
+  }
+  function persist() {
+    if (window.IguanaStore) IguanaStore.save(state.data);
+  }
+  function persistSession() {
+    if (window.IguanaStore) {
+      IguanaStore.saveSession({
+        role: state.role,
+        page: state.page,
+        selectedCustomer: state.selectedCustomer,
+        inboundId: state.inboundId,
+      });
+    }
+  }
+  function allReasons() {
+    return REASONS.concat(state.data.settings.extraReasons || []);
+  }
+  function pay() {
+    return window.IguanaPay || {
+      METHODS: [],
+      sourceOf: (m) => (m === "Virtual card" ? "virtual" : m === "Auto-pay" ? "autopay" : "external"),
+      isAuto: (m) => m === "Portal" || m === "Website" || m === "ACH",
+      channel: (p) => p?.source || "external",
+      channelLabel: (p) => p?.method || "Payment",
+      optionsHtml: (sel) => `<option ${!sel || sel === "Check" ? "selected" : ""}>Check</option><option>Cash</option><option>Card</option><option>ACH</option><option>Virtual card</option>`,
+    };
+  }
+  function canEditField(field) {
+    if (!state.role || state.role === "tech") return false;
+    if (field === "opsNote" && state.role === "sales") return false;
+    if (["amount", "programId"].includes(field) && state.role === "ops") return false;
+    return can("customer.edit") || state.role === "owner" || state.role === "admin" || state.role === "sales" || state.role === "ops";
+  }
+  function inline(kind, field, value, extra = "", type = "text") {
+    const ro = !canEditField(field);
+    const v = value == null ? "" : value;
+    if (type === "textarea") {
+      return `<textarea class="inline-edit" data-edit="${kind}" data-field="${field}" ${extra} rows="3" ${ro ? "disabled" : ""}>${esc(v)}</textarea>`;
+    }
+    return `<input class="inline-edit" type="${type}" data-edit="${kind}" data-field="${field}" ${extra} value="${esc(v)}" ${ro ? "disabled" : ""}>`;
+  }
+  function applyInlineEdit(el) {
+    const kind = el.dataset.edit;
+    const field = el.dataset.field;
+    let value = el.type === "checkbox" ? el.checked : el.value;
+    if (el.type === "number") value = value === "" ? "" : Number(value);
+    if (kind === "customer") {
+      const c = custBy(el.dataset.id);
+      if (!c || !canEditField(field)) return;
+      c[field] = value;
+      if (field === "type") c.municipal = value === "municipal";
+    } else if (kind === "invoice") {
+      const inv = state.data.invoices.find((x) => x.id === el.dataset.id);
+      if (!inv || !(can("invoice.send") || can("payment.post") || state.role === "owner")) return;
+      inv[field] = value;
+    } else if (kind === "quote") {
+      const q = state.data.quotes.find((x) => x.id === el.dataset.id);
+      if (!q || !can("quote.send") || q.sent) return;
+      q[field] = value;
+    } else if (kind === "payment") {
+      const p = state.data.payments.find((x) => x.id === el.dataset.id);
+      if (!p || !can("payment.post")) return;
+      p[field] = value;
+    } else if (kind === "mto") {
+      const m = state.data.mtos.find((x) => x.id === el.dataset.id);
+      if (!m || !can("mto.reply")) return;
+      m[field] = value;
+    } else if (kind === "location") {
+      const loc = locBy(el.dataset.cid, el.dataset.lid);
+      if (!loc || !canEditField(field)) return;
+      loc[field] = value;
+      if (field === "programId") {
+        const p = progBy(value);
+        if (p) loc.amount = programAmount(p);
+      }
+      if (field === "address") {
+        const pos = pinFromAddress(value, { x: loc.x, y: loc.y });
+        loc.x = pos.x;
+        loc.y = pos.y;
+      }
+      const cust = custBy(el.dataset.cid);
+      if (cust) syncCustomerFromLocations(cust);
+    } else if (kind === "user") {
+      const u = state.data.users.find((x) => x.id === el.dataset.id);
+      if (u && can("users.manage")) u[field] = value;
+    } else if (kind === "settings") {
+      if (!(can("settings.edit") || state.role === "owner")) return;
+      state.data.settings[field] = (field === "commissionPct" || field === "renewalWindow") ? Number(value) : value;
+    } else if (kind === "template") {
+      if (!state.data.templates) state.data.templates = {};
+      state.data.templates[field] = value;
+    } else if (kind === "integration") {
+      if (!state.data.integrations) state.data.integrations = {};
+      state.data.integrations[field] = value;
+    }
+    persist();
+  }
+  function unpaidInvoices() {
+    return (state.data.invoices || []).filter((i) => i.status === "sent" || i.status === "failed");
+  }
+  function mailWaiting() {
+    return (state.data.mail || []).filter((m) => !m.posted);
+  }
+  function payerLooksLike(payer, customerName) {
+    const a = String(payer || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return String(customerName || "").toLowerCase().split(/\s+/).some((p) => p.length > 2 && a.includes(p.replace(/[^a-z0-9]/g, "")));
+  }
+  function applyInvoicePayment(inv, method, memo, checkNo) {
+    if (!can("payment.post") || !inv || inv.status === "paid") return false;
+    inv.status = "paid";
+    inv.paidOn = TODAY;
+    const c = custBy(inv.customerId);
+    if (c) markLocPaidFromInvoice(inv);
+    const src = pay().sourceOf(method);
+    const existing = (state.data.payments || []).find((p) =>
+      !p.failed && (p.id === state.payFocusId || p.invoiceId === inv.id) && payNeedsMark(p)
+    ) || (state.data.payments || []).find((p) =>
+      !p.failed && (p.id === state.payFocusId || p.invoiceId === inv.id)
+    );
+    if (existing) {
+      existing.invoiceMarked = true;
+      existing.posted = true;
+      existing.invoiceId = inv.id;
+      existing.customerId = inv.customerId;
+      existing.locationId = inv.locationId || existing.locationId || null;
+      if (method) existing.method = method;
+      if (checkNo) {
+        existing.checkNo = checkNo;
+        existing.last4 = String(checkNo).slice(-4);
+      }
+      if (memo) existing.memo = memo;
+      existing.source = existing.source || src;
+    } else {
+      state.data.payments.push({
+        id: nid("P"), invoiceId: inv.id, customerId: inv.customerId, locationId: inv.locationId || null, amount: inv.amount,
+        method, date: TODAY, checkNo: checkNo || "", last4: String(checkNo || "").slice(-4),
+        source: src,
+        linkPay: pay().isAuto(method),
+        invoiceMarked: true,
+        posted: true,
+        memo: memo || `${method}${checkNo ? " #" + checkNo : ""} · marked paid · ${invProperty(inv)}`,
+      });
+    }
+    state.payFocusId = null;
+    state.data.comms.push({
+      id: nid("CM"), customerId: inv.customerId, who: role().name, channel: "Office", date: TODAY,
+      text: `Invoice ${inv.id} marked paid (${method}${checkNo ? " #" + checkNo : ""}). Rick creates the service next for ${invProperty(inv)}.`,
+    });
+    return true;
+  }
+  function eligibleToSchedule(c) {
+    if (!c) return false;
+    if (c.municipal) return true;
+    if (c.status === "lapsed" || c.status === "inquiry") return false;
+    return (c.locations || []).some((l) => locPaid(c, l));
+  }
+  function statusBadge(status) {
+    const map = {
+      active: ["badge-ok", "Active"],
+      renewal: ["badge-warn", "Renewal window"],
+      past_due: ["badge-bad", "Past due"],
+      inquiry: ["badge-sea", "Inquiry"],
+      lapsed: ["badge-mute", "Non-renewed"],
+      paid: ["badge-ok", "Paid"],
+      draft: ["badge-mute", "Draft"],
+      failed: ["badge-bad", "Failed"],
+      scheduled: ["badge-sea", "Scheduled"],
+      in_progress: ["badge-sea", "In progress"],
+      complete: ["badge-ok", "Complete"],
+      missed: ["badge-bad", "Missed"],
+      noshow: ["badge-warn", "No-show"],
+      blocked: ["badge-bad", "Held — unpaid"],
+      blocked_off: ["badge-mute", "Company day off"],
+      pending: ["badge-warn", "Unassigned"],
+      sent: ["badge-sea", "Sent"],
+      unassigned_done: ["badge-warn", "Waiting to drop"],
+    };
+    const [cls, label] = map[status] || ["badge-mute", status];
+    return `<span class="badge ${cls}">${esc(label)}</span>`;
+  }
+
+  function render() {
+    ensureData();
+    if (state.role && !ROLES[state.role]) state.role = null;
+    if (state.role && state.role !== "tech" && !canPage(state.page) && !isRecordPage(state.page)) state.page = "dashboard";
+    try {
+      if (state.payView) {
+        $app.innerHTML = renderPublicPay() + renderToast();
+      } else if (!state.role) {
+        $app.innerHTML = renderLogin();
+      } else if (state.role === "tech") {
+        $app.innerHTML = renderMobile() + renderModal() + renderToast();
+      } else {
+        $app.innerHTML = renderShell() + renderModal() + renderToast();
+      }
+    } catch (err) {
+      console.error(err);
+      $app.innerHTML = `<div class="login-main" style="padding:40px"><h2>Could not open this screen</h2><p class="lede">${esc(err && err.message)}</p><div class="who-switch">${peopleButtons()}</div></div>`;
+    }
+    bind();
+    persist();
+    persistSession();
+  }
+
+  function peopleButtons() {
+    return Object.values(ROLES).map((x) =>
+      `<button type="button" class="who-btn ${x.id === state.role ? "on" : ""}" data-act="enter" data-who="${x.id}">${esc(x.name)}</button>`
+    ).join("");
+  }
+
+  function renderLogin() {
+    const cards = Object.values(ROLES).map((r) => `
+      <button class="role-card" type="button" data-act="enter" data-who="${r.id}">
+        <div class="who">
+          <div class="avatar" style="background:${r.color}">${r.initials}</div>
+          <div>
+            <h3>${esc(r.name)}</h3>
+            <div class="title">${esc(r.title)}</div>
+          </div>
+        </div>
+        <div class="access">${esc(r.access)}</div>
+        <div class="chips">${r.chips.map((c) => `<span class="chip on">${esc(c)}</span>`).join("")}</div>
+      </button>
+    `).join("");
+    return `
+      <div class="login">
+        <aside class="login-brand">
+          <div>
+            <div class="mark">
+              <div class="mark-badge">IC</div>
+              <span>Iguana Control</span>
+            </div>
+            <h1>Operations CRM</h1>
+            <p>Florida’s largest iguana remediation company — one recurring service, sold as 1 / 3 / 6 / 12-month programs. Rick’s day starts on the payment register. Christy’s work is a monthly cycle: failed auto-pay, a register that never disappears (portal, website, ACH, bank transfer, check, virtual card), then renewals she reviews and batch-sends.</p>
+          </div>
+            <div class="login-meta">Demo skeleton · Ops discovery + BRD v2 · 27 Aug 2026</div>
+        </aside>
+        <main class="login-main">
+          <div class="demo-flag">Click a person to enter — no password</div>
+          <h2>Who is signing in?</h2>
+          <div class="who-switch" style="margin:12px 0 18px">${peopleButtons()}</div>
+          <p class="lede">Click <strong>Christy</strong> for Administration. You can switch people any time from the names in the top bar.</p>
+          <div class="role-grid">${cards}</div>
+          <p class="login-roles-note">Technicians open a field phone. Sales is CRM-lite only. Owner can read and edit. Ops cannot post payments. Admin cannot schedule.</p>
+          <p class="login-roles-note"><button class="btn btn-ghost" data-act="open-pay">Preview public payment page</button> (invoice link, website, or ACH — names stay on the register)</p>
+          <p class="login-roles-note"><button class="btn btn-ghost" data-act="reset-demo">Reset saved demo data</button></p>
+        </main>
+      </div>
+    `;
+  }
+
+  function navForRole() {
+    return NAV.filter((n) => (n.roles || []).includes(state.role));
+  }
+
+  function renderShell() {
+    const r = role();
+    if (!r) {
+      return renderLogin();
+    }
+    const groups = [];
+    navForRole().forEach((n) => {
+      const last = groups[groups.length - 1];
+      if (!last || last.label !== n.group) groups.push({ label: n.group, items: [n] });
+      else last.items.push(n);
+    });
+    const nav = groups.map((g) => `
+      <div class="nav-group">
+        <div class="nav-label">${esc(g.label)}</div>
+        ${g.items.map((n) => `
+          <button class="nav-btn ${state.page === n.id ? "active" : ""}" data-act="nav" data-page="${n.id}">
+            ${ICONS[n.icon] || ""} ${esc(n.label)}
+          </button>
+        `).join("")}
+      </div>
+    `).join("");
+    return `
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="mark">
+            <div class="mark-badge">IC</div>
+            <span>Iguana Control</span>
+          </div>
+          ${nav}
+          <div class="sidebar-foot">Role-gated demo · BRD §5</div>
+        </aside>
+        <div class="main">
+          <header class="topbar">
+            <div>
+              <div class="crumb">${pageTitle()}</div>
+            </div>
+            <div class="top-actions">
+              <select class="mobile-nav" data-act="nav-select">${navForRole().map((n) => `<option value="${n.id}" ${n.id === state.page ? "selected" : ""}>${esc(n.label)}</option>`).join("")}</select>
+              <div class="who-switch" title="Switch person">${peopleButtons()}</div>
+              <button class="btn btn-ghost" data-act="logout">Sign out</button>
+            </div>
+          </header>
+          <div class="content">${safePageBody()}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function pageTitle() {
+    if (state.page === "add-customer") return "Add customer";
+    if (state.page === "customer" && state.selectedCustomer) return custBy(state.selectedCustomer)?.name || "Customer";
+    if (state.page === "assign" && state.assignId) return "Assign · " + (custBy(state.assignId)?.name || "technician");
+    return NAV.find((n) => n.id === state.page)?.label || "Dashboard";
+  }
+
+  function safePageBody() {
+    try {
+      return pageBody();
+    } catch (err) {
+      console.error(err);
+      return `<div class="notice locked">This page failed to open (${esc(err && err.message)}). Click <strong>Christy</strong> in the top bar, then Dashboard.</div>`;
+    }
+  }
+
+  function pageBody() {
+    if (state.page === "add-customer") return viewAddCustomer();
+    if (state.page === "customer") return viewCustomer();
+    if (!role()) return renderLogin();
+    if (!canPage(state.page) && !isRecordPage(state.page)) {
+      return `<div class="forbidden"><h2>Not on this role’s routes</h2><p>${esc(role().name)} does not have ${esc(state.page)}. Switch people from the top bar, or go home.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
+    }
+    const views = {
+      dashboard: viewDashboard,
+      customers: viewCustomers,
+      quotes: viewQuotes,
+      schedule: viewSchedule,
+      map: viewMap,
+      assign: viewAssign,
+      oneoffs: viewOneoffs,
+      noshows: viewNoshows,
+      duration: viewDuration,
+      removals: viewRemovals,
+      workload: viewWorkload,
+      invoices: viewInvoices,
+      payments: viewPayments,
+      renewals: viewRenewals,
+      commission: viewCommission,
+      documents: viewDocuments,
+      comms: viewComms,
+      mtos: viewMtos,
+      traps: viewTraps,
+      reports: viewReports,
+      users: viewUsers,
+      lists: viewLists,
+      templates: viewTemplates,
+      settings: viewSettings,
+      integrations: viewIntegrations,
+    };
+    return (views[state.page] || viewDashboard)();
+  }
+
+  function writeBar(action, label, extra = "") {
+    if (can(action)) return extra;
+    return `<div class="notice locked">${esc(role().title)} is read-only here. “${esc(label)}” is an ${actionOwner(action)} operation.</div>`;
+  }
+  function actionOwner(action) {
+    const ids = WRITE[action] || [];
+    return ids.map((id) => ROLES[id].title).join(" / ") || "authorized";
+  }
+  function btn(action, label, act, data = "", cls = "btn-primary") {
+    const ok = can(action);
+    return `<button class="btn ${cls}" ${ok ? "" : "disabled"} data-act="${act}" ${data}>${esc(label)}</button>`;
+  }
+
+  /* ---------- Dashboards ---------- */
+  function viewDashboard() {
+    if (state.role === "owner") return dashOwner();
+    if (state.role === "ops") return dashOps();
+    if (state.role === "admin") {
+      try { return dashAdmin(); } catch (err) {
+        console.error(err);
+        return `<div class="notice locked">Administration dashboard failed to draw (${esc(err.message)}). Use the names in the top bar — Christy is the third name.</div>`;
+      }
+    }
+    if (state.role === "sales") return dashSales();
+    if (state.role === "sysadmin") return dashSys();
+    return "";
+  }
+
+  function dashOwner() {
+    const expiring = state.data.customers.filter((c) => c.status === "renewal" || (c.expires && daysUntil(c.expires) <= 60 && c.status === "active"));
+    const failed = state.data.payments.filter((p) => p.failed);
+    const paidToday = state.data.payments.filter((p) => p.date === TODAY && !p.failed && p.posted);
+    const lapsed = state.data.customers.filter((c) => c.status === "lapsed");
+    const outliers = durationRows().filter((r) => r.delta < -8);
+    return `
+      ${head("Owner overview", "Contracts, money, and duration outliers — assembled from reports the system already produces (BRD §8).")}
+      <div class="grid-4">
+        ${stat("Expiring in 60 days", expiring.length, "RPT-05 / NOT-03")}
+        ${stat("Failed payments", failed.length, "NOT-02", "alert")}
+        ${stat("Posted today", money(paidToday.reduce((s, p) => s + p.amount, 0)), "NOT-01", "good")}
+        ${stat("Non-renewals", lapsed.length, "RPT-06 · by technician")}
+      </div>
+      <div class="split section-gap">
+        <div class="card">
+          <h3>Duration outliers <span class="muted">scheduled vs clocked</span></h3>
+          ${table(["Technician", "Stop", "Sched", "Actual", "Delta"], outliers.map((r) => [r.tech, r.name, r.sched + "m", r.actual + "m", r.delta + "m"]))}
+          ${outliers.length ? "" : `<p class="muted">No under-servicing flags this week.</p>`}
+        </div>
+        <div class="card">
+          <h3>Non-renewal by trapper</h3>
+          ${table(["Technician", "Lapsed accounts"], [["Johnny", "1"], ["Bobby", "0"], ["Pedro", "0"], ["Miguel", "0"], ["Alejo", "0"]])}
+          <p class="tiny">Martin Ruiz lapsed on Johnny’s book. P2 report, shown here so Tom can see the tile.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  function dashOps() {
+    const mtos = state.data.mtos.filter((m) => m.dept === "ops" && !m.read);
+    const missed = state.data.stops.filter((s) => s.status === "noshow" || s.status === "missed" || s.pendingExt);
+    const needSvc = opsServiceQueue();
+    const needTech = opsAssignQueue();
+    const paid = state.data.payments.filter((p) => p.posted && !p.failed);
+    const retrieve = (state.data.traps || []).filter((t) => t.status === "out" || t.status === "missing");
+    return `
+      ${head("Dispatch board", "Payment register → create the service → assign on the map. Click a technician’s home to see every property on their book, then drop the new client there.")}
+      <div class="card" style="margin-bottom:16px">
+        <h3>1 · Payment register <span class="muted">who paid · MOP · invoice · bill-to</span></h3>
+        <p class="tiny">This is how the day starts. You do not post money — you use the paid invoice to open the location and create the service. Technician assignment happens on the map next.</p>
+        ${paid.map((p) => {
+          const c = p.customerId ? custBy(p.customerId) : null;
+          const loc = c?.locations.find((l) => locNeedsService(c, l)) || c?.locations.find((l) => locNeedsTech(c, l)) || c?.locations[0];
+          const setup = c && loc && locNeedsService(c, loc);
+          const assign = c && loc && locNeedsTech(c, loc);
+          return `<div class="fit-row ${setup || assign ? "queue-new" : ""}">
+            <div>
+              ${setup ? `<span class="badge badge-warn">Needs setup</span> ` : assign ? `<span class="badge badge-sea">Needs technician</span> ` : `<span class="badge badge-ok">On route</span> `}
+              <strong>${esc(c?.name || p.memo || "Unmatched")}</strong>
+              <div class="tiny">${esc(p.date)} · ${esc(p.method)} · ${esc(p.invoiceId || "—")} · ${money(p.amount)} · ${esc(loc?.address || "—")}</div>
+            </div>
+            ${c ? (setup
+              ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${loc.id}"`)
+              : assign
+                ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${loc.id}"`)
+                : `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Open location</button>`)
+              : `<span class="badge badge-mute">Christy has not matched this line</span>`}
+          </div>`;
+        }).join("")}
+        ${needSvc.filter((row) => !paid.some((p) => p.customerId === row.c.id)).map((row) => `
+          <div class="fit-row queue-new">
+            <div><span class="badge badge-warn">Paid / handed over</span> <strong>${esc(row.c.name)}</strong> · ${esc(row.l.name)}<div class="tiny">${esc(row.l.address)} — create the service, then assign on the map</div></div>
+            ${btn("service.create", "Create service", "open-service", `data-id="${row.c.id}" data-loc="${row.l.id}"`)}
+          </div>
+        `).join("")}
+        <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="nav" data-page="payments">Full register</button></div>
+      </div>
+      ${needTech.length ? `
+        <div class="card" style="margin-bottom:16px">
+          <h3>2 · Assign on the map <span class="muted">service is saved — pick a trapper from their home pin</span></h3>
+          <p class="tiny">Click a technician’s home to see every property already on their book. Then drop this customer onto that trapper.</p>
+          ${needTech.map((row) => `
+            <div class="fit-row queue-new">
+              <div><span class="badge badge-sea">Needs technician</span> <strong>${esc(row.c.name)}</strong> · ${esc(row.l.name)}<div class="tiny">${esc(row.l.address)}</div></div>
+              ${btn("schedule.assign", "Open map", "open-assign", `data-id="${row.c.id}" data-loc="${row.l.id}"`)}
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+      ${mtos.length ? `
+        <div class="card" style="margin-bottom:16px">
+          <h3>New memos from the field <span class="muted">they ping you — you do not have to open the stop</span></h3>
+          ${mtos.map(mtoCard).join("")}
+        </div>
+      ` : ""}
+      <div class="grid-4">
+        ${stat("To set up", needSvc.length, "Paid → create service", needSvc.length ? "alert" : "")}
+        ${stat("To assign on map", needTech.length, "Click a tech home", needTech.length ? "alert" : "")}
+        ${stat("Miss / extension", missed.length, "Approve or deny", missed.length ? "alert" : "")}
+        ${stat("Traps to retrieve", retrieve.length, "$80 assets", retrieve.length ? "alert" : "")}
+      </div>
+      <div class="split section-gap">
+        <div class="card">
+          <h3>Duration by trapper · this week</h3>
+          <p class="tiny">Minutes on property. Payroll is ~35% of revenue — this is how you see who is light vs loaded.</p>
+          ${table(["Technician", "Stops", "Scheduled min"], TECHS.map((t) => {
+            const ss = state.data.stops.filter((s) => s.techId === t.id && !s.pending);
+            return [t.name, ss.length, ss.reduce((a, s) => a + s.durationMin, 0) + " min"];
+          }))}
+        </div>
+        <div class="card">
+          <h3>Next few days</h3>
+          <p class="tiny">Sequence of stops — not a dumped monthly report.</p>
+          ${["Thu", "Fri"].map((d) => {
+            const ss = state.data.stops.filter((s) => s.day === d && !s.pending).sort((a, b) => String(a.time).localeCompare(String(b.time)));
+            return `<div class="tiny" style="margin:8px 0 4px"><strong>${d}</strong> · ${ss.length} stops</div>
+              ${ss.slice(0, 6).map((s) => `<div class="tiny">${esc(s.time)} ${esc(techName(s.techId))} · ${esc(stopLabel(s))} · ${s.durationMin}m</div>`).join("")}
+              ${ss.length > 6 ? `<div class="tiny">+${ss.length - 6} more</div>` : ""}`;
+          }).join("")}
+          <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="nav" data-page="workload">Full workload</button></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function dashAdmin() {
+    const renew = renewalCandidates();
+    const failed = failedAutopay();
+    const mtos = (state.data.mtos || []).filter((m) => m.dept === "admin");
+    const due = unpaidInvoices();
+    const muni = state.data.customers.filter((c) => c.municipal);
+    const todayPays = paymentsInFilter("today").filter((p) => !p.failed);
+    const awaiting = (state.data.payments || []).filter((p) => payNeedsMark(p)).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    return `
+      ${head("Administration", "Your team puts every payment on the register (link + check/Zelle/wire). You check the list → open Bill-To / property → Mark invoice paid → Rick creates the service.")}
+      <div class="card" style="margin-bottom:16px">
+        <h3>1 · Payment register <span class="muted">start here every day</span></h3>
+        <p class="tiny">Team already added these lines (invoice-link pays and external pays). You only verify and <strong>Mark invoice paid</strong>. No unmatched-mail queue — that work is done before it hits your list.</p>
+        ${awaiting.length ? awaiting.slice(0, 8).map(payRegisterRow).join("") : `<p class="muted">Nothing waiting to mark paid. Open the full register to review by week or month.</p>`}
+        <div class="actions" style="margin-top:10px">
+          <button class="btn btn-primary" data-act="nav" data-page="payments">Open payment register</button>
+          ${btn("payment.post", "Add payment to register", "new-pay")}
+        </div>
+      </div>
+      ${failed.length ? `
+        <div class="card" style="margin-bottom:16px">
+          <h3>Failed auto-pay <span class="muted">stays visible</span></h3>
+          ${failed.map((p) => {
+            const c = custBy(p.customerId);
+            return `<div class="fit-row queue-new">
+              <div>
+                <span class="badge badge-bad">Declined</span>
+                <strong>${esc(c?.name || "—")}</strong>
+                <div class="tiny">${esc(p.date)} · ${esc(p.method)}${p.last4 ? " · " + esc(p.last4) : ""} · ${money(p.amount)}</div>
+              </div>
+              <div class="actions">
+                <button class="btn btn-ghost" data-act="open-customer" data-id="${c?.id}">Open Bill-To</button>
+                ${btn("payment.post", "Mark replacement paid", "post-pay", `data-id="${c?.id}"`)}
+              </div>
+            </div>`;
+          }).join("")}
+        </div>
+      ` : ""}
+      <div class="card" style="margin-bottom:16px">
+        <h3>2 · Renewal report <span class="muted">separate from the payment register</span></h3>
+        <p class="tiny">Programs nearing expiry. Send a renewal message / invoice (not a new sales quote). After they pay, mark the invoice paid from the register.</p>
+        ${table(["Send?", "Bill-To", "Property", "Expires", "Amount", "Flag"], renew.slice(0, 6).map((row) => {
+          const m = renewalMeta(row);
+          return [
+            m.batchable
+              ? `<label class="chk"><input type="checkbox" data-act="renew-toggle" data-id="${row.id}" ${(state.renewPick || []).includes(row.id) ? "checked" : ""}></label>`
+              : `<span class="tiny">Review</span>`,
+            custBtn(row.customerId, row.name),
+            esc(row.locName),
+            row.expires,
+            money(row.amount),
+            m.flag,
+          ];
+        }))}
+        <div class="actions" style="margin-top:10px">
+          ${btn("renewal.send", "Send renewal messages", "batch-renewals")}
+          <button class="btn btn-ghost" data-act="nav" data-page="renewals">Full renewal report</button>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <h3>Add a customer</h3>
+        <p class="tiny">Call came in. Add Bill-To and properties, then quote → invoice → payment register.</p>
+        <div class="actions">${btn("customer.create", "Add customer", "new-customer")}</div>
+      </div>
+      <div class="grid-4">
+        ${stat("Today’s payments", todayPays.length, "On the register")}
+        ${stat("Failed auto-pay", failed.length, "Stays visible", failed.length ? "alert" : "")}
+        ${stat("Open invoices", due.length, "Mark paid → Rick", due.length ? "alert" : "")}
+        ${stat("Renewal window", renew.length, "Message / quote")}
+      </div>
+      <div class="split section-gap">
+        <div class="card">
+          <h3>Unpaid invoice follow-up</h3>
+          <p class="tiny">Open Bill-To and mark paid when money is confirmed.</p>
+          ${due.length ? due.map((i) => {
+            const c = custBy(i.customerId);
+            return `<div class="fit-row">
+              <div><strong>${esc(i.id)}</strong> · ${custBtn(i.customerId, c?.name || "")}<div class="tiny">${esc(invProperty(i))} · ${money(i.amount)} · sent ${esc(i.sent || "—")}</div></div>
+              ${btn("payment.post", "Mark invoice paid", "post-pay", `data-id="${c?.id}"`)}
+            </div>`;
+          }).join("") : `<p class="muted">No open invoices.</p>`}
+        </div>
+        <div class="card">
+          <h3>Municipal hours</h3>
+          <p class="tiny">You run this report — Rick confirms the hours.</p>
+          ${muni.length ? muni.map((c) => `<div class="fit-row"><div><strong>${esc(c.name)}</strong><div class="tiny">${esc(c.po)} · ${c.hoursUsed}/${c.poCapHours} hrs</div></div></div>`).join("") : `<p class="muted">None.</p>`}
+          <div class="tiny" style="margin-top:8px">Admin MTOs: ${mtos.filter((x) => !x.read).length} unread</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function dashSales() {
+    const inbound = (state.data.inbound || []).slice();
+    const inquiries = state.data.customers.filter((c) => c.status === "inquiry");
+    return `
+      ${head("Incoming", "Step 1. Add Bill-To and properties. Step 2. One quote with program options (same or different per property). Step 3. Client chooses. Step 4. Invoice each property and send.")}
+      <div class="card" style="margin-bottom:16px">
+        <h3>Today’s calls and messages</h3>
+        <p class="tiny">Click Add this customer. Fill the form. Instructions and whether they accept messages are on that form.</p>
+        ${inbound.map((n) => `
+          <div class="inbound-row ${n.used ? "used" : ""}">
+            <div>
+              <span class="badge ${n.channel === "Call" || n.channel === "Voicemail" ? "badge-sea" : "badge-ok"}">${esc(n.channel)}</span>
+              <strong>${esc([n.firstName, n.lastName].filter(Boolean).join(" ") || n.company || "Unknown")}</strong>
+              <div class="tiny">${esc(n.time)} · ${esc(n.phone || "")} ${n.city ? "· " + esc(n.city) : ""}</div>
+              <div class="tiny">${esc(n.note || "")}</div>
+            </div>
+            ${n.used
+              ? `<span class="tiny">Already added</span>`
+              : btn("customer.create", "Add this customer", "from-inbound", `data-id="${n.id}"`)}
+          </div>
+        `).join("")}
+        <div class="actions" style="margin-top:12px">${btn("customer.create", "+ Customer", "new-customer")}</div>
+      </div>
+      <div class="card">
+        <h3>Customers just created</h3>
+        ${inquiries.length ? table(["Account", "Address", "Status", ""], inquiries.map((c) => [
+          custBtn(c.id, c.name),
+          c.locations[0]?.address || "—",
+          statusBadge(c.status),
+          `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Open</button>`,
+        ])) : `<p class="muted">None yet. Take a call, then Add.</p>`}
+      </div>
+    `;
+  }
+
+  function dashSys() {
+    return `
+      ${head("System administration", "Users, editable lists, templates, credentials, company defaults — the work PestPac used to hide behind the vendor.")}
+      <div class="grid-4">
+        ${stat("Active users", state.data.users.filter((u) => u.active).length, "SYS-01")}
+        ${stat("No-show reasons", REASONS.length, "SYS-02")}
+        ${stat("Commission default", state.data.settings.commissionPct + "%", "SYS-05")}
+        ${stat("Renewal window", state.data.settings.renewalWindow + " days", "ADM-10")}
+      </div>
+      <div class="card section-gap">
+        <h3>Open a system screen</h3>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="nav" data-page="users">Users</button>
+          <button class="btn btn-ghost" data-act="nav" data-page="lists">Lists</button>
+          <button class="btn btn-ghost" data-act="nav" data-page="templates">Templates</button>
+          <button class="btn btn-ghost" data-act="nav" data-page="settings">Settings</button>
+          <button class="btn btn-ghost" data-act="nav" data-page="integrations">Integrations</button>
+        </div>
+      </div>
+    `;
+  }
+
+  /* ---------- Customers ---------- */
+  function billToOptions() {
+    return state.data.customers.map((c) => ({
+      id: c.id,
+      name: c.billTo || c.name,
+      label: `${c.billTo || c.name} (${c.id})`,
+      type: c.type,
+      company: c.company || "",
+      firstName: c.firstName || (c.name || "").split(" ")[0] || "",
+      lastName: c.lastName || (c.name || "").split(" ").slice(1).join(" ") || "",
+      phone: c.phone || "",
+      mobile: c.mobile || "",
+      altPhone: c.altPhone || "",
+      email: c.email || "",
+      acceptSms: !!c.acceptSms,
+      acceptEmail: c.acceptEmail !== false,
+      prospect: !!c.prospect,
+      opsNote: c.opsNote || "",
+      notes: c.notes || "",
+      locCount: (c.locations || []).length,
+    }));
+  }
+
+  function viewAddCustomer() {
+    if (!can("customer.create")) {
+      return `<div class="forbidden"><h2>Not on this role’s routes</h2><p>Only Sales and Administration add customers.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
+    }
+    const inbound = (state.data.inbound || []).find((n) => n.id === state.inboundId);
+    const html = window.IguanaIntake
+      ? IguanaIntake.formHtml(inbound || {}, billToOptions(), state.locCount || 1)
+      : `<p>Intake form failed to load.</p>`;
+    return html;
+  }
+
+  function viewCustomers() {
+    const rows = visibleCustomers().map((c) => [
+      custBtn(c.id, c.id),
+      custBtn(c.id, c.name),
+      esc(c.type),
+      salesHide(locSummary(c)),
+      statusBadge(c.status),
+      scheduleHint(c),
+    ]);
+    return `
+      ${head("Customers", state.role === "sales"
+        ? "A call or message comes in. Add the customer. The quote comes later."
+        : "Bill-To + properties. One payer. Each property has its own plan, service, and invoice.")}
+      ${can("customer.create")
+        ? `<div class="page-head" style="margin-top:0"><div></div><div class="actions">${btn("customer.create", "New customer", "new-customer")}</div></div>`
+        : state.role === "ops"
+          ? `<div class="notice locked">Operations does not create customers. New clients from Administration appear on your dashboard, newest first — assign them on the map.</div>`
+          : writeBar("customer.create", "New customer")}
+      ${table(["ID", "Name", "Type", "Service address", "Status", "Dispatch"], rows)}
+    `;
+  }
+
+  function visibleCustomers() {
+    if (state.role === "sales") {
+      const quoted = new Set(state.data.quotes.map((q) => q.customerId));
+      return state.data.customers.filter((c) => c.status === "inquiry" || quoted.has(c.id));
+    }
+    if (state.role === "ops") {
+      return state.data.customers.slice().sort((a, b) => {
+        const rank = (c) => c.locations.some((l) => locNeedsService(c, l)) ? 2 : c.locations.some((l) => locNeedsTech(c, l)) ? 1 : 0;
+        const d = rank(b) - rank(a);
+        if (d) return d;
+        return (b.handedAt || 0) - (a.handedAt || 0);
+      });
+    }
+    return state.data.customers;
+  }
+
+  function salesHide(text) {
+    return esc(text);
+  }
+
+  function scheduleHint(c) {
+    if (state.role === "sales") return `<span class="muted">—</span>`;
+    if (c.status === "lapsed") return statusBadge("lapsed");
+    if (c.municipal) return `<span class="gate"><span class="badge badge-sea">PO — schedulable</span></span>`;
+    const locs = (c.locations || []).filter((l) => l.covered !== false);
+    const paidN = locs.filter((l) => locPaid(c, l)).length;
+    if (locs.length > 1 && paidN && paidN < locs.length) return `<span class="badge badge-warn">${paidN}/${locs.length} properties paid</span>`;
+    if (paidN === locs.length && locs.length) return `<span class="badge badge-ok">Paid — eligible</span>`;
+    return `<span class="badge badge-bad">Awaiting payment</span>`;
+  }
+
+  function viewCustomer() {
+    const c = custBy(state.selectedCustomer);
+    if (!c) return `<p>Not found.</p>`;
+    const showOpsNotes = state.role !== "sales";
+    const showMoney = can("payment.viewAmount");
+    const showProgramPrice = state.role !== "tech";
+    const openInvs = state.data.invoices.filter((i) => i.customerId === c.id && (i.status === "sent" || i.status === "failed"));
+    const needsQuote = (c.locations || []).some((l) => locNeedsQuote(c, l));
+    const quotedReady = (c.locations || []).some((l) => locNeedsInvoice(c, l) && !locNeedsQuote(c, l));
+    const canEditCust = canEditField("name");
+    const canEditLoc = can("location.add") || canEditField("address") || state.role === "owner";
+    void openInvs;
+    const typeLabel = { residential: "Residential", commercial: "Commercial", hoa: "HOA", municipal: "Municipal" };
+    return `
+      <button class="btn btn-ghost" data-act="nav" data-page="${state.role === "admin" ? "payments" : "customers"}">← ${state.role === "admin" ? "Payment register" : "Customers"}</button>
+      <div class="cust-hero">
+        <div>
+          <h2 style="font-family:var(--display);font-size:28px;margin:8px 0 4px">${esc(c.name)}</h2>
+          <p class="muted">${esc(c.id)} · Bill-To ${esc(c.billTo || c.name)} · ${statusBadge(c.status)}</p>
+        </div>
+        <div class="actions">
+          ${needsQuote && can("quote.send") ? btn("quote.send", "Send quote", "send-quote", `data-id="${c.id}"`) : ""}
+          ${(can("invoice.create") || state.role === "owner") && (c.locations || []).some((l) => canInvoiceLocation(c, l)) ? btn("invoice.create", "Send invoice to all", "open-convert", `data-id="${c.id}"`, "btn-sun") : ""}
+          ${c.locations.some((l) => locNeedsService(c, l)) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}"`) : ""}
+          ${c.locations.some((l) => locNeedsTech(c, l)) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}"`) : ""}
+          ${c.techId && ["ops", "owner"].includes(state.role) ? btn("schedule.reassign", "Reassign on map", "open-assign", `data-id="${c.id}"`, "btn-ghost") : ""}
+        </div>
+      </div>
+      ${needsQuote ? `<div class="notice">One quote to the Bill-To lists the programs and every property.</div>` : ""}
+      ${quotedReady ? `<div class="notice">Quote is out. Send invoice to all, or send one property from its location card.</div>` : ""}
+      <div class="cust-panels">
+        <div class="panel-box">
+          ${canEditCust ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-billto" data-id="${c.id}">Edit Bill-To</button>` : ""}
+          <div class="panel-kicker">Bill-To</div>
+          <h3>${esc(c.billTo || c.name)}</h3>
+          <p class="tiny">${esc(typeLabel[c.billToType || c.type] || c.type || "—")} · ${statusBadge(c.status)}${c.autoPay ? ` · <span class="badge badge-sea">Auto-pay</span>` : ""}</p>
+          <dl class="kv panel-kv">
+            <dt>Account</dt><dd>${esc(c.id)}</dd>
+            <dt>Phone</dt><dd>${esc(c.phone || "—")}</dd>
+            <dt>Mobile</dt><dd>${esc(c.mobile || "—")}</dd>
+            <dt>Email</dt><dd>${esc(c.email || "—")}</dd>
+            <dt>Company</dt><dd>${esc(c.company || "—")}</dd>
+            ${(c.municipal || c.type === "municipal") ? `<dt>PO</dt><dd>${esc(c.po || "—")} · ${c.hoursUsed || 0}/${c.poCapHours || 0} hrs</dd>` : ""}
+            <dt>SMS / Email</dt><dd>${c.acceptSms ? "SMS on" : "SMS off"} · ${c.acceptEmail === false ? "Email off" : "Email on"}</dd>
+            <dt>Instructions</dt><dd>${esc(c.notes || "—")}</dd>
+            ${showOpsNotes ? `<dt>Ops note</dt><dd>${esc(c.opsNote || "—")}</dd>` : ""}
+          </dl>
+        </div>
+        <div class="panel-box">
+          ${canEditLoc ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-locations" data-id="${c.id}">Edit locations</button>` : ""}
+          <div class="panel-kicker">Locations</div>
+          <h3>${(c.locations || []).length} propert${(c.locations || []).length === 1 ? "y" : "ies"}</h3>
+          <p class="tiny">Mark invoice paid on the property that has a payment on the register. Other properties stay unpaid until their payment lands.</p>
+          <div class="panel-locs">
+            ${(c.locations || []).map((l) => {
+              const plan = locPlan(c, l);
+              const prog = progBy(plan.programId);
+              const invs = locInvoices(c.id, l.id);
+              const q = locQuote(c.id, l.id);
+              const gps = l.lat != null && l.lng != null ? `${Number(l.lat).toFixed(4)}, ${Number(l.lng).toFixed(4)}` : (l.gps || approxGps(l));
+              const svcs = svcsFor(c.id, l.id);
+              const awaitPay = locPaymentAwaitingMark(c, l);
+              const paidHere = locPaid(c, l);
+              const focusHere = state.payFocusId && awaitPay && awaitPay.id === state.payFocusId;
+              return `<div class="panel-loc ${l.covered === false ? "unpaid" : ""} ${awaitPay || locNeedsService(c, l) || locNeedsTech(c, l) ? "need" : ""} ${focusHere ? "pay-focus" : ""}">
+                <div class="panel-loc-top">
+                  <strong>${esc(l.name)}</strong>
+                  ${paidHere ? `<span class="badge badge-ok">Invoice paid</span>` : ""}
+                  ${awaitPay ? `<span class="badge badge-warn">Payment on register · ${money(awaitPay.amount)} · ${esc(awaitPay.method)}</span>` : ""}
+                  ${!paidHere && !awaitPay && l.covered === false ? `<span class="badge badge-bad">Unpaid</span>` : ""}
+                  ${!paidHere && !awaitPay && invs.some((i) => i.status === "sent" || i.status === "failed") ? `<span class="badge badge-sea">Invoice sent · awaiting payment</span>` : ""}
+                  ${locNeedsQuote(c, l) ? `<span class="badge badge-warn">Needs quote</span>` : ""}
+                  ${!locNeedsQuote(c, l) && locNeedsInvoice(c, l) ? `<span class="badge badge-sea">Ready to invoice</span>` : ""}
+                  ${locNeedsService(c, l) ? `<span class="badge badge-warn">Needs service</span>` : ""}
+                  ${locNeedsTech(c, l) ? `<span class="badge badge-sea">Needs technician</span>` : ""}
+                </div>
+                <div class="tiny">${esc(l.address)}</div>
+                <div class="tiny">GPS ${esc(gps)}${l.subdivision ? ` · ${esc(l.subdivision)}` : ""}</div>
+                <div class="tiny">Plan: ${plan.programId ? `${esc(prog?.name || plan.programId)}${showProgramPrice ? ` · ${money(plan.amount)}` : ""}${plan.start ? ` · ${esc(plan.start)} → ${esc(plan.expires || "—")}` : ""}` : (q?.sent ? "On quote — waiting on client" : "No plan yet")}</div>
+                <div class="tiny">Quote: ${q?.sent ? `Sent ${esc(q.date || "")}` : "Not yet"} · Invoice: ${invs.length ? invs.map((i) => `${esc(i.id)} ${i.status}`).join(", ") : "None"}</div>
+                <div class="tiny">${svcs.length ? svcs.map((s) => {
+                  const sch = SERVICE_SCHEDULES.find((x) => x.id === s.schedule)?.label || s.days || "—";
+                  return s.techId ? `${esc(techName(s.techId))} · ${esc(sch)}` : `Setup · ${esc(sch)}`;
+                }).join(" · ") : "No service yet"}</div>
+                <div class="actions" style="margin-top:8px">
+                  ${(() => {
+                    if (!can("payment.post") || state.role === "ops") return "";
+                    if (!awaitPay) return "";
+                    const inv = locInvoiceForMark(c, l, awaitPay);
+                    if (!inv) return "";
+                    return btn("payment.post", "Mark invoice paid", "open-record-pay", `data-id="${inv.id}" data-pay="${awaitPay.id}"`, "btn-sun");
+                  })()}
+                  ${(() => {
+                    if (!(can("invoice.create") || can("invoice.send") || state.role === "owner")) return "";
+                    const invs = locInvoices(c.id, l.id);
+                    const draft = invs.find((i) => i.status === "draft");
+                    const open = invs.find((i) => i.status === "sent" || i.status === "failed");
+                    if (draft) return btn("invoice.send", "Send invoice", "send-invoice", `data-id="${draft.id}"`);
+                    if (open) return `<button class="btn btn-ghost" data-act="send-invoice" data-id="${open.id}">View invoice</button>`;
+                    if (!canInvoiceLocation(c, l)) return "";
+                    return btn("invoice.create", "Send invoice", "invoice-one-loc", `data-id="${c.id}" data-loc="${l.id}"`, "btn-sun");
+                  })()}
+                  ${locNeedsService(c, l) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
+                  ${locNeedsTech(c, l) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
+                </div>
+              </div>`;
+            }).join("") || `<p class="muted">No properties yet.</p>`}
+          </div>
+        </div>
+      </div>
+      <div class="split section-gap">
+        <div class="stack">
+          ${locationPreviewCard(c)}
+        </div>
+        <div class="stack">
+          ${showMoney ? billingCard(c) : ""}
+          ${state.role === "sales" ? "" : commCard(c)}
+        </div>
+      </div>
+    `;
+  }
+
+  function locationPreviewCard(c) {
+    const locs = (c.locations || []).filter((l) => l.covered !== false);
+    return miniMapHtml({
+      existing: locs.slice(1).map((l) => ({ x: l.x, y: l.y, label: l.name, color: locPinColor(c, l) })),
+      preview: locs[0] ? [{ x: locs[0].x, y: locs[0].y, label: locs[0].name, elId: "cust-pin-0" }] : [],
+      caption: locs.map((l) => `${l.name} · ${l.address}`).join(" · ") || "No pin yet",
+    });
+  }
+
+  function billingCard(c) {
+    const inv = state.data.invoices.filter((i) => i.customerId === c.id);
+    const pays = state.data.payments.filter((p) => p.customerId === c.id);
+    return `
+      <div class="card">
+        <h3>Billing timeline</h3>
+        <p class="tiny">Bill-To is ${esc(c.billTo || c.name)}. Each line is one property. Memos can name the house so bonuses stay clear.</p>
+        <div class="timeline">
+          ${[...inv.map((i) => ({ when: i.sent || i.paidOn || "—", kind: i.status === "failed" ? "bad" : i.status === "paid" ? "ok" : "warn", text: `Invoice ${i.id} · ${invProperty(i)} · ${money(i.amount)} · ${i.status}` })),
+             ...pays.map((p) => ({ when: p.date, kind: p.failed ? "bad" : "ok", text: `Payment ${money(p.amount)} · ${p.method} · ${p.memo}` }))]
+            .sort((a, b) => String(a.when).localeCompare(String(b.when)))
+            .map((t) => `
+              <div class="tl-item">
+                <div class="when">${esc(t.when)}</div>
+                <div class="tl-rail"><i class="${t.kind === "bad" ? "bad" : t.kind === "warn" ? "warn" : ""}"></i></div>
+                <div>${esc(t.text)}</div>
+              </div>
+            `).join("") || `<p class="muted">No billing yet.</p>`}
+        </div>
+      </div>
+    `;
+  }
+
+  function commCard(c) {
+    const items = state.data.comms.filter((x) => x.customerId === c.id);
+    return `
+      <div class="card">
+        <h3>Shared communication log</h3>
+        ${items.map((x) => `<div class="comm-item"><strong>${esc(x.who)}</strong> · ${esc(x.channel)} · ${esc(x.date)}<div>${esc(x.text)}</div></div>`).join("") || `<p class="muted">No correspondence yet.</p>`}
+        ${state.role !== "tech" ? `
+          <div class="field section-gap"><label>Add a note</label>
+            <select id="comm-channel"><option>Office</option><option>Phone</option><option>Email</option><option>Text</option></select>
+          </div>
+          <div class="field"><textarea id="comm-text" rows="2" placeholder="Call, email, or office note — stays on this account"></textarea></div>
+          <button class="btn btn-primary" data-act="add-comm" data-id="${c.id}">Save to log</button>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  function viewQuotes() {
+    const rows = state.data.quotes.map((q) => {
+      const c = custBy(q.customerId);
+      const programCell = !q.sent && can("quote.send")
+        ? `<span class="tiny">Not sent</span>`
+        : (q.programId ? (progBy(q.programId)?.name || "—") : (q.sent ? "Programs listed — awaiting choice" : "—"));
+      return [q.id, custBtn(q.customerId, c?.billTo || c?.name || "—"), esc(quotePropertyLabel(q)), programCell, q.sent ? statusBadge("sent") : statusBadge("draft"), q.date,
+        q.sent ? (q.programId ? "Client chose" : "Waiting on client") : btn("quote.send", "Preview & send", "send-quote", `data-id="${q.customerId}"`)];
+    });
+    return `
+      ${head("Quotes", "One quote per Bill-To. List the programs, name every property, and ask: same plan on all, or different per property? Then invoice each property after they choose.")}
+      ${table(["Quote", "Bill-To", "Properties", "Program", "Status", "Date", ""], rows)}
+    `;
+  }
+
+  /* ---------- Ops ---------- */
+  function viewSchedule() {
+    const genQ = opsGenerateQueue();
+    const toggle = `
+      <div class="seg" style="margin-bottom:14px">
+        <button class="${state.schedView === "week" ? "on" : ""}" data-act="sched-view" data-view="week">Weekly</button>
+        <button class="${state.schedView === "month" ? "on" : ""}" data-act="sched-view" data-view="month">Monthly</button>
+      </div>`;
+    return `
+      ${head("Schedule", "Weekly board for the live week. Monthly calendar shows standing routes repeating through August. Stops land here after you assign a technician on the map.")}
+      ${writeBar("schedule.reassign", "Reassign")}
+      ${genQ.length ? `<div class="notice">${genQ.length} assigned service(s) are not on this board yet. ${btn("schedule.generate", "Generate now", "generate-schedule")}</div>` : ""}
+      ${toggle}
+      <div class="notice">Routes start and end at the technician’s home — there is no depot. Company blackouts: ${state.data.holidays.map(esc).join(", ")}. Reassigning a trapper moves the stop; it does not copy it.</div>
+      ${state.schedView === "month" ? monthCalendar() : weekBoard()}
+      <div class="card section-gap">
+        <h3>Visit notices · 2 days before</h3>
+        <p class="tiny">Templated text/email. The customer cannot reply to the system message. Friday’s remaining stops would have been notified Wednesday.</p>
+        ${table(["When", "Customer", "Tech", "Notice"], state.data.stops.filter((s) => s.day === "Fri" && !s.pending).map((s) => [s.day + " " + (s.time || ""), stopLabel(s), techName(s.techId), s.noticed ? "Sent" : "Queued — no-reply template"]))}
+        <div class="actions" style="margin-top:10px">${btn("schedule.assign", "Send Friday notices", "send-notices", "", "btn-ghost")}</div>
+      </div>
+    `;
+  }
+
+  function weekBoard() {
+    const cells = TECHS.map((t) => {
+      const row = DAYS.map((d) => {
+        const stops = state.data.stops.filter((s) => s.techId === t.id && s.day === d && !s.pending);
+        return `<div>${stops.map(stopChip).join("") || `<span class="tiny">—</span>`}</div>`;
+      }).join("");
+      return `<div class="tech-name">${esc(t.name)}<div class="tiny">${esc(t.home)}</div></div>${row}`;
+    }).join("");
+    return `
+      <p class="tiny" style="margin-bottom:8px">Week of 24 Aug 2026 — this week’s live stops.</p>
+      <div class="week">
+        <div></div>
+        ${DAYS.map((d) => `<div class="head">${d}<div class="tiny">${DAY_DATES[d]}</div></div>`).join("")}
+        ${cells}
+      </div>
+    `;
+  }
+
+  function monthCalendar() {
+    const year = 2026, month = 7;
+    const first = new Date(year, month, 1);
+    const startPad = first.getDay();
+    const daysIn = new Date(year, month + 1, 0).getDate();
+    const wdNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const cells = [];
+    for (let i = 0; i < startPad; i++) cells.push(`<div class="month-cell mute"></div>`);
+    for (let d = 1; d <= daysIn; d++) {
+      const iso = `${year}-08-${String(d).padStart(2, "0")}`;
+      const wd = wdNames[new Date(year, month, d).getDay()];
+      const stops = DAYS.includes(wd) ? state.data.stops.filter((s) => s.day === wd && !s.pending) : [];
+      const today = iso === TODAY;
+      cells.push(`
+        <div class="month-cell ${today ? "today" : ""}">
+          <div class="month-num">${d} <span class="tiny">${wd}</span></div>
+          ${stops.slice(0, 4).map((s) => `<div class="month-stop">${esc(techName(s.techId).slice(0, 1))} ${esc(stopLabel(s))}</div>`).join("")}
+          ${stops.length > 4 ? `<div class="tiny">+${stops.length - 4} more</div>` : ""}
+        </div>`);
+    }
+    return `
+      <p class="tiny" style="margin-bottom:8px">August 2026 — standing weekday routes repeat each week. Today is highlighted.</p>
+      <div class="month-grid">
+        ${wdNames.map((n) => `<div class="month-dow">${n}</div>`).join("")}
+        ${cells.join("")}
+      </div>
+    `;
+  }
+
+  function stopChip(s) {
+    const cls = s.type === "oneoff" ? "oneoff" : s.status === "missed" || s.status === "noshow" || s.status === "blocked" ? "missed" : "";
+    return `<div class="stop ${cls}"><div class="t">${esc(s.time)} · ${esc(stopLabel(s))}</div><div class="m">${s.durationMin}m · ${esc(s.status)}</div></div>`;
+  }
+
+  function viewMap() {
+    const filterTech = state.mapTech;
+    const filterDay = state.mapDay;
+    const waiting = opsAssignQueue();
+    const focusCid = state.mapClient;
+    const focusLid = state.mapLoc;
+    const pins = [];
+    TECHS.forEach((t) => {
+      const on = filterTech === t.id;
+      pins.push(`<button type="button" class="pin home-pin ${on ? "on" : ""}" data-act="map-tech" data-tech="${t.id}" style="left:${t.x};top:${t.y}"><div class="pin-dot" style="background:${t.color}"></div><span>${esc(t.name)} home</span></button>`);
+    });
+    const book = [];
+    state.data.customers.filter((c) => c.status === "active" || c.status === "renewal" || c.status === "past_due" || c.locations.some((l) => locNeedsTech(c, l) || locNeedsService(c, l))).forEach((c) => {
+      c.locations.forEach((l) => {
+        const svcs = svcsFor(c.id, l.id);
+        const techsHere = [...new Set(svcs.map((s) => s.techId).filter(Boolean).concat(l.techId || []))];
+        const assignedHere = techsHere.includes(filterTech) || l.techId === filterTech;
+        const needs = locNeedsTech(c, l) || locNeedsService(c, l);
+        const isFocus = focusCid === c.id && (!focusLid || focusLid === l.id);
+        const onBook = !filterTech || assignedHere;
+        if (!onBook && !needs && !isFocus) return;
+        if (!locOnDay(c, l, filterDay)) return;
+        const key = `${c.id}:${l.id}`;
+        const on = state.mapSelect.includes(key);
+        const shared = !!(l.shared || techsHere.length > 1);
+        const color = locPinColor(c, l);
+        const row = { c, l, shared, techsHere, needs, isFocus };
+        if ((!filterTech || assignedHere) && !needs) book.push(row);
+        pins.push(`<div class="pin ${shared ? "shared" : ""} ${on ? "picked" : ""} ${l.manualPin ? "manual" : ""} ${needs ? "need" : ""} ${isFocus ? "client" : ""}" data-drag="1" data-cid="${c.id}" data-lid="${l.id}" style="left:${l.x};top:${l.y}"><div class="pin-dot" style="background:${color}"></div><span>${esc(c.name)}${c.locations.length > 1 ? ` · ${esc(l.name)}` : ""}${needs ? (locNeedsTech(c, l) ? " · waiting" : " · setup") : shared ? " · shared" : ""}</span></div>`);
+      });
+    });
+    const genQ = opsGenerateQueue();
+    const waitRow = waiting.find((r) => r.c.id === focusCid && (!focusLid || r.l.id === focusLid)) || waiting[0];
+    const focusCust = focusCid ? custBy(focusCid) : waitRow?.c;
+    const focusLoc = focusCust && (focusCust.locations.find((l) => l.id === (focusLid || waitRow?.l.id)) || focusCust.locations[0]);
+    const canAssign = !!(filterTech && focusCust && focusLoc && svcFor(focusCust.id, focusLoc.id));
+    return `
+      ${head("Geo routing", "Create the service first. Then click a technician’s home to see every property on their book — customer pins stay on the map so you can compare locations before you assign.")}
+      ${writeBar("schedule.assign", "Assign")}
+      <div class="legend">
+        ${TECHS.map((t) => `<button class="legend-btn ${filterTech === t.id ? "on" : ""}" data-act="map-tech" data-tech="${t.id}"><i class="dot" style="background:${t.color}"></i> ${esc(t.name)}</button>`).join("")}
+        <button class="legend-btn ${!filterTech ? "on" : ""}" data-act="map-tech" data-tech=""><i class="dot" style="background:#8a8680"></i> All / gray = shared</button>
+      </div>
+      <div class="legend" style="margin-top:6px">
+        <button class="legend-btn ${!filterDay ? "on" : ""}" data-act="map-day" data-day="">All days</button>
+        <button class="legend-btn ${filterDay === todayDay() ? "on" : ""}" data-act="map-day" data-day="${todayDay()}">Today (${todayDay()})</button>
+        ${DAYS.filter((d) => d !== todayDay()).map((d) => `<button class="legend-btn ${filterDay === d ? "on" : ""}" data-act="map-day" data-day="${d}">${d}</button>`).join("")}
+      </div>
+      <div class="map-toolbar">
+        <span class="tiny">${filterTech ? `${esc(techName(filterTech))} selected · ${book.length} properties on this trapper` : "Click a technician home to inspect their book"} · gold pin = waiting to assign${filterDay ? ` · ${filterDay} only` : ""}. Homes stay clickable.</span>
+        ${btn("schedule.reassign", state.mapLasso ? "Lasso on — click pins, then move" : "Lasso / bulk move", "toggle-lasso", "", state.mapLasso ? "btn-sun" : "btn-ghost")}
+      </div>
+      ${state.mapLasso && state.mapSelect.length ? `
+        <div class="notice">Selected ${state.mapSelect.length} properties. Changing trapper or days transfers the work — it does not copy onto the old trapper or the old days.
+          <div class="actions" style="margin-top:8px">${TECHS.map((t) => btn("schedule.reassign", "Move to " + t.name, "bulk-move", `data-tech="${t.id}"`, "btn-ghost")).join("")}</div>
+          <div class="actions" style="margin-top:8px">${DAY_PATTERNS.map((p) => btn("schedule.reassign", "Days → " + p.id, "bulk-days", `data-days="${p.id}"`, "btn-ghost")).join("")}</div>
+        </div>` : ""}
+      <div class="map-stage">
+        <div class="map-canvas" id="map-canvas">
+          <div class="map-bg"></div>
+          <div class="map-label" style="left:8%;top:18%">Gulf</div>
+          <div class="map-label" style="left:70%;top:20%">East coast</div>
+          ${pins.join("")}
+        </div>
+        <div class="card assign-panel">
+          <h3>${filterTech ? esc(techName(filterTech)) + " · properties on this trapper" : "Click a technician’s home"}</h3>
+          <p class="tiny">${filterTech ? "Every property already assigned to " + esc(techName(filterTech)) + ". Gold pins on the map are still waiting — they stay visible so you can compare drive from this home." : "Homes are the clickable pins. Open a trapper to inspect their book, then assign the new customer."}</p>
+          ${waiting.length ? `
+            <div class="notice" style="margin-bottom:10px">
+              ${waiting.map((row) => `
+                <div class="fit-row ${focusCid === row.c.id && (!focusLid || focusLid === row.l.id) ? "queue-new" : ""}">
+                  <div><strong>${esc(row.c.name)}</strong><div class="tiny">${esc(row.l.name)} · ${esc(row.l.address)}</div></div>
+                  ${filterTech
+                    ? btn("schedule.assign", "Assign to " + techName(filterTech), "map-assign", `data-id="${row.c.id}" data-loc="${row.l.id}" data-tech="${filterTech}"`)
+                    : `<button class="btn btn-ghost" data-act="focus-client" data-id="${row.c.id}" data-loc="${row.l.id}">Highlight pin</button>`}
+                </div>
+              `).join("")}
+              ${canAssign && focusCust ? `<p class="tiny" style="margin-top:8px">${esc(focusCust.name)} · ${esc(focusLoc.name)} vs ${esc(techName(filterTech))}’s home at ${esc(techBy(filterTech)?.home || "")}.</p>` : ""}
+            </div>
+          ` : ""}
+          ${filterTech ? `
+            <div class="tiny" style="margin-bottom:8px">${book.length} ${book.length === 1 ? "property" : "properties"} · scroll the list</div>
+            ${book.map((r) => `
+              <div class="fit-row ${state.mapSelect.includes(r.c.id + ":" + r.l.id) ? "queue-new" : ""}">
+                <div>
+                  <strong>${esc(r.c.name)}</strong> · ${esc(r.l.name)}
+                  <div class="tiny">${r.shared ? "Shared · " : ""}${esc(r.techsHere.map(techName).join(" / ") || techName(filterTech))} · ${esc(r.l.address)}</div>
+                </div>
+                ${state.mapLasso ? `<button class="btn btn-ghost" data-act="toggle-pin" data-cid="${r.c.id}" data-lid="${r.l.id}">${state.mapSelect.includes(r.c.id + ":" + r.l.id) ? "Selected" : "Select"}</button>` : ""}
+              </div>
+            `).join("") || `<p class="muted">No properties on this trapper yet.</p>`}
+            ${focusCust && focusLoc ? `<div class="actions" style="margin-top:12px"><button class="btn btn-ghost" data-act="compare-routes" data-id="${focusCust.id}" data-loc="${focusLoc.id}">Compare drive times</button></div>` : ""}
+          ` : `<p class="muted">${waiting.length ? "Click a technician’s home pin (or the name above) to see every property on their book." : opsServiceQueue().length ? "Create the service first — then come back here to assign." : "No unassigned properties."}</p>`}
+          ${genQ.length ? `<div class="notice" style="margin-top:10px">${genQ.length} assigned, not live. ${btn("schedule.generate", "Generate", "generate-schedule")}</div>` : ""}
+          <p class="tiny section-gap">Harbor Oaks is held — unpaid. Cypress Commons is the gray shared pin. Coastal Parks is a draggable GPS pin. Vehicle GPS and trapper GPS stay outside this app.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  function viewAssign() {
+    const queue = opsAssignQueue();
+    const c = custBy(state.assignId) || queue[0]?.c;
+    if (c && state.assignId !== c.id) state.assignId = c.id;
+    if (!c) {
+      return `
+        ${head("Assign technician", "Create the service first. Then pick a technician on this map.")}
+        <p class="muted">No unassigned properties.</p>
+      `;
+    }
+    const loc = c.locations.find((l) => l.id === state.assignLocId) || queue.find((r) => r.c.id === c.id)?.l || c.locations[0];
+    if (loc && state.assignLocId !== loc.id) state.assignLocId = loc.id;
+    const ranked = bestFitFor(c, loc);
+    if (!state.assignFocus) state.assignFocus = ranked[0]?.t.id;
+    const focus = ranked.find((r) => r.t.id === state.assignFocus) || ranked[0];
+    const lines = ranked.map((r) => {
+      const pts = [`${pct(r.t.x)},${pct(r.t.y)}`, ...r.route.map((s) => `${pct(s.x)},${pct(s.y)}`)];
+      if (loc) pts.push(`${pct(loc.x)},${pct(loc.y)}`);
+      const on = r.t.id === focus?.t.id;
+      return `<polyline fill="none" stroke="${r.t.color}" stroke-width="${on ? 0.9 : 0.28}" stroke-dasharray="${on ? "0" : "1.2 0.8"}" opacity="${on ? 0.95 : 0.35}" points="${pts.join(" ")}" />`;
+    }).join("");
+    const pins = [
+      ...TECHS.map((t) => `<button type="button" class="pin home-pin ${t.id === focus?.t.id ? "on focus" : ""}" data-act="focus-tech" data-tech="${t.id}" style="left:${t.x};top:${t.y}"><div class="pin-dot" style="background:${t.color}"></div><span>${esc(t.name)} home</span></button>`),
+      ...c.locations.filter((l) => l.covered !== false).map((l) =>
+        `<div class="pin client ${l.id === loc?.id ? "" : "other"}" style="left:${l.x};top:${l.y}"><div class="pin-dot" style="background:${l.id === loc?.id ? "#c4a24a" : "#8a7a55"}"></div><span>${l.id === loc?.id ? "This property" : "Also owns"} · ${esc(l.name)}</span></div>`
+      ),
+      ...ranked.flatMap((r) => r.route.map((s) =>
+        `<div class="pin stop-pin" style="left:${s.x};top:${s.y}"><div class="pin-dot" style="background:${r.t.color}"></div><span>${esc(s.day)} ${esc(s.time)} · ${esc(s.name)}</span></div>`
+      )),
+    ].join("");
+    const covered = c.locations.filter((l) => l.covered !== false);
+    return `
+      ${head("Assign technician", "Optional close-up: drive times from each home to this property. Rick’s normal path is the geo map — click a technician home there to see their whole book.")}
+      ${writeBar("schedule.assign", "Assign")}
+      <div class="legend">${TECHS.map((t) => `<span><i class="dot" style="background:${t.color}"></i> ${esc(t.name)}</span>`).join("")}<span><i class="dot" style="background:#c4a24a"></i> This property</span><span><i class="dot" style="background:#8a7a55"></i> Other properties</span></div>
+      <div class="assign-stage">
+        <div class="map-canvas">
+          <div class="map-bg"></div>
+          <svg class="route-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${lines}</svg>
+          <div class="map-label" style="left:8%;top:18%">Gulf</div>
+          <div class="map-label" style="left:70%;top:20%">East coast</div>
+          ${pins}
+        </div>
+        <div class="card assign-panel">
+          <h3>${esc(c.name)}</h3>
+          <p class="tiny">${esc(c.id)} · ${covered.length} ${covered.length === 1 ? "property" : "properties"} on this Bill-To</p>
+          ${!(c.paid || c.municipal) ? `<div class="notice locked">Not paid yet. You can still set the standing technician and days; live dispatch waits for payment (BR-01).</div>` : `<div class="notice">${esc(loc?.name || "This property")} is on the map. Next stops for ${esc(state.assignDays)} are drawn from each tech’s home.</div>`}
+          ${covered.length > 1 ? `
+            <div class="field">
+              <label>Property to catch iguanas</label>
+              <select data-act="assign-loc">${covered.map((l) => `<option value="${l.id}" ${l.id === loc?.id ? "selected" : ""}>${esc(l.name)} · ${esc(l.address)}${l.requestService && !l.techId ? " · requested" : l.techId ? ` · ${techName(l.techId)}` : ""}</option>`).join("")}</select>
+            </div>
+          ` : ""}
+          <p class="tiny">${esc(loc?.address || "")}</p>
+          <div class="field">
+            <label>Service days</label>
+            <select data-act="assign-days">${DAY_PATTERNS.map((p) => `<option value="${p.id}" ${p.id === state.assignDays ? "selected" : ""}>${esc(p.id)}</option>`).join("")}</select>
+          </div>
+          <h3 class="section-gap">Best-fit (nearest home → this property)</h3>
+          <div class="bestfit">
+            ${ranked.map((r, i) => `
+              <button class="bestfit-card ${r.t.id === focus?.t.id ? "pick" : ""}" data-act="focus-tech" data-tech="${r.t.id}">
+                <strong>${i === 0 ? "Suggested · " : ""}${esc(r.t.name)}</strong> · ${esc(r.t.home)}
+                <div class="tiny">${r.miles} mi · ~${r.mins} min drive · ${r.route.length} stop${r.route.length === 1 ? "" : "s"} on ${esc(state.assignDays)}</div>
+                ${r.route.length ? `<div class="tiny">${r.route.map((s) => `${s.day} ${s.time} ${s.name}`).join(" → ")}</div>` : `<div class="tiny">No other stops that pattern — open day.</div>`}
+              </button>
+            `).join("")}
+          </div>
+          <div class="actions" style="margin-top:12px">
+            ${btn("schedule.assign", `Assign ${focus ? focus.t.name : "technician"} · ${esc(loc?.name || "property")} · ${state.assignDays}`, "confirm-assign", `data-id="${c.id}" data-loc="${loc?.id || ""}" data-tech="${focus?.t.id || ""}"`)}
+          </div>
+          ${queue.length > 1 ? `
+            <h3 class="section-gap">Queue (newest first)</h3>
+            ${queue.map((row) => `
+              <button class="fit-row" style="width:100%;background:transparent;border:0;text-align:left" data-act="open-assign" data-id="${row.c.id}" data-loc="${row.l.id}">
+                <div><strong>${esc(row.c.name)}</strong><div class="tiny">${esc(row.l.name)} · ${esc(row.l.address)}</div></div>
+                ${row.l.id === loc?.id ? `<span class="badge badge-ok">This map</span>` : `<span class="badge badge-mute">Open</span>`}
+              </button>
+            `).join("")}
+          ` : ""}
+        </div>
+      </div>
+    `;
+  }
+
+  function viewOneoffs() {
+    const pending = state.data.stops.filter((s) => s.pending);
+    const live = state.data.stops.filter((s) => s.type === "oneoff" && !s.pending);
+    return `
+      ${head("One-off / live task", "Drop an ad-hoc job — garage animal, inspection, client meeting — onto the nearest technician’s live route. No full account setup. The change hits the schedule immediately.")}
+      ${writeBar("oneoff.insert", "Insert into route")}
+      <div class="actions" style="margin-bottom:14px">${btn("oneoff.insert", "New live task", "new-oneoff")} ${btn("oneoff.insert", "Drop waiting job", "insert-oneoff")}</div>
+      <div class="split">
+        <div class="card">
+          <h3>Waiting</h3>
+          ${pending.map((s) => `<div class="fit-row"><div><strong>${esc(s.label)}</strong><div class="tiny">${esc(s.address)} · suggested ${esc(techBy(s.techId)?.name || "")} · ${esc(s.taskType || "live call")}</div></div>${btn("oneoff.insert", "Drop on nearest", "insert-oneoff", `data-id="${s.id}"`)}</div>`).join("") || `<p class="muted">Nothing waiting.</p>`}
+        </div>
+        <div class="card">
+          <h3>On a live route</h3>
+          ${live.map((s) => `<div class="fit-row"><div>${esc(s.label || "One-off")} · ${esc(s.day)} ${esc(s.time)}<div class="tiny">${esc(s.notify || "")}</div></div><span class="badge badge-ok">${esc(techName(s.techId))}</span></div>`).join("") || `<p class="muted">None yet this week.</p>`}
+        </div>
+      </div>
+    `;
+  }
+
+  function viewNoshows() {
+    const marked = state.data.stops.filter((s) => s.status === "noshow" || s.status === "missed");
+    const pendingExt = state.data.stops.filter((s) => s.pendingExt);
+    const thuJohnny = state.data.stops.filter((s) => s.techId === "johnny" && s.day === "Thu" && s.status === "scheduled");
+    return `
+      ${head("Missed visits", "Gate, weather, a private event — log the miss. You approve or deny a contract extension. The system does not auto-add a make-up visit.")}
+      ${writeBar("noshow.mark", "Mark no-show")}
+      ${pendingExt.length ? `
+        <div class="card" style="margin-bottom:16px">
+          <h3>Waiting on an extension decision</h3>
+          ${pendingExt.map((s) => `
+            <div class="fit-row">
+              <div><strong>${esc(stopLabel(s))}</strong><div class="tiny">${esc(s.reason || "Miss")} · ${esc(s.fault || "")}</div></div>
+              <div class="actions">
+                ${btn("noshow.mark", "Approve +1 visit", "ext-yes", `data-id="${s.id}"`)}
+                ${btn("noshow.mark", "Deny", "ext-no", `data-id="${s.id}"`, "btn-ghost")}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+      <div class="grid-3">
+        <div class="card">
+          <h3>Macro · company day off</h3>
+          <p class="muted">Block a date so nothing is marked missed.</p>
+          ${btn("blackout.edit", "Block Fri 28 Aug (meeting)", "macro-block")}
+          ${state.data.blackout.length ? `<p class="tiny">Blocked: ${state.data.blackout.join(", ")}</p>` : ""}
+        </div>
+        <div class="card">
+          <h3>Technician / weather</h3>
+          <p class="muted">Mark remaining Thursday stops for Johnny. You will choose whether to extend — it is not automatic.</p>
+          ${btn("noshow.mark", `Mark ${thuJohnny.length} remaining`, "noshow-company")}
+        </div>
+        <div class="card">
+          <h3>Customer fault</h3>
+          <p class="muted">Gated, no answer, unannounced event — log the miss. Extension stays off unless you approve it.</p>
+          ${btn("noshow.mark", "Mark Walsh Wed as customer miss", "noshow-customer", "", "btn-warn")}
+        </div>
+      </div>
+      <div class="card section-gap">
+        <h3>Logged this session</h3>
+        ${table(["Stop", "Reason", "Fault", "Contract"], marked.map((s) => [s.id, s.reason || "—", s.fault || "—", s.pendingExt ? "Awaiting decision" : s.extended ? "Extended +1 visit" : "Not extended"]))}
+      </div>
+    `;
+  }
+
+  function durationRows() {
+    return state.data.stops.filter((s) => s.actualMin != null).map((s) => {
+      return {
+        tech: techName(s.techId),
+        name: stopLabel(s),
+        day: s.day,
+        sched: s.durationMin,
+        actual: s.actualMin,
+        delta: s.actualMin - s.durationMin,
+      };
+    });
+  }
+
+  function viewDuration() {
+    const rows = durationRows();
+    const totals = DAYS.flatMap((d) => TECHS.map((t) => {
+      const ss = state.data.stops.filter((s) => s.techId === t.id && s.day === d && !s.pending);
+      const sched = ss.reduce((a, s) => a + (s.durationMin || 0), 0);
+      return [t.name, d, ss.length, sched + " min"];
+    })).filter((row) => row[2] > 0);
+    const byAccount = state.data.customers.filter((c) => c.municipal || state.data.stops.some((s) => s.customerId === c.id && s.actualMin != null)).map((c) => {
+      const ss = state.data.stops.filter((s) => s.customerId === c.id && !s.pending);
+      const mins = ss.reduce((a, s) => a + (s.actualMin != null ? s.actualMin : 0), 0);
+      const sched = ss.reduce((a, s) => a + (s.durationMin || 0), 0);
+      return [c.name, c.po || "—", (c.hoursUsed || 0) + " / " + (c.poCapHours || "—"), +(sched / 60).toFixed(1) + " hrs", +(mins / 60).toFixed(1) + " hrs"];
+    });
+    return `
+      ${head("Duration / hours report", state.role === "admin"
+        ? "Hours on the property by account. Drop these into the municipal invoice (name, PO, period). Rick confirms the field time; you run the report."
+        : "Catch under-servicing — scheduled vs clocked. Totals per trapper per day show who is light vs loaded (payroll is ~35% of revenue).")}
+      ${state.role === "admin" || state.role === "owner" ? `
+        <div class="card" style="margin-bottom:16px">
+          <h3>Hours per account <span class="muted">for invoicing · PO running total</span></h3>
+          ${table(["Customer", "PO", "PO hours used", "Scheduled this week", "Clocked"], byAccount)}
+        </div>
+      ` : ""}
+      ${state.role === "admin" ? "" : `
+      <div class="card" style="margin-bottom:16px">
+        <h3>On-property minutes · per trapper · per day</h3>
+        <p class="tiny">If one trapper is at 200 minutes and another is at 800, this is how you move work.</p>
+        ${table(["Technician", "Day", "Stops", "Scheduled min"], totals)}
+      </div>
+      ${table(["Technician", "Customer", "Day", "Scheduled", "Actual", "Delta"], rows.map((r) => [r.tech, r.name, r.day, r.sched + " min", r.actual + " min", `<span class="${r.delta < -8 ? "badge badge-bad" : "badge badge-ok"}">${r.delta} min</span>`]))}
+      `}
+    `;
+  }
+
+  function viewRemovals() {
+    const rows = state.data.stops
+      .filter((s) => s.removals && s.removals.count > 0)
+      .map((s) => {
+        return [DAY_DATES[s.day] || s.day, stopLabel(s), techName(s.techId), s.removals.count, s.removals.weight + " lb"];
+      });
+    return `
+      ${head("Monthly removal report", "Only dates with actual removals — no empty visit noise (OPS-17 / RPT-03).")}
+      ${table(["Date", "Customer", "Technician", "Count", "Weight"], rows)}
+      <p class="tiny">Customers who had visits but zero removals are omitted on purpose.</p>
+    `;
+  }
+
+  function viewWorkload() {
+    return `
+      ${head("Route / workload", "Upcoming stops by technician for the next few days — sequence of service, not a dumped report. Dense routes list every stop.")}
+      ${TECHS.map((t) => {
+        const ss = state.data.stops.filter((s) => s.techId === t.id && !s.pending).sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || String(a.time).localeCompare(String(b.time)));
+        const extra = t.id === "bobby" ? state.data.customers.find((c) => c.id === "C-1108")?.locations.filter((l) => l.covered !== false).length : 0;
+        return `<div class="card" style="margin-bottom:10px"><h3>${esc(t.name)} · ${esc(t.home)} · ${ss.length} timed stop${ss.length === 1 ? "" : "s"}${extra ? ` · ${extra} HOA lots on the map` : ""}</h3>${table(["Day", "Time", "Stop", "Min", "Type"], ss.map((s) => [s.day, s.time, stopLabel(s), s.durationMin, s.type === "oneoff" ? "Task" : "Service"]))}</div>`;
+      }).join("")}
+    `;
+  }
+
+  /* ---------- Admin ---------- */
+  function viewInvoices() {
+    const rows = state.data.invoices.map((i) => {
+      const c = custBy(i.customerId);
+      let act = "";
+      if (i.status === "draft") act = btn("invoice.send", "Preview & send", "send-invoice", `data-id="${i.id}"`);
+      else if (i.status === "paid") act = `<span class="tiny">Paid ${esc(i.paidOn || "")} · still on the register</span>`;
+      else act = btn("payment.post", "Post payment", "open-record-pay", `data-id="${i.id}"`);
+      return [
+        i.id,
+        custBtn(i.customerId, c?.billTo || c?.name || "—"),
+        esc(invProperty(i)),
+        (can("invoice.send") || can("payment.post") || state.role === "owner") && i.status !== "paid"
+          ? inline("invoice", "amount", i.amount, `data-id="${i.id}"`, "number")
+          : money(i.amount),
+        statusBadge(i.status),
+        i.kind,
+        i.sent || "—",
+        act,
+      ];
+    });
+    return `
+      ${head("Invoices", "One invoice per property. The Bill-To is the same person. Send the bill, then post payment on that invoice. Portal, website, and ACH apply themselves.")}
+      ${writeBar("invoice.send", "Send invoice")}
+      ${table(["Invoice", "Bill-To", "Property", "Amount", "Status", "Kind", "Sent", ""], rows)}
+    `;
+  }
+
+  function viewPayments() {
+    const isOps = state.role === "ops";
+    const filter = state.payFilter || "month";
+    const list = paymentsInFilter(filter).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)));
+    const filters = [
+      ["today", "Today"],
+      ["week", "This week"],
+      ["month", "This month"],
+      ["prev", "Previous month"],
+      ["all", "All"],
+    ];
+    const rows = list.map((p) => {
+      const c = p.customerId ? custBy(p.customerId) : null;
+      const loc = p.locationId ? locBy(p.customerId, p.locationId) : c?.locations?.[0];
+      const channel = payIsLink(p) ? "Invoice link" : "External (team)";
+      const ref = p.last4 ? (String(p.last4).length <= 4 ? "····" + p.last4 : p.last4) : (p.checkNo || "—");
+      const needs = payNeedsMark(p);
+      let act = "";
+      if (isOps) {
+        const need = c && loc && locNeedsService(c, loc);
+        act = c
+          ? (need ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${loc.id}"`) : `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Bill-To</button>`)
+          : "—";
+      } else if (p.failed) {
+        act = c ? `<button class="btn btn-sun" data-act="open-pay-row" data-id="${p.id}">Open Bill-To</button>` : "—";
+      } else if (needs) {
+        act = `<button class="btn btn-sun" data-act="open-pay-row" data-id="${p.id}">Open · mark invoice paid</button>`;
+      } else {
+        act = c ? `<button class="btn btn-ghost" data-act="open-pay-row" data-id="${p.id}">Open Bill-To / property</button>` : "—";
+      }
+      const status = p.failed
+        ? statusBadge("failed")
+        : needs
+          ? `<span class="badge badge-warn">Awaiting mark paid</span>`
+          : `<span class="badge badge-ok">Invoice marked paid</span>`;
+      return [
+        p.date,
+        c ? `<button class="btn btn-ghost linkish" data-act="open-pay-row" data-id="${p.id}">${esc(c.billTo || c.name)}</button>` : "—",
+        c ? esc(c.id) : "—",
+        p.invoiceId || "—",
+        loc ? esc(loc.name) : "—",
+        can("payment.viewAmount") || isOps ? money(p.amount) : "—",
+        esc(p.method || "—"),
+        esc(ref),
+        channel,
+        status,
+        act,
+      ];
+    });
+    return `
+      ${head("Payment register", isOps
+        ? "After Christy marks an invoice paid, open Bill-To and create the service for that property."
+        : "Your team adds every payment here first (invoice-link and external). You check the list, open Bill-To / property, and mark the invoice paid — for both link pays and checks/Zelle/wires.")}
+      ${isOps
+        ? `<div class="notice">You do not mark invoices. When Christy has marked paid: open Bill-To → create service → assign on the map.</div>`
+        : `<div class="notice">No unmatched-mail section. Team already attached Bill-To + invoice when they added the line. Invoice link pays still need you to mark the invoice paid before Rick creates the service.</div>`}
+      <div class="seg" style="margin-bottom:12px">
+        ${filters.map(([id, lab]) => `<button class="${filter === id ? "on" : ""}" data-act="pay-filter" data-filter="${id}">${lab}</button>`).join("")}
+      </div>
+      <p class="tiny" style="margin-bottom:10px">${list.length} payment${list.length === 1 ? "" : "s"} · ${esc(payFilterLabel(filter))}${!isOps ? ` · ${btn("payment.post", "Add payment to register", "new-pay", "", "btn-ghost")}` : ""}</p>
+      ${table(["Date", "Bill-To", "Bill-To #", "Invoice", "Property", "Amount", "MOP", "Card / ref", "Source", "Status", ""], rows)}
+    `;
+  }
+
+  function payFilterRange(filter) {
+    const t = new Date(TODAY + "T12:00:00");
+    const iso = (d) => d.toISOString().slice(0, 10);
+    const startOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
+    const endOfMonth = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    if (filter === "today") return { from: TODAY, to: TODAY };
+    if (filter === "week") {
+      const day = t.getDay();
+      const mondayOffset = day === 0 ? -6 : 1 - day;
+      const from = new Date(t);
+      from.setDate(t.getDate() + mondayOffset);
+      const to = new Date(from);
+      to.setDate(from.getDate() + 6);
+      return { from: iso(from), to: iso(to) };
+    }
+    if (filter === "prev") {
+      const prev = new Date(t.getFullYear(), t.getMonth() - 1, 15);
+      return { from: iso(startOfMonth(prev)), to: iso(endOfMonth(prev)) };
+    }
+    if (filter === "all") return { from: "2000-01-01", to: "2100-12-31" };
+    return { from: iso(startOfMonth(t)), to: iso(endOfMonth(t)) };
+  }
+  function payFilterLabel(filter) {
+    const map = { today: "Today", week: "This week", month: "This month", prev: "Previous month", all: "All dates" };
+    const r = payFilterRange(filter);
+    return `${map[filter] || "This month"} (${r.from} → ${r.to})`;
+  }
+  function paymentsInFilter(filter) {
+    const r = payFilterRange(filter || state.payFilter || "month");
+    return (state.data.payments || []).filter((p) => p.date >= r.from && p.date <= r.to);
+  }
+  function openPayRow(payId) {
+    const p = (state.data.payments || []).find((x) => x.id === payId);
+    if (!p) return;
+    state.payFocusId = payId;
+    if (!p.customerId) {
+      matchPay(payId);
+      return;
+    }
+    state.selectedCustomer = p.customerId;
+    state.page = "customer";
+    render();
+  }
+
+  function renewalCandidates() {
+    const windowDays = state.data.settings?.renewalWindow || 60;
+    const rows = [];
+    (state.data.customers || []).forEach((c) => {
+      if (c.status === "lapsed" || c.status === "inquiry") return;
+      (c.locations || []).filter((l) => l.covered !== false).forEach((l) => {
+        const plan = locPlan(c, l);
+        const inWindow = plan.expires && daysUntil(plan.expires) <= windowDays && ["active", "renewal", "past_due"].includes(c.status);
+        if (!(c.status === "renewal" || inWindow)) return;
+        if (!plan.expires && c.status !== "renewal") return;
+        rows.push({
+          id: `${c.id}:${l.id}`,
+          customerId: c.id,
+          locationId: l.id,
+          name: c.billTo || c.name,
+          locName: l.name,
+          amount: plan.amount,
+          expires: plan.expires || c.expires,
+          programId: plan.programId,
+          autoPay: plan.autoPay,
+          status: c.status,
+        });
+      });
+    });
+    return rows;
+  }
+  function daysUntil(date) {
+    return Math.round((new Date(date) - new Date(TODAY)) / 86400000);
+  }
+  const KNOWN_RENEWAL_AMOUNTS = [2000, 2100, 2400, 1400, 1200, 800, 300, 180];
+  function renewalMeta(row) {
+    if (!row) return { window: "—", flag: "—", batchable: false, noticeOnly: false };
+    const days = daysUntil(row.expires);
+    const window = days <= 30 ? "30 days" : "60 days";
+    const already = (state.data.invoices || []).some((i) => i.customerId === (row.customerId || row.id) && i.locationId === row.locationId && i.kind === "renewal" && (i.status === "sent" || i.status === "failed"));
+    const odd = !KNOWN_RENEWAL_AMOUNTS.includes(Number(row.amount));
+    const rollover = row.programId === "1mo";
+    const noticeOnly = !!row.autoPay;
+    let flag = "Standard — same terms";
+    if (already) flag = "Invoice already out — follow up unpaid, don’t send again";
+    else if (odd) flag = "Odd amount — review with Tom";
+    else if (rollover) flag = "1-month — offer 6/12 rollover, don’t re-send 1-month";
+    else if (noticeOnly) flag = "Auto-pay — send notice only, do not charge";
+    else if (row.programId === "12mo") flag = "Monthly installment — renewal is the term, not one $200 hit";
+    const batchable = !odd && !rollover && !already;
+    return { window, days, flag, odd, rollover, noticeOnly, batchable };
+  }
+  function parseRenewId(id) {
+    const hit = renewalCandidates().find((r) => r.id === id);
+    if (hit) return hit;
+    const c = custBy(id);
+    if (!c) return null;
+    const l = c.locations?.[0];
+    if (!l) return null;
+    const plan = locPlan(c, l);
+    return { id: `${c.id}:${l.id}`, customerId: c.id, locationId: l.id, name: c.billTo || c.name, locName: l.name, amount: plan.amount, expires: plan.expires, programId: plan.programId, autoPay: plan.autoPay, status: c.status };
+  }
+  function failedAutopay() {
+    return (state.data.payments || []).filter((p) => p.failed);
+  }
+  function overnightPortal() {
+    return (state.data.payments || []).filter((p) => (p.source === "portal" || p.source === "website") && p.appliedAuto && p.posted && p.date >= "2026-08-26");
+  }
+  function registerPosted() {
+    return (state.data.payments || []).filter((p) => p.posted && !p.failed).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  }
+  function unpostedBank() {
+    return (state.data.payments || []).filter((p) => !p.posted && !p.failed);
+  }
+  function mailKindLabel(kind) {
+    if (kind === "check") return "Check";
+    if (kind === "cash") return "Cash";
+    if (kind === "bank") return "Bank transfer";
+    if (kind === "ach") return "ACH";
+    return "Card";
+  }
+  function payRegisterRow(p) {
+    const c = p.customerId ? custBy(p.customerId) : null;
+    const needs = payNeedsMark(p);
+    const src = payIsLink(p) ? "Invoice link" : "External (team)";
+    return `<div class="fit-row">
+      <div>
+        <span class="badge ${p.failed ? "badge-bad" : needs ? "badge-warn" : "badge-ok"}">${p.failed ? "Declined" : needs ? "Awaiting mark paid" : "Invoice marked paid"}</span>
+        ${c
+          ? `<button class="btn btn-ghost linkish" data-act="open-pay-row" data-id="${p.id}">${esc(c.billTo || c.name)}</button>`
+          : `<strong>${esc(p.memo || "—")}</strong>`}
+        <div class="tiny">${esc(p.date)} · ${esc(src)} · ${esc(p.method || "")}${p.last4 ? " · ····" + esc(p.last4) : ""} · ${money(p.amount)} · ${p.invoiceId ? esc(p.invoiceId) + " · " : ""}${esc(p.memo || "")}</div>
+      </div>
+      ${c
+        ? `<button class="btn ${needs ? "btn-sun" : "btn-ghost"}" data-act="open-pay-row" data-id="${p.id}">${needs ? "Open · mark invoice paid" : "Open Bill-To"}</button>`
+        : ""}
+    </div>`;
+  }
+
+  function viewRenewals() {
+    const rows = renewalCandidates().map((row) => {
+      const m = renewalMeta(row);
+      const send = m.batchable
+        ? `<label class="chk"><input type="checkbox" data-act="renew-toggle" data-id="${row.id}" ${(state.renewPick || []).includes(row.id) ? "checked" : ""}></label>`
+        : `<span class="tiny">Hold</span>`;
+      const act = m.noticeOnly
+        ? btn("renewal.send", "Send renewal message", "send-renewal", `data-id="${row.id}"`)
+        : btn("renewal.send", m.rollover ? "Send rollover quote" : "Send renewal quote", "send-renewal", `data-id="${row.id}"`);
+      return [send, custBtn(row.customerId, row.name), esc(row.locName), row.expires, m.window, money(row.amount), m.flag, act];
+    });
+    return `
+      ${head("Renewal report", "Separate from the payment register. Programs nearing expiry appear here. You review and send a renewal message / invoice so they can renew by paying — not a new sales quote. Clients who already paid their current plan are not re-quoted.")}
+      ${writeBar("renewal.send", "Send renewal")}
+      <p class="tiny" style="margin-bottom:10px">Send renewal messages for expiring programs only. After they pay, the line appears on the payment register for you to mark invoice paid → Rick continues service. Do not send program quotes to accounts that already paid.</p>
+      ${table(["Send?", "Bill-To", "Property", "Expires", "Window", "Amount", "Flag", ""], rows)}
+      <div class="actions" style="margin-top:12px">${btn("renewal.send", "Send checked renewal messages", "batch-renewals")}</div>
+    `;
+  }
+
+  function viewCommission() {
+    const rows = state.data.commissions.map((b) => {
+      const c = custBy(b.customerId);
+      return [b.period, custBtn(b.customerId, c?.name || "—"), money2(b.amount), b.splits.map((s) => `${techName(s.techId)} ${s.pct}% (${money2(s.dollars)})`).join(" · ")];
+    });
+    return `
+      ${head("Commission / bonus", "Renewal payments only — never first-term (BR-08). Split is a manual Administration entry at payment review, not auto-calculated from history. Dollar figure only; ADP stays outside the system.")}
+      ${writeBar("commission.enter", "Enter split")}
+      <div class="actions" style="margin-bottom:12px">${btn("commission.enter", "Enter split on next renewal", "enter-comm")}</div>
+      ${table(["Period", "Account", "Bonus $", "Split"], rows)}
+      <p class="tiny">Default rate ${state.data.settings.commissionPct}% (SYS-05). Owner can read this report. Section 5 gives commission entry to Administration, not Ops.</p>
+    `;
+  }
+
+  function viewDocuments() {
+    return `
+      ${head("Documents", "COIs, police reports, photos — visible across departments, not siloed to Ops (ADM-13).")}
+      ${writeBar("docs.upload", "Upload")}
+      <div class="actions" style="margin-bottom:12px">${btn("docs.upload", "Attach document", "upload-doc")}</div>
+      ${state.data.documents.map((d) => {
+        const c = custBy(d.customerId);
+        return `<div class="doc-row"><div><strong>${esc(d.name)}</strong><div class="tiny">${custBtn(d.customerId, c?.name)} · ${esc(d.by)}</div></div><span class="muted">${esc(d.date)}</span></div>`;
+      }).join("")}
+    `;
+  }
+
+  function viewComms() {
+    const items = state.role === "sales" ? [] : state.data.comms;
+    return `
+      ${head("Shared communication log", "Calls, emails, and texts on the account — visible to authorized staff, not trapped in a personal inbox (ADM-22).")}
+      ${items.map((x) => {
+        const c = custBy(x.customerId);
+        return `<div class="comm-item">${custBtn(x.customerId, c?.name)} · ${esc(x.who)} · ${esc(x.channel)} · ${esc(x.date)}<div>${esc(x.text)}</div></div>`;
+      }).join("")}
+      ${state.role !== "sales" ? `
+        <div class="card section-gap">
+          <h3>Add a note</h3>
+          <div class="field"><label>Customer</label>
+            <select id="comm-cust">${state.data.customers.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select>
+          </div>
+          <div class="field"><label>Channel</label>
+            <select id="comm-channel"><option>Office</option><option>Phone</option><option>Email</option><option>Text</option></select>
+          </div>
+          <div class="field"><label>Note</label><textarea id="comm-text" rows="3" placeholder="Stays on the shared log"></textarea></div>
+          <button class="btn btn-primary" data-act="add-comm">Save to log</button>
+        </div>
+      ` : ""}
+    `;
+  }
+
+  function viewMtos() {
+    const list = state.data.mtos.filter((m) => {
+      if (state.role === "owner") return true;
+      if (state.role === "ops") return m.dept === "ops";
+      if (state.role === "admin") return m.dept === "admin";
+      return false;
+    });
+    return `
+      ${head("Memo to Office", "Private technician notes, routed to Operations or Administration — not a single management dump (OPS-22 / NOT-06).")}
+      ${list.map(mtoCard).join("") || `<p class="muted">No memos for this department.</p>`}
+    `;
+  }
+
+  function mtoCard(m) {
+    const c = custBy(m.customerId);
+    return `<div class="mto-card ${m.read ? "" : "unread"}">
+      <strong>${esc(techBy(m.from)?.name || m.from)}</strong> → ${esc(m.dept)} · ${custBtn(m.customerId, c?.name)} · ${esc(m.date)}
+      <div>${esc(m.text)}</div>
+      ${can("mto.reply")
+        ? `<div class="field" style="margin-top:10px"><label>Office reply</label><textarea class="inline-edit" data-edit="mto" data-field="reply" data-id="${m.id}" rows="2" placeholder="Reply stays on this memo">${esc(m.reply || "")}</textarea></div>`
+        : (m.reply ? `<div class="tiny">Reply: ${esc(m.reply)}</div>` : "")}
+    </div>`;
+  }
+
+  function viewTraps() {
+    const traps = state.data.traps || [];
+    const valueOut = traps.filter((t) => t.status !== "retrieved").reduce((s, t) => s + t.value, 0);
+    return `
+      ${head("Trap assets", "Traps are ~$80 each. Track where they sit, update status, and pull them when a contract ends — the field notebook was losing them.")}
+      ${writeBar("trap.update", "Update trap")}
+      <div class="grid-3">
+        ${stat("In the field", traps.filter((t) => t.status === "deployed" || t.status === "out").length, "Need a location")}
+        ${stat("Missing / retrieve", traps.filter((t) => t.status === "missing" || t.status === "out").length, "Contract ended or lost", "alert")}
+        ${stat("Value still out", money(valueOut), "Not retrieved")}
+      </div>
+      <div class="card section-gap">
+        ${traps.map((t) => {
+          const c = custBy(t.customerId);
+          const loc = locBy(t.customerId, t.locationId);
+          return `<div class="fit-row">
+            <div>
+              <strong>${esc(t.serial)}</strong> · ${statusBadge(t.status === "deployed" ? "active" : t.status === "retrieved" ? "paid" : t.status === "missing" ? "failed" : "inquiry")}
+              <div class="tiny">${esc(c?.name || "—")} · ${esc(loc?.name || loc?.address || "—")} · last ${esc(t.lastSeen)} · ${esc(t.note)}</div>
+            </div>
+            <div class="actions">
+              ${t.status !== "retrieved" ? btn("trap.update", "Mark retrieved", "trap-status", `data-id="${t.id}" data-status="retrieved"`, "btn-ghost") : ""}
+              ${t.status === "deployed" ? btn("trap.update", "Missing", "trap-status", `data-id="${t.id}" data-status="missing"`, "btn-warn") : ""}
+              ${t.status === "out" ? btn("trap.update", "Still out", "trap-status", `data-id="${t.id}" data-status="out"`, "btn-ghost") : ""}
+            </div>
+          </div>`;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  function viewReports() {
+    const ops = ["Duration vs scheduled (RPT-02)", "Route / workload (RPT-04)", "Monthly removals per customer (RPT-03)"];
+    const adm = ["Payment register that never disappears (RPT-01)", "Failed auto-pay (ADM-09)", "Renewal 30/60 with batch send (RPT-05)", "Hours per account / PO (municipal)", "Commission by technician (RPT-07)"];
+    const own = ["Non-renewal by technician (RPT-06, P2)", "Closing rate (RPT-08, P2)"];
+    const show = [];
+    if (["owner", "ops"].includes(state.role)) show.push(...ops);
+    if (["owner", "admin"].includes(state.role)) show.push(...adm);
+    if (state.role === "owner") show.push(...own);
+    return `
+      ${head("Reports", "Each role only sees the reports that sit on their routes.")}
+      <ul class="settings-list">${show.map((s) => `<li><span>${esc(s)}</span><span class="muted">Available</span></li>`).join("")}</ul>
+      <div class="actions section-gap">
+        ${canPage("duration") ? `<button class="btn btn-ghost" data-act="nav" data-page="duration">Open duration</button>` : ""}
+        ${canPage("removals") ? `<button class="btn btn-ghost" data-act="nav" data-page="removals">Open removals</button>` : ""}
+        ${canPage("payments") ? `<button class="btn btn-ghost" data-act="nav" data-page="payments">Open register</button>` : ""}
+        ${canPage("renewals") ? `<button class="btn btn-ghost" data-act="nav" data-page="renewals">Open renewals</button>` : ""}
+        ${canPage("commission") ? `<button class="btn btn-ghost" data-act="nav" data-page="commission">Open commission</button>` : ""}
+      </div>
+    `;
+  }
+
+  /* ---------- System ---------- */
+  function viewUsers() {
+    return `
+      ${head("Users & roles", "Add, deactivate, assign a Section 5 role (SYS-01).")}
+      ${writeBar("users.manage", "Edit users")}
+      ${state.data.users.map((u) => `
+        <div class="user-row">
+          <div>
+            ${can("users.manage") ? inline("user", "name", u.name, `data-id="${u.id}"`) : `<strong>${esc(u.name)}</strong>`}
+            <div class="tiny">${can("users.manage")
+              ? `<select class="inline-edit" data-edit="user" data-field="role" data-id="${u.id}">${Object.values(ROLES).map((r) => `<option value="${r.id}" ${r.id === u.role ? "selected" : ""}>${esc(r.title)}</option>`).join("")}</select>`
+              : esc(ROLES[u.role]?.title || u.role)}</div>
+          </div>
+          <div class="row">
+            ${statusBadge(u.active ? "active" : "lapsed")}
+            ${btn("users.manage", u.active ? "Deactivate" : "Reactivate", "toggle-user", `data-id="${u.id}"`, "btn-ghost")}
+          </div>
+        </div>
+      `).join("")}
+    `;
+  }
+
+  function viewLists() {
+    return `
+      ${head("Configurable lists", "No-show reasons, removal fields, programs, holidays — editable without a developer (SYS-02).")}
+      ${writeBar("lists.edit", "Add reason")}
+      <div class="split">
+        <div class="card">
+          <h3>No-show reasons</h3>
+          <ul class="settings-list">${allReasons().map((r) => `<li><span>${esc(r.label)}</span><span class="muted">${esc(r.fault)}</span></li>`).join("")}</ul>
+          <div class="field"><label>New reason</label><input id="new-reason" placeholder="Flooded yard"></div>
+          <div class="field"><label>Fault</label>
+            <select id="new-reason-fault"><option value="customer">Customer</option><option value="company">Company</option></select>
+          </div>
+          ${btn("lists.edit", "Add reason", "add-reason")}
+        </div>
+        <div class="card">
+          <h3>Programs in use (~7–8, not the legacy pile)</h3>
+          <ul class="settings-list">${PROGRAMS.map((p) => `<li><span>${esc(p.name)}</span><span class="muted">${money(p.list)}</span></li>`).join("")}</ul>
+          <h3 class="section-gap">Service types they actually use</h3>
+          <ul class="settings-list">${SERVICE_TYPES.map((t) => `<li><span>${esc(t.code)} · ${esc(t.label)}</span><span class="muted">${fmtDur(t.duration)}</span></li>`).join("")}</ul>
+        </div>
+      </div>
+    `;
+  }
+
+  function viewTemplates() {
+    const tpls = state.data.templates || {};
+    const cards = [
+      ["proposal", "Proposal / quote"],
+      ["invoice", "Invoice"],
+      ["renewal", "Renewal notice"],
+      ["visit", "Visit reminder (2 days before, no-reply)"],
+    ];
+    return `
+      ${head("Templates", "Edit the body here. Preview in final form before send. Saved on this browser.")}
+      <div class="grid-3">
+        ${cards.map(([key, t]) => `
+          <div class="card">
+            <h3>${esc(t)}</h3>
+            <textarea class="inline-edit" data-edit="template" data-field="${key}" rows="6">${esc(tpls[key] || "")}</textarea>
+            <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="preview-tpl" data-name="${esc(t)}">Preview rendered</button></div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function viewSettings() {
+    const s = state.data.settings;
+    const lock = can("settings.edit") ? "" : "disabled";
+    return `
+      ${head("Company settings", "Edits save on this browser (local storage). Reset restores the original demo data.")}
+      ${writeBar("settings.edit", "Save")}
+      <div class="card">
+        <div class="field"><label>Default commission</label><input id="set-comm" class="inline-edit" data-edit="settings" data-field="commissionPct" type="number" value="${s.commissionPct}" ${lock}></div>
+        <div class="field"><label>Renewal window (days)</label><input id="set-win" class="inline-edit" data-edit="settings" data-field="renewalWindow" type="number" value="${s.renewalWindow}" ${lock}></div>
+        <div class="field"><label>Reminder channel</label>
+          <select id="set-reminder" class="inline-edit" data-edit="settings" data-field="reminder" ${lock}>
+            <option value="email" ${s.reminder === "email" ? "selected" : ""}>Email</option>
+            <option value="sms" ${s.reminder === "sms" ? "selected" : ""}>SMS</option>
+            <option value="both" ${s.reminder === "both" ? "selected" : ""}>Email + SMS</option>
+          </select>
+        </div>
+        ${btn("settings.edit", "Save settings", "save-settings")}
+        <div class="actions" style="margin-top:12px"><button class="btn btn-ghost" data-act="reset-demo">Reset demo data</button></div>
+      </div>
+    `;
+  }
+
+  function viewIntegrations() {
+    return `
+      ${head("Integration credentials", "Stored here, not hardcoded (SYS-03). Payment card data never touches this app.")}
+      <div class="card">
+        <div class="field"><label>Google Maps Platform key</label><input class="inline-edit" data-edit="integration" data-field="mapsKey" value="${esc(state.data.integrations?.mapsKey || "")}" placeholder="Stored here, not hardcoded"></div>
+        <div class="field"><label>Payment processor</label><input class="inline-edit" data-edit="integration" data-field="processor" value="${esc(state.data.integrations?.processor || "")}" placeholder="Portal / website / ACH — card data never stored"></div>
+        <div class="field"><label>SendGrid / SMS</label><input class="inline-edit" data-edit="integration" data-field="sendgrid" value="${esc(state.data.integrations?.sendgrid || "")}" placeholder="Visit notices + renewals · no-reply"></div>
+        <div class="field"><label>Notes</label><textarea class="inline-edit" data-edit="integration" data-field="notes" rows="2" placeholder="Vehicle GPS and handheld GPS stay outside this app">${esc(state.data.integrations?.notes || "")}</textarea></div>
+      </div>
+      <p class="tiny section-gap">ADP / QuickBooks stay outside. No custom build for a single contract.</p>
+    `;
+  }
+
+  /* ---------- Mobile ---------- */
+  function renderMobile() {
+    const r = role();
+    const stops = state.data.stops.filter((s) => s.techId === r.techId && s.day === "Thu" && !s.pending);
+    if (state.mobileStop) return renderMobileStop(stops.find((s) => s.id === state.mobileStop) || stops[0]);
+    return `
+      <div class="mobile-shell">
+        <div class="phone">
+          <div class="phone-bar">
+            <small>Thu 27 Aug · Field app</small>
+            <h2>Johnny’s route</h2>
+            <div class="tiny">Starts/ends at Deerfield Beach · no pricing, no invoices</div>
+          </div>
+          <div class="phone-body">
+            ${stops.map((s) => {
+              const c = s.customerId ? custBy(s.customerId) : null;
+              const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+              return `
+                <button class="stop-card ${s.status === "scheduled" ? "active" : ""}" data-act="open-stop" data-id="${s.id}" style="width:100%;text-align:left">
+                  <h3>${esc(stopLabel(s))}</h3>
+                  <div class="meta">${esc(s.time || "Live")} · ${esc(loc?.address || s.address || "")} · ${s.durationMin}m</div>
+                  ${statusBadge(s.status)}
+                  ${s.type === "oneoff" ? `<div class="hidden-note">One-off dropped onto your live route</div>` : ""}
+                  ${c?.notes && state.role === "tech" ? `<div class="hidden-note">${esc(c.notes)}</div>` : ""}
+                </button>
+              `;
+            }).join("") || `<p class="muted">No Thursday stops.</p>`}
+          </div>
+          <div class="phone-foot">
+            <span>${esc(r.name)}</span>
+            <button class="btn btn-ghost" data-act="switch-role-btn" data-role="ops">Office login</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderMobileStop(s) {
+    if (!s) {
+      state.mobileStop = null;
+      return renderMobile();
+    }
+    const c = s.customerId ? custBy(s.customerId) : null;
+    const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+    const started = s.status === "in_progress";
+    return `
+      <div class="mobile-shell">
+        <div class="phone">
+          <div class="phone-bar">
+            <small><button class="btn btn-ghost" data-act="close-stop" style="color:#fff;border-color:transparent">← Route</button></small>
+            <h2>${esc(stopLabel(s))}</h2>
+            <div class="tiny">${esc(loc?.address || s.address || "")}</div>
+          </div>
+          <div class="phone-body">
+            <div class="notice">No invoice, price, or payment on this screen (MOB-07).</div>
+            ${(() => {
+              const gps = loc?.gps || (loc ? approxGps(loc) : "");
+              return gps ? `
+                <p class="muted">GPS ${esc(gps)}${loc?.manualPin ? " · manual pin" : ""}</p>
+                <div class="actions">
+                  <button class="btn btn-primary" data-act="navigate" data-gps="${esc(gps)}">Open in Maps</button>
+                  <button class="btn btn-ghost" data-act="copy-gps" data-gps="${esc(gps)}">Copy lat/long</button>
+                </div>
+                <p class="tiny">Copy-paste into Google Maps — the old field app blocked that.</p>
+              ` : "";
+            })()}
+            <div class="stack section-gap">
+              ${!started && s.status === "scheduled" ? `<button class="btn btn-primary" data-act="start-stop" data-id="${s.id}">Start activity</button>` : ""}
+              ${started ? `
+                <div class="card">
+                  <h3>Wildlife removal</h3>
+                  <div class="removal-grid">
+                    <div class="field"><label>Count</label><input id="rem-count" type="number" value="${esc(s.draftCount ?? 0)}"></div>
+                    <div class="field"><label>Weight (lb)</label><input id="rem-wt" type="number" step="0.1" value="${esc(s.draftWt ?? 0)}"></div>
+                  </div>
+                  <button class="btn btn-ghost" data-act="add-photo" data-id="${s.id}" style="margin-top:8px">Attach photo</button>
+                  ${(s.photos || []).map((p) => `<div class="tiny">${esc(p)}</div>`).join("")}
+                </div>
+                <div class="field"><label>Memo to Office</label>
+                  <select id="mto-dept"><option value="ops" ${s.draftDept === "admin" ? "" : "selected"}>Route to Operations</option><option value="admin" ${s.draftDept === "admin" ? "selected" : ""}>Route to Administration</option></select>
+                  <textarea id="mto-text" rows="3" placeholder="Internal only — never on the customer report">${esc(s.draftMto || "")}</textarea>
+                </div>
+                <div class="field"><label>If incomplete / no-show</label>
+                  <select id="miss-reason">${allReasons().map((r) => `<option value="${r.id}">${esc(r.label)} (${esc(r.fault)})</option>`).join("")}</select>
+                </div>
+                <button class="btn btn-primary" data-act="complete-stop" data-id="${s.id}">Complete</button>
+                <button class="btn btn-warn" data-act="miss-stop" data-id="${s.id}">Log no-show</button>
+              ` : ""}
+              ${s.status === "complete" ? `<div class="notice">Clocked ${s.actualMin} min. Removals: ${s.removals?.count || 0} / ${s.removals?.weight || 0} lb.${(s.photos || []).length ? " Photos: " + s.photos.length : ""}</div>` : ""}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /* ---------- Public pay ---------- */
+  function renderPublicPay() {
+    const inv = state.data.invoices.find((i) => i.id === state.payInvoice);
+    const c = inv ? custBy(inv.customerId) : null;
+    return `
+      <div class="pay-public">
+        <div class="pay-box">
+          <div class="mark" style="margin-bottom:16px"><div class="mark-badge">IC</div><span>Iguana Control</span></div>
+          <h2 style="font-family:var(--display);font-size:28px;margin-bottom:8px">Pay an invoice</h2>
+          <p class="muted">No login. Invoice link, website checkout, or ACH — these post themselves on the register.</p>
+          <div class="field"><label>Invoice number</label>
+            <input id="pay-id" value="${esc(state.payInvoice)}" placeholder="INV-4510">
+          </div>
+          <div class="field"><label>How you are paying</label>
+            <select id="pay-method">${pay().optionsHtml("Portal", { publicPage: true })}</select>
+          </div>
+          ${inv ? `<div class="preview"><strong>${esc(c?.name)}</strong><div>${esc(inv.id)} · ${money(inv.amount)} · ${esc(inv.status)}</div></div>` : state.payInvoice ? `<div class="notice locked">No invoice with that number.</div>` : ""}
+          <div class="actions" style="margin-top:12px">
+            <button class="btn btn-ghost" data-act="lookup-pay">Look up</button>
+            <button class="btn btn-primary" data-act="pay-now" ${inv && inv.status !== "paid" ? "" : "disabled"}>Pay ${inv ? money(inv.amount) : ""}</button>
+          </div>
+          <p class="tiny">Checks Tom deposits and bank wires are posted by Administration. Your name stays on the payment register — it does not disappear into a batch total.</p>
+          <p class="tiny section-gap"><button class="btn btn-ghost" data-act="close-pay">Back to CRM</button></p>
+        </div>
+      </div>
+    `;
+  }
+
+  /* ---------- Shared UI ---------- */
+  function head(title, lede) {
+    return `<div class="page-head"><div><h2>${esc(title)}</h2><p>${esc(lede)}</p></div></div>`;
+  }
+  function stat(k, v, s, cls = "") {
+    return `<div class="stat ${cls}"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="s">${esc(s)}</div></div>`;
+  }
+  function table(headers, rows) {
+    if (!rows.length) return `<p class="muted">Nothing to show.</p>`;
+    return `<div class="table-wrap card" style="padding:8px 10px"><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  }
+  function renderToast() {
+    return state.toast ? `<div class="toast">${esc(state.toast)}</div>` : "";
+  }
+  function renderModal() {
+    if (!state.modal) return "";
+    return `<div class="overlay"><div class="modal ${state.modal.wide ? "wide" : ""} ${state.modal.setup ? "setup" : ""} ${state.modal.previewMap ? "map-preview" : ""}">${state.modal.html}</div></div>`;
+  }
+
+  /* ---------- Bind / actions ---------- */
+  function bind() {
+    $app.onclick = (e) => {
+      // Backdrop only. Overlay must NOT have data-act — otherwise clicking any input
+      // inside the modal bubbles to closest([data-act]) and closes the dialog.
+      if (e.target.classList.contains("overlay")) {
+        state.modal = null;
+        render();
+        return;
+      }
+      const loginCard = e.target.closest("[data-act=enter], [data-act=login]");
+      if (loginCard) {
+        enterAs(loginCard.getAttribute("data-who") || loginCard.getAttribute("data-role"));
+        return;
+      }
+      const el = e.target.closest("[data-act]");
+      if (!el || el.disabled) return;
+      if (el.tagName === "SELECT") return;
+      // Typing / focusing a field must not fire a parent control's data-act.
+      if (["INPUT", "TEXTAREA", "LABEL", "OPTION"].includes(e.target.tagName) && e.target !== el && !e.target.hasAttribute("data-act")) {
+        return;
+      }
+      act(el.dataset.act, el.dataset);
+    };
+    $app.onchange = (e) => {
+      if (e.target.id === "nc-email-none") {
+        const em = document.getElementById("nc-email");
+        if (em) {
+          em.disabled = e.target.checked;
+          if (e.target.checked) em.value = "";
+        }
+        return;
+      }
+      if (e.target.name === "nc-billto") {
+        syncBillToMode();
+        return;
+      }
+      if (e.target.id === "nc-type" || e.target.dataset.act === "intake-type") {
+        syncCompanyField();
+        return;
+      }
+      if (e.target.id === "nc-existing" || e.target.dataset.act === "pick-billto") {
+        applyExistingBillTo(e.target.value);
+        syncCompanyField();
+        return;
+      }
+      if (e.target.dataset.edit) {
+        applyInlineEdit(e.target);
+        if (e.target.tagName === "SELECT" || e.target.type === "checkbox") render();
+        return;
+      }
+      const el = e.target.closest("[data-act]");
+      if (!el) return;
+      if (el.dataset.act === "switch-role") {
+        enterAs(el.value);
+      }
+      if (el.dataset.act === "nav-select") {
+        state.page = el.value;
+        render();
+      }
+      if (el.dataset.act === "assign-days") {
+        state.assignDays = el.value;
+        render();
+      }
+      if (el.dataset.act === "assign-loc") {
+        state.assignLocId = el.value;
+        state.assignFocus = null;
+        render();
+      }
+      if (el.dataset.act === "preview-program") {
+        const box = document.getElementById("cv-preview");
+        if (box) box.innerHTML = convertPreviewInner(el.value);
+      }
+      if (el.dataset.act === "preview-loc-program") {
+        const box = document.getElementById("cv-preview-" + el.dataset.loc);
+        if (box) box.innerHTML = convertPreviewInner(el.value);
+      }
+      if (el.dataset.act === "preview-io-program") {
+        const box = document.getElementById("io-preview");
+        if (box) box.innerHTML = convertPreviewInner(el.value);
+      }
+      if (el.dataset.act === "sv-code") {
+        const t = SERVICE_TYPES.find((x) => x.id === el.value);
+        if (t) {
+          const dur = document.getElementById("sv-dur");
+          const idur = document.getElementById("sv-idur");
+          if (dur) dur.value = fmtDur(t.duration);
+          if (idur) idur.value = fmtDur(t.duration);
+        }
+        fillSetupDates();
+        refreshSetupFit();
+      }
+      if (el.dataset.act === "sv-start") fillSetupDates();
+      if (el.dataset.act === "sv-sched") refreshSetupFit();
+      if (el.dataset.act === "sv-loc") refreshSetupFit();
+    };
+    $app.oninput = (e) => {
+      if (e.target.dataset.previewPin && !e.target.dataset.coord) updateMiniPreview(e.target);
+      if (e.target.dataset.coord) syncPinFromLatLng(e.target);
+      if (e.target.dataset.edit && e.target.tagName !== "SELECT") applyInlineEdit(e.target);
+    };
+    bindMapPins();
+    bindMiniMapPins();
+    if (state.page === "add-customer") {
+      syncBillToMode();
+      syncCompanyField();
+    }
+  }
+
+  function bindMapPins() {
+    const canvas = document.getElementById("map-canvas");
+    if (!canvas || state.page !== "map") return;
+    canvas.querySelectorAll(".pin[data-drag]").forEach((pin) => {
+      pin.style.cursor = "grab";
+      pin.onmousedown = (e) => {
+        if (state.mapLasso) {
+          e.preventDefault();
+          toggleMapSelect(pin.dataset.cid, pin.dataset.lid);
+          return;
+        }
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const move = (ev) => {
+          const x = Math.max(4, Math.min(96, ((ev.clientX - rect.left) / rect.width) * 100));
+          const y = Math.max(6, Math.min(94, ((ev.clientY - rect.top) / rect.height) * 100));
+          pin.style.left = x + "%";
+          pin.style.top = y + "%";
+          pin.dataset.nx = x.toFixed(1);
+          pin.dataset.ny = y.toFixed(1);
+        };
+        const up = () => {
+          document.removeEventListener("mousemove", move);
+          document.removeEventListener("mouseup", up);
+          if (pin.dataset.nx) {
+            const loc = locBy(pin.dataset.cid, pin.dataset.lid);
+            if (loc) {
+              loc.x = pin.dataset.nx + "%";
+              loc.y = pin.dataset.ny + "%";
+              loc.manualPin = true;
+              loc.gps = approxGps(loc);
+            }
+            toast("Pin dropped. GPS " + (locBy(pin.dataset.cid, pin.dataset.lid)?.gps || "") + " — technicians navigate to this coordinate, not the street label.");
+          }
+        };
+        document.addEventListener("mousemove", move);
+        document.addEventListener("mouseup", up);
+      };
+    });
+  }
+
+  function updateMiniPreview(input) {
+    const pinId = input.dataset.previewPin;
+    if (!pinId) return;
+    let addr = input.value;
+    if (input.dataset.locIndex != null) {
+      const i = input.dataset.locIndex;
+      const street = document.getElementById(`nc-loc-street-${i}`)?.value || "";
+      const city = document.getElementById(`nc-loc-city-${i}`)?.value || "";
+      addr = [street, city, "FL"].filter(Boolean).join(", ");
+    } else if (input.id === "al-city" || input.id === "al-street" || input.id === "al-addr" || input.id === "el-city" || input.id === "el-street") {
+      const prefix = input.id.startsWith("el-") ? "el" : "al";
+      const street = document.getElementById(`${prefix}-street`)?.value || "";
+      const city = document.getElementById(`${prefix}-city`)?.value || document.getElementById("al-addr")?.value || "";
+      addr = [street, city, "FL"].filter(Boolean).join(", ") || input.value;
+    }
+    const pos = pinFromAddress(addr);
+    const pin = document.getElementById(pinId);
+    if (pin) {
+      pin.style.left = pos.x;
+      pin.style.top = pos.y;
+      pin.classList.remove("ghost");
+      const span = pin.querySelector("span");
+      if (span) span.textContent = pos.place;
+    }
+    const xEl = document.getElementById(input.dataset.previewX);
+    const yEl = document.getElementById(input.dataset.previewY);
+    if (xEl) xEl.value = pct(pos.x);
+    if (yEl) yEl.value = pct(pos.y);
+    const coords = latLngFromXy(pct(pos.x), pct(pos.y));
+    if (input.dataset.locIndex != null) {
+      const i = input.dataset.locIndex;
+      const latEl = document.getElementById(`nc-loc-lat-${i}`);
+      const lngEl = document.getElementById(`nc-loc-lng-${i}`);
+      if (latEl) latEl.value = coords.lat;
+      if (lngEl) lngEl.value = coords.lng;
+    }
+    if (input.id === "al-city" || input.id === "al-street" || input.id === "al-addr" || input.id === "el-city" || input.id === "el-street") {
+      const prefix = input.id.startsWith("el-") ? "el" : "al";
+      const latEl = document.getElementById(`${prefix}-lat`);
+      const lngEl = document.getElementById(`${prefix}-lng`);
+      if (latEl) latEl.value = coords.lat;
+      if (lngEl) lngEl.value = coords.lng;
+    }
+    const cap = document.getElementById(pin?.dataset.cap || input.dataset.cap || "mini-cap");
+    if (cap && String(addr || "").trim()) cap.textContent = `${pos.place} · ${coords.lat}, ${coords.lng}`;
+  }
+
+  function applyPinToFields(pin, x, y) {
+    const xEl = document.getElementById(pin.dataset.x);
+    const yEl = document.getElementById(pin.dataset.y);
+    if (xEl) xEl.value = x.toFixed(1);
+    if (yEl) yEl.value = y.toFixed(1);
+    const coords = latLngFromXy(x, y);
+    const place = placeFromPin(x, y);
+    const cityEl = pin.dataset.fillCity ? document.getElementById(pin.dataset.fillCity) : null;
+    const streetEl = pin.dataset.fillStreet ? document.getElementById(pin.dataset.fillStreet) : null;
+    const zipEl = pin.dataset.fillZip ? document.getElementById(pin.dataset.fillZip) : null;
+    const latEl = pin.dataset.fillLat ? document.getElementById(pin.dataset.fillLat) : null;
+    const lngEl = pin.dataset.fillLng ? document.getElementById(pin.dataset.fillLng) : null;
+    if (cityEl) {
+      cityEl.value = place.place;
+      cityEl.dataset.fromMap = "1";
+    }
+    if (streetEl && !streetEl.value.trim()) {
+      streetEl.value = `Near ${place.place}`;
+      streetEl.dataset.fromMap = "1";
+    }
+    if (zipEl && (!zipEl.value.trim() || zipEl.dataset.fromMap)) {
+      zipEl.value = place.zip || "";
+      zipEl.dataset.fromMap = "1";
+    }
+    if (latEl) latEl.value = coords.lat;
+    if (lngEl) lngEl.value = coords.lng;
+    const span = pin.querySelector("span");
+    if (span) span.textContent = place.place;
+    const cap = document.getElementById(pin.dataset.cap || "mini-cap");
+    if (cap) cap.textContent = `${place.place} · ${coords.lat}, ${coords.lng}`;
+  }
+
+  function syncPinFromLatLng(input) {
+    const latEl = document.getElementById(input.dataset.pairLat || input.id.replace("lng", "lat"));
+    const lngEl = document.getElementById(input.dataset.pairLng || input.id.replace("lat", "lng"));
+    const lat = Number(latEl?.value);
+    const lng = Number(lngEl?.value);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    if (lat < 24 || lat > 31 || lng > -79 || lng < -88) return;
+    const { x, y } = xyFromLatLng(lat, lng);
+    const pinId = input.dataset.previewPin || latEl?.dataset.previewPin || lngEl?.dataset.previewPin;
+    const pin = pinId ? document.getElementById(pinId) : null;
+    if (!pin) return;
+    pin.style.left = x + "%";
+    pin.style.top = y + "%";
+    const xEl = document.getElementById(pin.dataset.x);
+    const yEl = document.getElementById(pin.dataset.y);
+    if (xEl) xEl.value = x.toFixed(1);
+    if (yEl) yEl.value = y.toFixed(1);
+    const place = placeFromPin(x, y);
+    const span = pin.querySelector("span");
+    if (span) span.textContent = place.place;
+    const cap = document.getElementById(pin.dataset.cap || "mini-cap");
+    if (cap) cap.textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)} · pin from coordinates`;
+  }
+
+  function bindMiniMapPins() {
+    document.querySelectorAll(".mini-map").forEach((canvas) => {
+      const pins = canvas.querySelectorAll(".pin[data-drag-mini]");
+      if (!pins.length) return;
+      pins.forEach((pin) => {
+        pin.style.cursor = "grab";
+        pin.onmousedown = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const rect = canvas.getBoundingClientRect();
+          const move = (ev) => {
+            const x = Math.max(4, Math.min(96, ((ev.clientX - rect.left) / rect.width) * 100));
+            const y = Math.max(6, Math.min(94, ((ev.clientY - rect.top) / rect.height) * 100));
+            pin.style.left = x + "%";
+            pin.style.top = y + "%";
+            pin.dataset.nx = String(x);
+            pin.dataset.ny = String(y);
+          };
+          const up = () => {
+            document.removeEventListener("mousemove", move);
+            document.removeEventListener("mouseup", up);
+            if (pin.dataset.nx) applyPinToFields(pin, Number(pin.dataset.nx), Number(pin.dataset.ny));
+          };
+          document.addEventListener("mousemove", move);
+          document.addEventListener("mouseup", up);
+        };
+      });
+      canvas.onclick = (e) => {
+        if (e.target.closest(".pin[data-drag-mini]")) return;
+        const pin = canvas.querySelector(".pin[data-drag-mini]");
+        if (!pin) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.max(4, Math.min(96, ((e.clientX - rect.left) / rect.width) * 100));
+        const y = Math.max(6, Math.min(94, ((e.clientY - rect.top) / rect.height) * 100));
+        pin.style.left = x + "%";
+        pin.style.top = y + "%";
+        applyPinToFields(pin, x, y);
+      };
+    });
+  }
+
+  function switchRole(id) {
+    enterAs(id);
+  }
+
+  function act(name, ds) {
+    const actions = {
+      login: () => enterAs(ds.who || ds.role),
+      enter: () => enterAs(ds.who || ds.role),
+      logout: () => { state.role = null; state.page = "dashboard"; persistSession(); render(); },
+      "reset-demo": () => resetDemo(),
+      nav: () => { state.page = ds.page; state.selectedCustomer = null; render(); },
+      "switch-role-btn": () => switchRole(ds.role),
+      "open-customer": () => { state.selectedCustomer = ds.id; state.page = "customer"; state.payFocusId = null; render(); },
+      "open-pay-row": () => openPayRow(ds.id),
+      "pay-filter": () => { state.payFilter = ds.filter || "month"; render(); },
+      "open-pay": () => { state.payView = true; state.payInvoice = ds.inv || "INV-4510"; render(); },
+      "close-pay": () => { state.payView = false; render(); },
+      "lookup-pay": () => { state.payInvoice = document.getElementById("pay-id")?.value.trim() || ""; render(); },
+      "pay-now": () => payNow(),
+      "new-customer": () => openNewCustomer(),
+      "from-inbound": () => openNewCustomer(ds.id),
+      "create-customer": () => createCustomer(),
+      "cancel-add": () => { state.inboundId = null; state.locCount = 1; state.page = "dashboard"; render(); },
+      "billto-mode": () => syncBillToMode(),
+      "pick-billto": () => applyExistingBillTo(val("nc-existing")),
+      "add-loc-row": () => addLocRow(),
+      "remove-loc-row": () => removeLocRow(ds.index),
+      "email-none": () => {
+        const none = document.getElementById("nc-email-none")?.checked;
+        const email = document.getElementById("nc-email");
+        if (email) {
+          email.disabled = !!none;
+          if (none) email.value = "";
+        }
+      },
+      "intake-type": () => syncCompanyField(),
+      "send-quote": () => openQuote(ds.id),
+      "confirm-quote": () => confirmQuote(ds.id),
+      "convert-invoice": () => convertInvoice(ds.id),
+      "open-convert": () => openConvertInvoice(ds.id),
+      "confirm-convert": () => convertInvoice(ds.id),
+      "invoice-one-loc": () => openInvoiceOneLocation(ds.id, ds.loc),
+      "confirm-invoice-one": () => createAndSendLocInvoice(ds.id, ds.loc),
+      "send-invoice": () => openInvoice(ds.id),
+      "confirm-invoice": () => confirmInvoice(ds.id),
+      "send-renewal": () => openRenewal(ds.id),
+      "confirm-renewal": () => confirmRenewal(ds.id),
+      "renew-toggle": () => toggleRenewPick(ds.id),
+      "batch-renewals": () => batchRenewals(),
+      "open-record-pay": () => openRecordPay(ds.id),
+      bestfit: () => openAssign(ds.id),
+      "open-assign": () => openAssign(ds.id, ds.loc),
+      "compare-routes": () => openCompareRoutes(ds.id, ds.loc),
+      "map-assign": () => mapAssign(ds.id, ds.tech, ds.loc),
+      "focus-client": () => { state.mapClient = ds.id; state.mapLoc = ds.loc || null; render(); },
+      "open-service": () => openCreateService(ds.id, ds.loc),
+      "save-service": () => saveCreateService(ds.id),
+      "sched-view": () => { state.schedView = ds.view; render(); },
+      "focus-tech": () => { state.assignFocus = ds.tech; render(); },
+      "confirm-assign": () => confirmAssign(ds.id, ds.tech, ds.loc),
+      "confirm-bestfit": () => confirmAssign(ds.id, ds.tech, ds.loc),
+      "add-location": () => openAddLocation(ds.id),
+      "edit-billto": () => openEditBillTo(ds.id),
+      "save-billto": () => saveEditBillTo(ds.id),
+      "edit-locations": () => openEditLocations(ds.id),
+      "edit-one-loc": () => openEditOneLocation(ds.id, ds.loc),
+      "save-one-loc": () => saveEditOneLocation(ds.id, ds.loc),
+      "save-location": () => saveAddLocation(ds.id),
+      "request-loc": () => requestLocService(ds.id, ds.loc),
+      reassign: () => openReassign(ds.id),
+      "confirm-reassign": () => confirmReassign(ds.id, ds.tech, ds.day),
+      "insert-oneoff": () => insertOneoff(ds.id),
+      "new-oneoff": () => openNewOneoff(),
+      "save-oneoff": () => saveNewOneoff(),
+      "generate-schedule": () => generateSchedule(),
+      "map-tech": () => {
+        const next = ds.tech || null;
+        state.mapTech = next && state.mapTech === next ? null : next;
+        render();
+      },
+      "map-day": () => { state.mapDay = ds.day || null; render(); },
+      "sv-pick-fit": () => pickSetupTrapper(ds.tech),
+      "toggle-lasso": () => { state.mapLasso = !state.mapLasso; if (!state.mapLasso) state.mapSelect = []; render(); },
+      "toggle-pin": () => toggleMapSelect(ds.cid, ds.lid),
+      "bulk-move": () => bulkMove(ds.tech),
+      "bulk-days": () => bulkDays(ds.days),
+      "trap-status": () => trapStatus(ds.id, ds.status),
+      "ext-yes": () => decideExtension(ds.id, true),
+      "ext-no": () => decideExtension(ds.id, false),
+      "send-notices": () => sendNotices(),
+      "copy-gps": () => copyGps(ds.gps),
+      "macro-block": () => macroBlock(),
+      "noshow-company": () => noshowCompany(),
+      "noshow-customer": () => noshowCustomer(),
+      "post-pay": () => postPayCustomer(ds.id),
+      "match-pay": () => matchPay(ds.id),
+      "new-pay": () => openNewPay(),
+      "save-new-pay": () => saveNewPay(),
+      "open-mail": () => openMail(ds.id),
+      "apply-mail": () => applyMail(ds.id),
+      "apply-mail-pay": () => applyMatchPay(ds.id),
+      "record-pay": () => openRecordPay(ds.id),
+      "confirm-record-pay": () => confirmRecordPay(ds.id),
+      "enter-comm": () => enterComm(),
+      "edit-memo": () => openMemo(ds.id),
+      "save-memo": () => saveMemo(ds.id),
+      "add-comm": () => addComm(ds.id),
+      "upload-doc": () => uploadDoc(),
+      "toggle-user": () => toggleUser(ds.id),
+      "add-reason": () => addReason(),
+      "save-settings": () => saveSettings(),
+      "preview-tpl": () => previewTpl(ds.name),
+      "close-modal": () => { state.modal = null; render(); },
+      "open-stop": () => { state.mobileStop = ds.id; render(); },
+      "close-stop": () => { state.mobileStop = null; render(); },
+      "start-stop": () => startStop(ds.id),
+      "complete-stop": () => completeStop(ds.id),
+      "miss-stop": () => missStop(ds.id),
+      "add-photo": () => addPhoto(ds.id),
+      navigate: () => toast("Would open native Maps at " + ds.gps + " (MOB-09)."),
+    };
+    (actions[name] || (() => {}))();
+  }
+
+  function payNow() {
+    const inv = state.data.invoices.find((i) => i.id === state.payInvoice);
+    if (!inv || inv.status === "paid") return;
+    const method = val("pay-method") || "Portal";
+    const c = custBy(inv.customerId);
+    const src = pay().sourceOf(method);
+    // Client paid on the link — line goes on the register; Christy still marks the invoice paid.
+    state.data.payments.push({
+      id: nid("P"), invoiceId: inv.id, customerId: inv.customerId, locationId: inv.locationId || null, amount: inv.amount,
+      method, date: TODAY, source: src, linkPay: true, invoiceMarked: false, posted: true,
+      last4: String(Math.floor(1000 + Math.random() * 9000)),
+      memo: `Invoice link · ${c?.name || "client"} · on register — mark invoice paid`,
+    });
+    toast("Payment is on the register. Christy opens Bill-To and marks the invoice paid.");
+    state.payView = false;
+    render();
+  }
+
+  function addComm(customerId) {
+    const text = (val("comm-text") || "").trim();
+    if (!text) {
+      toast("Type a note first.");
+      return;
+    }
+    const cid = customerId || val("comm-cust");
+    if (!cid) return;
+    state.data.comms.unshift({
+      id: nid("CM"), customerId: cid, who: role()?.name || "Office",
+      channel: val("comm-channel") || "Office", date: TODAY, text,
+    });
+    toast("Saved on the shared communication log.");
+    render();
+  }
+
+  function openNewCustomer(inboundId) {
+    if (!can("customer.create")) return;
+    state.inboundId = inboundId || null;
+    state.locCount = 1;
+    state.modal = null;
+    state.page = "add-customer";
+    render();
+  }
+
+  function radioVal(name) {
+    return document.querySelector(`input[name="${name}"]:checked`)?.value || "";
+  }
+
+  function setInput(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.value = value == null ? "" : value;
+  }
+
+  function setChecked(id, on) {
+    const el = document.getElementById(id);
+    if (el) el.checked = !!on;
+  }
+
+  function syncBillToMode() {
+    const mode = radioVal("nc-billto") || "new";
+    const wrap = document.getElementById("nc-existing-wrap");
+    const notice = document.getElementById("nc-bill-notice");
+    const sel = document.getElementById("nc-existing");
+    const isExisting = mode === "existing";
+    if (wrap) wrap.hidden = !isExisting;
+    if (sel) {
+      sel.disabled = !isExisting;
+      if (!isExisting) sel.value = "";
+    }
+    if (notice) notice.hidden = !isExisting || !val("nc-existing");
+    if (isExisting && val("nc-existing")) applyExistingBillTo(val("nc-existing"));
+    syncCompanyField();
+  }
+
+  function syncCompanyField() {
+    const type = val("nc-type") || "residential";
+    const wrap = document.getElementById("nc-company-wrap");
+    const input = document.getElementById("nc-company");
+    const show = type === "hoa";
+    if (wrap) wrap.hidden = !show;
+    if (input && !show) input.value = "";
+  }
+
+  function applyExistingBillTo(id) {
+    const c = custBy(id);
+    const notice = document.getElementById("nc-bill-notice");
+    if (!c) {
+      if (notice) notice.hidden = true;
+      return;
+    }
+    if (notice) {
+      notice.hidden = false;
+      notice.textContent = `${c.billTo || c.name} already has ${(c.locations || []).length} location(s). Contact fields filled — add the new service location below.`;
+    }
+    const parts = String(c.name || "").trim().split(/\s+/);
+    const isOrg = c.type === "hoa" || c.type === "commercial" || c.type === "municipal";
+    setInput("nc-company", c.company || (isOrg ? c.name : ""));
+    setInput("nc-first", c.firstName || (isOrg ? "" : (parts[0] || "")));
+    setInput("nc-last", c.lastName || (isOrg ? "" : (parts.slice(1).join(" ") || "")));
+    setInput("nc-phone", c.phone === "—" ? "" : (c.phone || ""));
+    setInput("nc-mobile", c.mobile || "");
+    setInput("nc-alt", c.altPhone || "");
+    setInput("nc-email", c.email || "");
+    setInput("nc-type", c.type || "residential");
+    setInput("nc-billtype", c.billToType || c.type || "residential");
+    setInput("nc-internal", c.opsNote || "");
+    if (!(val("nc-instructions") || "").trim()) setInput("nc-instructions", c.notes || "");
+    setChecked("nc-sms", !!c.acceptSms);
+    setChecked("nc-mail", c.acceptEmail !== false);
+    setChecked("nc-prospect", !!c.prospect);
+    setChecked("nc-email-none", !c.email);
+    const email = document.getElementById("nc-email");
+    if (email) email.disabled = !c.email && document.getElementById("nc-email-none")?.checked;
+    syncCompanyField();
+  }
+
+  function addLocRow() {
+    state.locCount = (state.locCount || 1) + 1;
+    const snapshot = snapshotIntake();
+    render();
+    restoreIntake(snapshot);
+    syncBillToMode();
+    bindMiniMapPins();
+  }
+
+  function removeLocRow(index) {
+    if ((state.locCount || 1) <= 1) return;
+    const snapshot = snapshotIntake();
+    snapshot.locs = (snapshot.locs || []).filter((_, i) => String(i) !== String(index));
+    state.locCount = Math.max(1, snapshot.locs.length || 1);
+    render();
+    restoreIntake(snapshot);
+    syncBillToMode();
+    bindMiniMapPins();
+  }
+
+  function snapshotIntake() {
+    const locs = [];
+    document.querySelectorAll(".loc-block").forEach((block) => {
+      const i = block.dataset.locIndex;
+      locs.push({
+        name: val(`nc-loc-name-${i}`),
+        street: val(`nc-loc-street-${i}`),
+        city: val(`nc-loc-city-${i}`),
+        state: val(`nc-loc-state-${i}`) || "FL",
+        zip: val(`nc-loc-zip-${i}`),
+        subdivision: val(`nc-loc-subdiv-${i}`),
+        x: val(`nc-loc-x-${i}`),
+        y: val(`nc-loc-y-${i}`),
+        lat: val(`nc-loc-lat-${i}`),
+        lng: val(`nc-loc-lng-${i}`),
+      });
+    });
+    return {
+      billMode: radioVal("nc-billto") || "new",
+      existing: val("nc-existing"),
+      channel: radioVal("nc-channel"),
+      type: val("nc-type"),
+      billToType: val("nc-billtype"),
+      company: val("nc-company"),
+      first: val("nc-first"),
+      last: val("nc-last"),
+      phone: val("nc-phone"),
+      mobile: val("nc-mobile"),
+      alt: val("nc-alt"),
+      email: val("nc-email"),
+      emailNone: !!document.getElementById("nc-email-none")?.checked,
+      instructions: val("nc-instructions"),
+      internal: val("nc-internal"),
+      sms: !!document.getElementById("nc-sms")?.checked,
+      mail: !!document.getElementById("nc-mail")?.checked,
+      prospect: !!document.getElementById("nc-prospect")?.checked,
+      locs,
+    };
+  }
+
+  function restoreIntake(s) {
+    if (!s) return;
+    document.querySelectorAll(`input[name="nc-billto"]`).forEach((el) => { el.checked = el.value === s.billMode; });
+    document.querySelectorAll(`input[name="nc-channel"]`).forEach((el) => { el.checked = el.value === s.channel; });
+    setInput("nc-existing", s.existing);
+    setInput("nc-type", s.type);
+    setInput("nc-billtype", s.billToType);
+    setInput("nc-company", s.company);
+    setInput("nc-first", s.first);
+    setInput("nc-last", s.last);
+    setInput("nc-phone", s.phone);
+    setInput("nc-mobile", s.mobile);
+    setInput("nc-alt", s.alt);
+    setInput("nc-email", s.email);
+    setInput("nc-instructions", s.instructions);
+    setInput("nc-internal", s.internal);
+    setChecked("nc-email-none", s.emailNone);
+    setChecked("nc-sms", s.sms);
+    setChecked("nc-mail", s.mail);
+    setChecked("nc-prospect", s.prospect);
+    (s.locs || []).forEach((loc, i) => {
+      setInput(`nc-loc-name-${i}`, loc.name);
+      setInput(`nc-loc-street-${i}`, loc.street);
+      setInput(`nc-loc-city-${i}`, loc.city);
+      setInput(`nc-loc-state-${i}`, loc.state || "FL");
+      setInput(`nc-loc-zip-${i}`, loc.zip);
+      setInput(`nc-loc-subdiv-${i}`, loc.subdivision);
+      setInput(`nc-loc-x-${i}`, loc.x);
+      setInput(`nc-loc-y-${i}`, loc.y);
+      setInput(`nc-loc-lat-${i}`, loc.lat);
+      setInput(`nc-loc-lng-${i}`, loc.lng);
+      const pin = document.getElementById(`intake-pin-${i}`);
+      if (pin && loc.x != null && loc.y != null) {
+        pin.style.left = `${loc.x}%`;
+        pin.style.top = `${loc.y}%`;
+      }
+    });
+    const wrap = document.getElementById("nc-existing-wrap");
+    const sel = document.getElementById("nc-existing");
+    const isExisting = s.billMode === "existing";
+    if (wrap) wrap.hidden = !isExisting;
+    if (sel) {
+      sel.disabled = !isExisting;
+      if (!isExisting) sel.value = "";
+    }
+    syncCompanyField();
+  }
+
+  function makeLocation(raw, fallbackName) {
+    const street = (raw.street || "").trim();
+    const city = (raw.city || "").trim();
+    const st = raw.state || "FL";
+    const zip = (raw.zip || "").trim();
+    const address = `${street}, ${city}, ${st} ${zip}`;
+    const pos = pinFromAddress(address);
+    let x = raw.x != null && raw.x !== "" && !Number.isNaN(Number(raw.x)) ? Number(raw.x) : pct(pos.x);
+    let y = raw.y != null && raw.y !== "" && !Number.isNaN(Number(raw.y)) ? Number(raw.y) : pct(pos.y);
+    let lat = raw.lat != null && raw.lat !== "" && !Number.isNaN(Number(raw.lat)) ? Number(raw.lat) : null;
+    let lng = raw.lng != null && raw.lng !== "" && !Number.isNaN(Number(raw.lng)) ? Number(raw.lng) : null;
+    if (lat != null && lng != null) {
+      const xy = xyFromLatLng(lat, lng);
+      x = xy.x;
+      y = xy.y;
+    } else {
+      const coords = latLngFromXy(x, y);
+      lat = Number(coords.lat);
+      lng = Number(coords.lng);
+    }
+    const loc = {
+      id: nid("L"),
+      name: (raw.name || "").trim() || fallbackName || "Residence",
+      address,
+      street, city, state: st, zip,
+      subdivision: (raw.subdivision || "").trim(),
+      x: `${x}%`,
+      y: `${y}%`,
+      lat,
+      lng,
+      gps: `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`,
+      covered: true,
+      requestService: true,
+      requestedAt: Date.now(),
+      manualPin: true,
+    };
+    return loc;
+  }
+
+  function createCustomer() {
+    if (!can("customer.create")) return;
+    const type = val("nc-type") || val("nc-billtype") || "residential";
+    const company = type === "hoa" ? (val("nc-company") || "").trim() : "";
+    const first = (val("nc-first") || "").trim();
+    const last = (val("nc-last") || "").trim();
+    const billToType = val("nc-billtype") || type;
+    const billMode = radioVal("nc-billto") || "new";
+    const existing = billMode === "existing" ? custBy(val("nc-existing")) : null;
+    const emailNone = document.getElementById("nc-email-none")?.checked;
+    const locsRaw = window.IguanaIntake ? IguanaIntake.collectLocations() : [];
+
+    if (billMode === "existing" && !existing) {
+      toast("Pick an existing Bill-To, or switch to New Bill-To.");
+      return;
+    }
+    if (!existing && type === "hoa" && !company && !last && !first) {
+      toast("Enter the Company / HOA name, or a contact name.");
+      return;
+    }
+    if (!existing && type !== "hoa" && !last && !first) {
+      toast("Enter a first or last name for the Bill-To.");
+      return;
+    }
+    if (!locsRaw.length) {
+      toast("Add at least one service location with street and city.");
+      return;
+    }
+
+    const displayName = [first, last].filter(Boolean).join(" ") || company || existing?.name || "Customer";
+    const instructions = (val("nc-instructions") || "").trim();
+    const internal = (val("nc-internal") || "").trim();
+
+    if (existing) {
+      existing.company = company || existing.company;
+      existing.firstName = first || existing.firstName;
+      existing.lastName = last || existing.lastName;
+      existing.name = displayName || existing.name;
+      existing.phone = val("nc-phone") || existing.phone;
+      existing.mobile = val("nc-mobile") || existing.mobile;
+      existing.altPhone = val("nc-alt") || existing.altPhone;
+      existing.email = emailNone ? "" : (val("nc-email") || existing.email);
+      existing.type = type || existing.type;
+      existing.billToType = billToType || existing.billToType || existing.type;
+      existing.municipal = type === "municipal" || billToType === "municipal";
+      existing.acceptSms = !!document.getElementById("nc-sms")?.checked;
+      existing.acceptEmail = !!document.getElementById("nc-mail")?.checked;
+      if (instructions) existing.notes = instructions;
+      if (internal) existing.opsNote = internal;
+      const fallback = type === "hoa" ? (company || "HOA property") : "Residence";
+      locsRaw.forEach((raw, idx) => {
+        existing.locations.push(makeLocation(raw, locsRaw.length > 1 ? `${fallback} ${idx + 1}` : fallback));
+      });
+      const inbound = (state.data.inbound || []).find((n) => n.id === state.inboundId);
+      if (inbound) inbound.used = true;
+      state.inboundId = null;
+      state.locCount = 1;
+      state.selectedCustomer = existing.id;
+      state.page = "customer";
+      toast(`Added ${locsRaw.length} propert${locsRaw.length > 1 ? "ies" : "y"} under ${existing.billTo || existing.name}. Same Bill-To — next send a quote, then invoice after they choose a plan.`);
+      render();
+      return;
+    }
+
+    const locations = locsRaw.map((raw, idx) =>
+      makeLocation(raw, type === "hoa" ? (company || `Property ${idx + 1}`) : (raw.name || (idx === 0 ? "Residence" : `Property ${idx + 1}`)))
+    );
+    const id = nid("C");
+    state.data.customers.push({
+      id,
+      name: displayName,
+      firstName: first,
+      lastName: last,
+      company,
+      title: "",
+      phone: val("nc-phone") || "—",
+      altPhone: val("nc-alt") || "",
+      mobile: val("nc-mobile") || "",
+      email: emailNone ? "" : (val("nc-email") || ""),
+      type,
+      billToType,
+      billTo: displayName,
+      status: "inquiry",
+      programId: null,
+      amount: 0,
+      start: null,
+      expires: null,
+      paid: false,
+      autoPay: false,
+      municipal: type === "municipal",
+      techId: null,
+      backupId: null,
+      days: null,
+      durationMin: type === "hoa" ? 45 : 20,
+      handedToOps: false,
+      handedAt: 0,
+      createdBy: state.role,
+      source: radioVal("nc-channel") || "Call",
+      inboundChannel: radioVal("nc-channel") || "Call",
+      prospect: !!document.getElementById("nc-prospect")?.checked,
+      acceptSms: !!document.getElementById("nc-sms")?.checked,
+      acceptEmail: !!document.getElementById("nc-mail")?.checked,
+      locations,
+      notes: instructions,
+      opsNote: internal,
+    });
+    const inbound = (state.data.inbound || []).find((n) => n.id === state.inboundId);
+    if (inbound) inbound.used = true;
+    state.inboundId = null;
+    state.locCount = 1;
+    state.modal = null;
+    state.selectedCustomer = id;
+    state.page = "customer";
+    toast(`Customer saved. ${displayName} · ${locations.length} propert${locations.length > 1 ? "ies" : "y"} · one Bill-To. Next: send one quote with the programs, wait for their choice, then invoice.`);
+    render();
+  }
+
+  function openQuote(customerId) {
+    const c = custBy(customerId);
+    const locs = (c.locations || []).filter((l) => l.covered !== false && locNeedsQuote(c, l));
+    const use = locs.length ? locs : (c.locations || []).filter((l) => l.covered !== false);
+    const n = use.length;
+    const options = PROGRAMS.filter((x) => c.type === "hoa" ? true : x.id !== "hoa2")
+      .map((x) => `<li>${esc(x.name)} — ${money(programAmount(x))}${x.prepaid != null ? ` prepaid (list ${money(x.list)})` : ""} · ${esc(x.freq)}</li>`)
+      .join("");
+    const propList = use.map((l, i) => `<li><strong>${esc(l.name)}</strong> — ${esc(l.address)}</li>`).join("");
+    const multiAsk = n > 1
+      ? `<p>You have <strong>${n} properties</strong> on this account. Please tell us:</p>
+          <ul style="margin:8px 0 0 18px;padding:0;font-size:13px">
+            <li>the <strong>same program on all ${n} properties</strong>, or</li>
+            <li><strong>a different program per property</strong> — reply with the program name next to each address below.</li>
+          </ul>`
+      : `<p>Please reply with which program you want for this property.</p>`;
+    state.modal = {
+      wide: true,
+      html: `
+        <h3>Send quote</h3>
+        <p>One letter to Bill-To ${esc(c.billTo || c.name)}. Lists the programs once. ${n > 1 ? `Mentions all ${n} properties and asks same vs different.` : "Asks which program they want."} No plan is locked yet.</p>
+        <div class="invoice-sheet">
+          <div class="demo-flag">Iguana Control</div>
+          <h3>Hello ${esc(c.billTo || c.name)},</h3>
+          <p>Account ${esc(c.id)}. Here are the iguana removal programs you can choose from:</p>
+          <ul style="margin:8px 0 0 18px;padding:0;font-size:13px">${options}</ul>
+          ${multiAsk}
+          <p style="margin-top:12px"><strong>Propert${n === 1 ? "y" : "ies"} on your account:</strong></p>
+          <ul style="margin:8px 0 0 18px;padding:0;font-size:13px">${propList}</ul>
+          <p class="tiny" style="margin-top:12px">This is a proposal only — no balance until we invoice each property after you choose.</p>
+        </div>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="close-modal">Back</button>
+          <button class="btn btn-primary" data-act="confirm-quote" data-id="${c.id}">Send quote</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function confirmQuote(id) {
+    const c = custBy(id);
+    const locs = (c.locations || []).filter((l) => l.covered !== false && locNeedsQuote(c, l));
+    const use = locs.length ? locs : (c.locations || []).filter((l) => l.covered !== false);
+    const locationIds = use.map((l) => l.id);
+    const existing = state.data.quotes.find((x) => x.customerId === id && x.sent && !x.programId && Array.isArray(x.locationIds));
+    if (existing) {
+      existing.sent = true;
+      existing.date = TODAY;
+      existing.optionsSent = true;
+      existing.programId = null;
+      existing.locationIds = [...new Set([...(existing.locationIds || []), ...locationIds])];
+      existing.locationId = existing.locationIds[0] || null;
+    } else {
+      state.data.quotes.push({
+        id: nid("Q"),
+        customerId: id,
+        locationIds,
+        locationId: locationIds[0] || null,
+        programId: null,
+        optionsSent: true,
+        sent: true,
+        previewed: true,
+        date: TODAY,
+      });
+    }
+    const n = locationIds.length;
+    state.data.comms.push({
+      id: nid("CM"), customerId: id, who: role().name, channel: "Email", date: TODAY,
+      text: n > 1
+        ? `Sent one quote to ${c.billTo || c.name} with program options for ${n} properties — asked same plan on all vs different per property.`
+        : `Sent one quote to ${c.billTo || c.name} with program options — waiting on their choice.`,
+    });
+    state.modal = null;
+    toast(n > 1
+      ? `One quote sent for ${n} properties. Wait for same-vs-different, then create invoices.`
+      : "Quote sent. Wait for their plan choice, then create the invoice.");
+    render();
+  }
+
+  function convertPreviewInner(programId) {
+    const p = progBy(programId) || PROGRAMS[0];
+    const amount = programAmount(p);
+    const expires = addMonths(TODAY, p.months);
+    const billing = p.prepaid != null
+      ? `Prepaid ${money(amount)} now (list ${money(p.list)}${p.freeMonths ? `, ${p.freeMonths} promotional months` : ""}). Early cancel claws back at the standalone rate (ADM-21).`
+      : `Term billed at list ${money(p.list)}. ${p.id === "12mo" ? "Monthly installment plan — this invoice is the first charge, not a lump-sum renewal value." : ""}`;
+    return `
+      <div class="preview">
+        <strong>${esc(p.name)}</strong>
+        <div>Invoice amount: ${money(amount)}</div>
+        <div>Visit pattern: ${esc(p.freq)}</div>
+        <div>Start ${TODAY} → expires ${expires} <span class="tiny">(BR-04, system-calculated)</span></div>
+        <div class="tiny" style="margin-top:6px">${esc(billing)}</div>
+      </div>
+    `;
+  }
+
+  function openInvoiceOneLocation(customerId, locationId) {
+    if (!can("invoice.create") && state.role !== "owner") {
+      toast("Only Administration creates and sends invoices.");
+      return;
+    }
+    const c = custBy(customerId);
+    const loc = locBy(customerId, locationId);
+    if (!c || !loc) {
+      toast("Open Send invoice from that property card.");
+      return;
+    }
+    if (!canInvoiceLocation(c, loc)) {
+      toast("That location already has an invoice or is paid.");
+      return;
+    }
+    const plan = locPlan(c, loc);
+    const selectedProg = plan.programId || "12pre";
+    const options = PROGRAMS.map((p) =>
+      `<option value="${p.id}" ${p.id === selectedProg ? "selected" : ""}>${esc(programOptionLabel(p))}</option>`
+    ).join("");
+    state.modal = {
+      wide: true,
+      html: `
+        <h3>Send invoice</h3>
+        <p>This invoice is for <strong>${esc(loc.name)}</strong> only. Bill-To stays ${esc(c.billTo || c.name)}.</p>
+        <div class="invoice-sheet">
+          <h3>${esc(loc.name)}</h3>
+          <p class="tiny">${esc(loc.address)}</p>
+       
+        </div>
+        <div class="field" style="margin-top:12px">
+          <label>Program</label>
+          <select id="io-program" data-act="preview-io-program">${options}</select>
+        </div>
+        <div id="io-preview">${convertPreviewInner(selectedProg)}</div>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="confirm-invoice-one" data-id="${c.id}" data-loc="${loc.id}">Send invoice</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function createAndSendLocInvoice(customerId, locationId) {
+    if (!can("invoice.create") && state.role !== "owner") {
+      toast("Only Administration creates and sends invoices.");
+      return;
+    }
+    const c = custBy(customerId);
+    const loc = locBy(customerId, locationId);
+    if (!c || !loc) {
+      toast("Property missing.");
+      return;
+    }
+    const existing = locInvoices(c.id, loc.id).find((i) => i.status === "draft" || i.status === "sent" || i.status === "failed" || i.status === "paid");
+    if (existing?.status === "paid") {
+      toast("That location is already paid.");
+      return;
+    }
+    if (existing?.status === "sent" || existing?.status === "failed") {
+      state.modal = null;
+      openInvoice(existing.id);
+      return;
+    }
+    const pid = val("io-program") || locPlan(c, loc).programId || "12pre";
+    applyPlanToLocation(loc, pid, TODAY);
+    let inv = existing;
+    if (!inv) {
+      inv = { id: nid("INV"), customerId: c.id, locationId: loc.id, amount: loc.amount, status: "draft", sent: null, paidOn: null, kind: "initial" };
+      state.data.invoices.push(inv);
+    } else {
+      inv.amount = loc.amount;
+    }
+    const q = locQuote(c.id, loc.id);
+    if (q) q.programId = pid;
+    syncCustomerFromLocations(c);
+    inv.status = "sent";
+    inv.sent = TODAY;
+    state.data.comms.push({
+      id: nid("CM"), customerId: c.id, who: role().name, channel: "Email", date: TODAY,
+      text: `Invoice ${inv.id} sent for ${loc.name} only (${progBy(pid)?.name || pid} · ${money(inv.amount)}). Other properties not billed on this invoice.`,
+    });
+    state.modal = null;
+    state.page = "customer";
+    state.selectedCustomer = c.id;
+    toast(`Invoice ${inv.id} sent for ${loc.name}.`);
+    render();
+  }
+
+  function openConvertInvoice(id) {
+    if (!can("invoice.create") && state.role !== "owner") {
+      toast("Only Administration creates and sends invoices.");
+      return;
+    }
+    const c = custBy(id);
+    const use = (c.locations || []).filter((l) => canInvoiceLocation(c, l));
+    if (!use.length) {
+      toast("No properties waiting for an invoice.");
+      return;
+    }
+    const blocks = use.map((l) => {
+      const selected = locPlan(c, l).programId || "12pre";
+      const options = PROGRAMS.map((p) =>
+        `<option value="${p.id}" ${p.id === selected ? "selected" : ""}>${esc(programOptionLabel(p))}</option>`
+      ).join("");
+      return `<div class="field inv-prop-block" style="margin-top:14px;padding:12px;border:1px dashed var(--line-strong);border-radius:12px">
+        <label>${esc(l.name)} · ${esc(l.address)}</label>
+        <p class="tiny">Property fixed on its own invoice — pick the program only</p>
+        <select id="cv-program-${l.id}" data-act="preview-loc-program" data-loc="${l.id}">${options}</select>
+        <div id="cv-preview-${l.id}">${convertPreviewInner(selected)}</div>
+      </div>`;
+    }).join("");
+    state.modal = {
+      wide: true,
+      html: `
+        <h3>Send invoice to all</h3>
+        <p>Bill-To ${esc(c.billTo || c.name)}. Each property gets its own invoice and is sent now. Pick the program per address.</p>
+        ${blocks}
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="confirm-convert" data-id="${c.id}">Send ${use.length} invoice${use.length === 1 ? "" : "s"}</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function convertInvoice(id) {
+    if (!can("invoice.create") && state.role !== "owner") {
+      toast("Only Administration creates and sends invoices.");
+      return;
+    }
+    const c = custBy(id);
+    const targets = (c.locations || []).filter((l) => canInvoiceLocation(c, l) && document.getElementById(`cv-program-${l.id}`));
+    const created = [];
+    targets.forEach((l) => {
+      const pid = val(`cv-program-${l.id}`) || "12pre";
+      applyPlanToLocation(l, pid, TODAY);
+      const inv = { id: nid("INV"), customerId: id, locationId: l.id, amount: l.amount, status: "sent", sent: TODAY, paidOn: null, kind: "initial" };
+      state.data.invoices.push(inv);
+      created.push(inv);
+      const q = locQuote(id, l.id);
+      if (q) q.programId = pid;
+    });
+    syncCustomerFromLocations(c);
+    if (created.length) {
+      state.data.comms.push({
+        id: nid("CM"), customerId: c.id, who: role().name, channel: "Email", date: TODAY,
+        text: `Sent ${created.length} invoice${created.length === 1 ? "" : "s"} (${created.map((i) => i.id).join(", ")}) — one per property.`,
+      });
+    }
+    handOffToOps(c);
+    state.modal = null;
+    const n = created.length;
+    if (!n) {
+      toast("Nothing to invoice.");
+      render();
+      return;
+    }
+    toast(n === 1
+      ? `Invoice ${created[0].id} sent.`
+      : `${n} invoices sent — one per property.`);
+    state.page = "customer";
+    state.selectedCustomer = c.id;
+    render();
+  }
+
+  function openInvoice(id) {
+    const inv = state.data.invoices.find((i) => i.id === id);
+    const c = custBy(inv.customerId);
+    const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : c?.locations?.[0];
+    const plan = locPlan(c, loc);
+    state.modal = {
+      html: `
+        <h3>Invoice preview</h3>
+        <div class="invoice-sheet">
+          <h3>Invoice ${esc(inv.id)}</h3>
+          <p>Bill-To ${esc(c.billTo || c.name)}</p>
+          <p>Property ${esc(loc?.name || "—")} · ${esc(loc?.address || "")}</p>
+          <p>${esc(progBy(plan.programId)?.name || "Program")} · ${money(inv.amount)}</p>
+          <p class="tiny">This invoice is only for this property. Other properties on the same Bill-To have their own invoices and can be paid separately.</p>
+        </div>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="close-modal">Back</button>
+          ${inv.status === "draft" ? `<button class="btn btn-primary" data-act="confirm-invoice" data-id="${id}">Send invoice</button>` : btn("payment.post", "Post payment to this invoice", "open-record-pay", `data-id="${id}"`)}
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function confirmInvoice(id) {
+    const inv = state.data.invoices.find((i) => i.id === id);
+    inv.status = "sent";
+    inv.sent = TODAY;
+    const c = custBy(inv.customerId);
+    const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
+    state.modal = null;
+    if (c) {
+      state.page = "customer";
+      state.selectedCustomer = c.id;
+    }
+    toast(`Invoice ${inv.id} sent for ${loc?.name || "property"} · Bill-To ${c?.billTo || c?.name || ""}. They can pay this one on its own.`);
+    render();
+  }
+
+  function openRenewal(id) {
+    const row = parseRenewId(id);
+    if (!row) return;
+    const m = renewalMeta(row);
+    const body = m.noticeOnly
+      ? `<p>Your program at ${esc(row.locName)} expires ${esc(row.expires)}. This is a renewal invitation only — we will not charge your saved card until you say yes.</p>`
+      : m.rollover
+        ? `<p>Your 1-month term at ${esc(row.locName)} ends ${esc(row.expires)}. We are not sending another 1-month. Please choose a 6- or 12-month program (${money(1200)} / ${money(2000)}).</p>`
+        : `<p>${esc(row.locName)} expires ${esc(row.expires)}. Renewal ${money(row.amount)} for the same program. Bill-To remains ${esc(row.name)}.</p>`;
+    state.modal = {
+      html: `
+        <h3>${m.noticeOnly ? "Renewal notice — no charge" : "Renewal notice preview"}</h3>
+        <p>You send this. The system does not. Hello ${esc(row.name)} is in the letter. This letter is for ${esc(row.locName)} only.</p>
+        <div class="invoice-sheet">
+          <h3>Hello ${esc(row.name)},</h3>
+          ${body}
+          <p class="tiny">${esc(m.flag)}</p>
+        </div>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="close-modal">Back</button>
+          <button class="btn btn-primary" data-act="confirm-renewal" data-id="${row.id}">${m.noticeOnly ? "Send notice (do not invoice)" : m.rollover ? "Send rollover offer" : "Send renewal invoice"}</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function confirmRenewal(id) {
+    const row = parseRenewId(id);
+    if (!row) return;
+    const c = custBy(row.customerId);
+    const l = locBy(row.customerId, row.locationId);
+    const m = renewalMeta(row);
+    if (l) l.renewalSent = TODAY;
+    if (c) c.renewalSent = TODAY;
+    if (m.noticeOnly) {
+      state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Renewal notice for ${row.locName} — no charge. Auto-pay will not run until they confirm.` });
+      state.modal = null;
+      toast(`Notice sent to ${row.name} for ${row.locName}. Saved card was not charged.`);
+      render();
+      return;
+    }
+    const inv = { id: nid("INV"), customerId: row.customerId, locationId: row.locationId, amount: row.amount, status: "sent", sent: TODAY, paidOn: null, kind: "renewal" };
+    state.data.invoices.push(inv);
+    state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Renewal ${inv.id} emailed for ${row.locName}. Subject: ${row.name} · ${row.locName} · renewal.` });
+    state.modal = null;
+    toast("Renewal invoice " + inv.id + " sent to " + row.name + " for " + row.locName + ".");
+    render();
+  }
+
+  function toggleRenewPick(id) {
+    if (!Array.isArray(state.renewPick)) state.renewPick = [];
+    if (state.renewPick.includes(id)) state.renewPick = state.renewPick.filter((x) => x !== id);
+    else state.renewPick = state.renewPick.concat(id);
+    render();
+  }
+
+  function batchRenewals() {
+    if (!can("renewal.send")) return;
+    const ids = (state.renewPick || []).filter((id) => {
+      const row = parseRenewId(id);
+      return row && renewalMeta(row).batchable;
+    });
+    if (!ids.length) {
+      toast("Check the generic amounts first. Odd numbers and 1-month rollovers stay out of the batch.");
+      return;
+    }
+    ids.forEach((id) => {
+      const row = parseRenewId(id);
+      const c = custBy(row.customerId);
+      const l = locBy(row.customerId, row.locationId);
+      const m = renewalMeta(row);
+      if (l) l.renewalSent = TODAY;
+      if (c) c.renewalSent = TODAY;
+      if (m.noticeOnly) {
+        state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal notice for ${row.locName} — no charge.` });
+      } else {
+        const inv = { id: nid("INV"), customerId: row.customerId, locationId: row.locationId, amount: row.amount, status: "sent", sent: TODAY, paidOn: null, kind: "renewal" };
+        state.data.invoices.push(inv);
+        state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal ${inv.id} to ${row.name} · ${row.locName}.` });
+      }
+    });
+    const n = ids.length;
+    state.renewPick = [];
+    state.modal = null;
+    toast(`Batch sent for ${n} propert${n === 1 ? "y" : "ies"}. Same letter, own invoice each. Odd amounts were not included.`);
+    render();
+  }
+
+  function openCreateService(id, locId) {
+    if (!can("service.create")) return;
+    const c = custBy(id);
+    if (!c) return;
+    const locs = c.locations.filter((l) => l.covered !== false);
+    const selected = locId || locs.find((l) => locNeedsService(c, l))?.id || locs[0]?.id;
+    const loc = locs.find((l) => l.id === selected) || locs[0];
+    const code = defaultServiceCode(c, loc);
+    const st = SERVICE_TYPES.find((t) => t.id === code) || SERVICE_TYPES[0];
+    const plan = locPlan(c, loc);
+    const start = plan.start || TODAY;
+    const expires = expiryFrom(start, code) || plan.expires || "";
+    const sched = SERVICE_SCHEDULES.find((s) => s.days === (loc?.days || c.days || "Mon/Wed")) || SERVICE_SCHEDULES[0];
+    state.assignDays = sched.days;
+    const ranked = bestFitFor(c, loc, sched.days);
+    const suggested = ranked[0]?.t;
+    const color = suggested?.color || "#5ec8d8";
+    state.setupId = c.id;
+    state.setupLocId = loc?.id;
+    state.modal = {
+      wide: true,
+      setup: true,
+      html: `
+        <h3>Service setup · ${esc(c.name)} · ${esc(loc?.name || "property")}</h3>
+        <p>This service is for this property only. ${esc(c.billTo || c.name)} is still the Bill-To. Dates follow this property’s plan.</p>
+        <div class="setup-bar setup-bar-map">
+          <div class="field"><label>Property</label>
+            <select id="sv-loc" data-act="sv-loc">${locs.map((l) => `<option value="${l.id}" ${l.id === selected ? "selected" : ""}>${esc(l.name)} · ${esc(l.address)}</option>`).join("")}</select>
+            <p class="tiny" style="margin-top:8px">This is the pin you are putting on a trapper next. Confirm it is the right lot before you save.</p>
+          </div>
+          ${miniMapHtml({
+            existing: locs.filter((l) => l.id !== loc?.id).map((l) => ({ x: l.x, y: l.y, label: l.name, color: locPinColor(c, l) })),
+            preview: loc ? [{ x: loc.x, y: loc.y, label: loc.name, elId: "mini-preview" }] : [],
+            caption: loc ? loc.address : "Pick a property",
+          })}
+        </div>
+        <div class="setup-grid">
+          <div class="field"><label>Initial service time</label><input id="sv-itime" type="time" value="12:30"></div>
+          <div class="field"><label>Initial duration</label><input id="sv-idur" value="${fmtDur(st.duration)}" placeholder="00:10"></div>
+          <div class="field"><label>Initial service</label>
+            <select id="sv-type" data-act="sv-code">${SERVICE_TYPES.map((t) => `<option value="${t.id}" ${t.id === code ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
+          </div>
+          <div class="field"><label>Initial service price</label><input id="sv-price" type="number" step="0.01" value="0.00"></div>
+          <div class="field chk-field"><label class="chk"><input type="checkbox" id="sv-tax"> Tax</label></div>
+          <div class="field"><label>Initial trapper 1 <span class="tiny">optional preview — assign on the map</span></label>
+            <select id="sv-initial"><option value="">Assign on the map</option>${TECHS.map((t) => `<option value="${t.id}">${esc(t.name.toUpperCase())} · ${esc(t.home)}</option>`).join("")}</select>
+          </div>
+        </div>
+        <div class="setup-grid">
+          <div>
+            <div class="field"><label>Schedule</label>
+              <select id="sv-sched" data-act="sv-sched">${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}" ${s.id === sched.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
+            </div>
+            <div class="chk-row">
+              <label class="chk"><input type="checkbox" id="sv-locked"> Locked</label>
+              <label class="chk"><input type="checkbox" id="sv-unsked"> Unscheduled</label>
+            </div>
+            <div class="setup-2">
+              <div class="field"><label>Time</label>
+                <select id="sv-when"><option>Anytime</option><option>Window</option><option>Exact</option></select>
+              </div>
+              <div class="field"><label>AM / PM</label>
+                <select id="sv-ampm"><option>AM</option><option>PM</option></select>
+              </div>
+            </div>
+            <div class="field"><label>Time range</label><input id="sv-range" placeholder="e.g. 8:00–10:00"></div>
+            <div class="field req"><label>Duration</label><input id="sv-dur" value="${fmtDur(st.duration)}" placeholder="00:10"></div>
+            <div class="field"><label>Sch. color</label><input id="sv-color" type="color" value="${color}"></div>
+          </div>
+          <div>
+            <div class="chk-row" style="margin-bottom:10px"><label class="chk"><input type="checkbox" id="sv-active" checked> Active</label></div>
+            <div class="field"><label>Charge</label>
+              <select id="sv-charge">${CHARGE_MODES.map((m) => `<option ${m === "Production" ? "selected" : ""}>${m}</option>`).join("")}</select>
+            </div>
+            <div class="field req"><label>Start date</label><input id="sv-start" type="date" value="${esc(start)}" data-act="sv-start"></div>
+            <div class="field"><label>Standing trapper <span class="tiny">assign on the map after save</span></label>
+              <select id="sv-trapper"><option value="">Assign on the map</option>${TECHS.map((t) => `<option value="${t.id}">${esc(t.name.toUpperCase())} · ${esc(t.home)}</option>`).join("")}</select>
+            </div>
+            <div class="field"><label>Route</label>
+              <select id="sv-route"><option value="">—</option>${TECHS.map((t) => `<option value="${t.id}">${esc(t.home)} · ${esc(t.name)}</option>`).join("")}</select>
+            </div>
+            <div class="field"><label>Targets</label>
+              <select id="sv-target">${TARGETS.map((t) => `<option ${t === "IGUANA" ? "selected" : ""}>${t}</option>`).join("")}</select>
+            </div>
+            <div class="field"><label>Measurement</label><input id="sv-meas" type="number" step="0.01" value="0.00"></div>
+          </div>
+          <div>
+            <div class="field"><label>PO#</label><input id="sv-po" value="${esc(c.po || "")}" placeholder="Municipal only"></div>
+            <div class="field"><label>PO expiration</label><input id="sv-poexp" type="date"></div>
+            <div class="field"><label>Division</label><input id="sv-div" placeholder="—"></div>
+            <div class="field"><label>Source</label><input id="sv-src" placeholder="—"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Skip months</label>
+          <div class="skip-months">${MONTHS.map((m, i) => `<label class="chk"><input type="checkbox" id="sv-skip-${i}"> ${m}</label>`).join("")}</div>
+        </div>
+        <div class="setup-grid">
+          <div>
+            <div class="field"><label>Next gen</label><input id="sv-nextgen" type="date" value="${esc(start)}"></div>
+            <div class="field"><label>Last gen</label><input id="sv-lastgen" type="date"></div>
+            <div class="field"><label>Next service</label><input id="sv-nextsvc" type="date"></div>
+            <div class="field"><label>Last service</label><input id="sv-lastsvc" type="date"></div>
+          </div>
+          <div>
+            <div class="field"><label>Increase date</label><input id="sv-incdate" type="date"></div>
+            <div class="chk-row" style="margin-bottom:10px"><label class="chk"><input type="checkbox" id="sv-incprice" checked> Increase price</label></div>
+            <div class="field req"><label>Expiration / renewal</label><input id="sv-expires" type="date" value="${esc(expires)}"><div class="tiny">Filled from the program + start. Both dates are the same.</div></div>
+            <input type="hidden" id="sv-renewal" value="${esc(expires)}">
+          </div>
+          <div>
+            <div class="field"><label>Cancel date</label><input id="sv-cancel" type="date"></div>
+            <div class="field"><label>Cancel reason</label><input id="sv-cancelr" placeholder="—"></div>
+            <div class="field"><label>Comm. start / end</label><input id="sv-comms" type="date"><div class="tiny">Optional — Christy can also enter this later.</div></div>
+            <input type="hidden" id="sv-comme" value="">
+          </div>
+        </div>
+        <div class="setup-3">
+          <div class="field"><label>Dispatched</label><input id="sv-disp" placeholder="—"></div>
+          <div class="field"><label>Bagged</label><input id="sv-bag" placeholder="—"></div>
+          <div class="field"><label>Weight</label><input id="sv-wt" placeholder="—"></div>
+        </div>
+        <div class="card" style="margin:12px 0">
+          <h3>Nearest homes <span class="muted">preview only — you assign on the map next</span></h3>
+          <p class="tiny">Who is closest from home and from their other stops that day. Saving does not put this client on a trapper. Click a home pin on the map after you save.</p>
+          <div class="bestfit" id="sv-fit">${fitCardsHtml(ranked, suggested?.id)}</div>
+        </div>
+        <div class="chk-row">
+          <label class="chk"><input type="checkbox" id="sv-notify" checked> Text / email 2 days before (no-reply, system generated)</label>
+        </div>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          ${btn("service.create", "Save service — assign on map", "save-service", `data-id="${c.id}"`)}
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function saveCreateService(id) {
+    if (!can("service.create")) return;
+    const c = custBy(id);
+    const locId = val("sv-loc");
+    const loc = c?.locations.find((l) => l.id === locId);
+    if (!c || !loc) return;
+    if (svcFor(c.id, loc.id)) {
+      state.modal = null;
+      goToAssignMap(c.id, loc.id, "Service already saved. Click a technician’s home to see their properties.");
+      return;
+    }
+    const durationMin = parseDur(val("sv-dur"));
+    const start = val("sv-start");
+    const expires = val("sv-expires") || expiryFrom(start, val("sv-type"));
+    const renewal = val("sv-renewal") || expires;
+    if (!durationMin || !start || !expires) {
+      toast("Duration, start date, and expiration are required.");
+      return;
+    }
+    const type = val("sv-type") || defaultServiceCode(c, loc);
+    const sched = SERVICE_SCHEDULES.find((s) => s.id === val("sv-sched")) || SERVICE_SCHEDULES[0];
+    const trapper = val("sv-trapper") || null;
+    const initial = val("sv-initial") || trapper || null;
+    const skip = MONTHS.map((_, i) => checked("sv-skip-" + i) ? MONTHS[i] : null).filter(Boolean);
+    const svc = {
+      id: nid("SVC"), customerId: c.id, locationId: loc.id,
+      type, status: "new",
+      techId: null, initialTechId: initial, days: sched.days,
+      durationMin, generated: false,
+      notify: checked("sv-notify"),
+      schedule: sched.id,
+      initialTime: val("sv-itime"),
+      initialDuration: parseDur(val("sv-idur") || val("sv-dur")),
+      price: Number(val("sv-price") || 0),
+      tax: checked("sv-tax"),
+      locked: checked("sv-locked"),
+      unscheduled: checked("sv-unsked"),
+      active: checked("sv-active"),
+      timeWhen: val("sv-when") || "Anytime",
+      ampm: val("sv-ampm") || "AM",
+      timeRange: val("sv-range"),
+      color: val("sv-color") || "#5ec8d8",
+      charge: val("sv-charge") || "Production",
+      start, expires, renewal,
+      route: val("sv-route"),
+      target: val("sv-target") || "IGUANA",
+      measurement: Number(val("sv-meas") || 0),
+      po: val("sv-po"),
+      poExp: val("sv-poexp"),
+      division: val("sv-div"),
+      source: val("sv-src"),
+      skipMonths: skip,
+      nextGen: val("sv-nextgen") || start,
+      lastGen: val("sv-lastgen"),
+      nextService: val("sv-nextsvc"),
+      lastService: val("sv-lastsvc"),
+      increaseDate: val("sv-incdate"),
+      increasePrice: checked("sv-incprice"),
+      cancelDate: val("sv-cancel"),
+      cancelReason: val("sv-cancelr"),
+      commStart: val("sv-comms"),
+      commEnd: val("sv-comme"),
+      dispatched: val("sv-disp"),
+      bagged: val("sv-bag"),
+      weight: val("sv-wt"),
+    };
+    if (!state.data.services) state.data.services = [];
+    state.data.services.push(svc);
+    loc.requestService = false;
+    loc.days = sched.days;
+    if (!c.start) c.start = start;
+    if (!c.expires) c.expires = expires;
+    c.days = sched.days;
+    c.durationMin = durationMin;
+    if (c.status === "inquiry" && (c.paid || c.municipal)) c.status = "active";
+    state.modal = null;
+    goToAssignMap(c.id, loc.id, `${c.name} · ${loc.name} is saved. Click a technician’s home to see their properties, then assign this pin.`);
+  }
+
+  function goToAssignMap(id, locId, message) {
+    const c = custBy(id);
+    const loc = c?.locations.find((l) => l.id === locId) || c?.locations.find((l) => locNeedsTech(c, l)) || c?.locations[0];
+    state.mapClient = id;
+    state.mapLoc = loc?.id || null;
+    state.mapTech = null;
+    state.assignId = id;
+    state.assignLocId = loc?.id || null;
+    const svc = loc ? svcFor(c.id, loc.id) : null;
+    state.assignDays = DAY_PATTERNS.some((p) => p.id === (svc?.days || loc?.days || c?.days)) ? (svc?.days || loc?.days || c.days) : "Mon/Wed";
+    state.page = "map";
+    state.modal = null;
+    if (message) toast(message);
+    render();
+  }
+
+  function openAssign(id, locId) {
+    const c = custBy(id);
+    if (!c) return;
+    const loc = c.locations.find((l) => l.id === locId) || c.locations.find((l) => locNeedsTech(c, l)) || c.locations[0];
+    if (!svcFor(c.id, loc?.id)) {
+      toast("Create the service for this property first, then assign a technician on the map.");
+      openCreateService(c.id, loc?.id);
+      return;
+    }
+    goToAssignMap(c.id, loc?.id, "Click a technician’s home to see every property on their book.");
+  }
+
+  function openCompareRoutes(id, locId) {
+    const c = custBy(id);
+    if (!c) return;
+    const loc = c.locations.find((l) => l.id === locId) || c.locations.find((l) => locNeedsTech(c, l)) || c.locations[0];
+    if (!svcFor(c.id, loc?.id)) {
+      toast("Create the service for this property first, then assign a technician.");
+      openCreateService(c.id, loc?.id);
+      return;
+    }
+    state.assignId = id;
+    state.assignLocId = loc?.id || null;
+    const svc = svcFor(c.id, loc.id);
+    state.assignDays = DAY_PATTERNS.some((p) => p.id === (svc?.days || loc?.days || c.days)) ? (svc?.days || loc?.days || c.days) : "Mon/Wed";
+    state.assignFocus = loc?.techId || svc?.techId || null;
+    state.page = "assign";
+    state.modal = null;
+    render();
+  }
+
+  function mapAssign(id, techId, locId) {
+    const cid = id || state.mapClient || opsAssignQueue()[0]?.c.id;
+    const queue = opsAssignQueue();
+    const lid = locId || state.mapLoc || queue.find((r) => r.c.id === cid)?.l.id;
+    const tech = techId || state.mapTech;
+    if (!cid || !tech) {
+      toast("Click a technician’s home first.");
+      return;
+    }
+    const c = custBy(cid);
+    const loc = c?.locations.find((l) => l.id === lid);
+    const svc = loc ? svcFor(cid, loc.id) : null;
+    if (svc?.days) state.assignDays = svc.days;
+    else if (loc?.days) state.assignDays = loc.days;
+    confirmAssign(cid, tech, lid);
+  }
+
+  function confirmAssign(id, techId, locId) {
+    if (!can("schedule.assign")) return;
+    const c = custBy(id);
+    if (!c) return;
+    const loc = c.locations.find((l) => l.id === (locId || state.assignLocId || state.mapLoc)) || c.locations[0];
+    if (!svcFor(c.id, loc.id)) {
+      toast("Create the service for this property first, then assign a technician on the map.");
+      return;
+    }
+    const stayOnMap = state.page === "map";
+    const ranked = bestFitFor(c, loc);
+    const tech = techId || state.assignFocus || state.mapTech || ranked[0]?.t.id;
+    if (!tech) return;
+    const days = patternDays(state.assignDays);
+    const backup = ranked.find((r) => r.t.id !== tech)?.t.id || (tech === "johnny" ? "bobby" : "johnny");
+    const svc = svcFor(c.id, loc.id);
+    const prevTech = svc?.techId;
+    loc.techId = tech;
+    loc.backupId = backup;
+    loc.days = state.assignDays;
+    loc.requestService = false;
+    if (svc) {
+      svc.techId = tech;
+      svc.days = state.assignDays;
+      svc.status = "live";
+      svc.generated = true;
+      svc.durationMin = svc.durationMin || loc.durationMin || c.durationMin;
+    }
+    if (!c.techId) {
+      c.techId = tech;
+      c.backupId = backup;
+      c.days = state.assignDays;
+    }
+    if (c.status === "inquiry" && (c.paid || c.municipal)) c.status = "active";
+    if (prevTech) {
+      state.data.stops = state.data.stops.filter((s) => !(s.customerId === id && s.locationId === loc.id && s.techId === prevTech && (s.status === "scheduled" || s.status === "unassigned_done")));
+    }
+    if (c.paid || c.municipal) {
+      days.forEach((d) => {
+        state.data.stops.push({
+          id: nid("S"), customerId: c.id, locationId: loc.id,
+          techId: tech, day: d, time: nextSlot(tech, d),
+          durationMin: svc?.durationMin || c.durationMin, type: "service",
+          status: "scheduled", actualMin: null, removals: null,
+        });
+      });
+    }
+    const still = opsAssignQueue().find((r) => r.c.id === c.id);
+    const moreSetup = c.locations.some((l) => locNeedsService(c, l));
+    state.mapTech = tech;
+    if (still) {
+      state.mapClient = c.id;
+      state.mapLoc = still.l.id;
+      state.assignId = c.id;
+      state.assignLocId = still.l.id;
+      state.assignFocus = null;
+      state.page = stayOnMap ? "map" : "assign";
+      toast(`${techName(tech)} is live on ${c.name} · ${loc.name}. Click another home or assign the next property.`);
+    } else {
+      state.mapClient = null;
+      state.mapLoc = null;
+      state.assignId = null;
+      state.assignLocId = null;
+      state.assignFocus = null;
+      state.page = stayOnMap ? "map" : "schedule";
+      toast(moreSetup
+        ? `${techName(tech)} now has ${c.name} · ${loc.name}. Another property still needs a service created.`
+        : `${techName(tech)} now has ${c.name} · ${loc.name} on the live route.`);
+    }
+    render();
+  }
+
+  function openEditBillTo(id) {
+    if (!canEditField("name")) return;
+    const c = custBy(id);
+    if (!c) return;
+    const type = c.billToType || c.type || "residential";
+    state.modal = {
+      wide: true,
+      html: `
+        <h3>Edit Bill-To</h3>
+        <p>Payer contact only. Properties are edited separately.</p>
+        <div class="intake-grid">
+          <div class="field"><label>Display name</label><input id="eb-name" value="${esc(c.name)}"></div>
+          <div class="field"><label>Bill-To name</label><input id="eb-billto" value="${esc(c.billTo || c.name)}"></div>
+          <div class="field"><label>Company / HOA</label><input id="eb-company" value="${esc(c.company || "")}"></div>
+          <div class="field"><label>Bill-To type</label>
+            <select id="eb-billtype">${[["residential","Residential"],["commercial","Commercial"],["hoa","HOA"],["municipal","Municipal"]].map(([v, lab]) => `<option value="${v}" ${type === v ? "selected" : ""}>${lab}</option>`).join("")}</select>
+          </div>
+          <div class="field"><label>Phone</label><input id="eb-phone" value="${esc(c.phone || "")}"></div>
+          <div class="field"><label>Mobile</label><input id="eb-mobile" value="${esc(c.mobile || "")}"></div>
+          <div class="field"><label>Email</label><input id="eb-email" value="${esc(c.email || "")}"></div>
+          <div class="field"><label>Status</label>
+            <select id="eb-status">${[["inquiry","Inquiry"],["active","Active"],["renewal","Renewal window"],["past_due","Past due"],["lapsed","Non-renewed"]].map(([v, lab]) => `<option value="${v}" ${c.status === v ? "selected" : ""}>${lab}</option>`).join("")}</select>
+          </div>
+        </div>
+        <div class="field"><label>Customer instructions</label><textarea id="eb-notes" rows="3">${esc(c.notes || "")}</textarea></div>
+        ${state.role !== "sales" ? `<div class="field"><label>Internal Ops note</label><textarea id="eb-ops" rows="2">${esc(c.opsNote || "")}</textarea></div>` : ""}
+        <label class="chk"><input type="checkbox" id="eb-autopay" ${c.autoPay ? "checked" : ""}> Auto-pay on this Bill-To</label>
+        <label class="chk" style="margin-left:14px"><input type="checkbox" id="eb-sms" ${c.acceptSms ? "checked" : ""}> Accept SMS</label>
+        <label class="chk" style="margin-left:14px"><input type="checkbox" id="eb-mail" ${c.acceptEmail !== false ? "checked" : ""}> Accept email</label>
+        ${(c.municipal || type === "municipal") ? `
+          <div class="intake-grid" style="margin-top:12px">
+            <div class="field"><label>PO #</label><input id="eb-po" value="${esc(c.po || "")}"></div>
+            <div class="field"><label>Hours used</label><input id="eb-hours" type="number" value="${esc(c.hoursUsed || 0)}"></div>
+            <div class="field"><label>PO cap hours</label><input id="eb-cap" type="number" value="${esc(c.poCapHours || 0)}"></div>
+          </div>
+        ` : ""}
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="save-billto" data-id="${c.id}">Save Bill-To</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function saveEditBillTo(id) {
+    if (!canEditField("name")) return;
+    const c = custBy(id);
+    if (!c) return;
+    c.name = val("eb-name") || c.name;
+    c.billTo = val("eb-billto") || c.name;
+    c.company = val("eb-company");
+    c.billToType = val("eb-billtype") || c.type;
+    c.type = c.billToType;
+    c.municipal = c.type === "municipal";
+    c.phone = val("eb-phone");
+    c.mobile = val("eb-mobile");
+    c.email = val("eb-email");
+    c.status = val("eb-status") || c.status;
+    c.notes = val("eb-notes");
+    if (state.role !== "sales") c.opsNote = val("eb-ops");
+    c.autoPay = !!document.getElementById("eb-autopay")?.checked;
+    c.acceptSms = !!document.getElementById("eb-sms")?.checked;
+    c.acceptEmail = !!document.getElementById("eb-mail")?.checked;
+    if (document.getElementById("eb-po")) {
+      c.po = val("eb-po");
+      c.hoursUsed = Number(val("eb-hours") || 0);
+      c.poCapHours = Number(val("eb-cap") || 0);
+    }
+    state.modal = null;
+    toast("Bill-To updated.");
+    render();
+  }
+
+  function openEditLocations(id) {
+    if (!(can("location.add") || canEditField("address") || state.role === "owner")) return;
+    const c = custBy(id);
+    if (!c) return;
+    state.modal = {
+      wide: true,
+      html: `
+        <h3>Edit locations</h3>
+        <p>Bill-To ${esc(c.billTo || c.name)}. Pick a property to edit, or add another.</p>
+        ${(c.locations || []).map((l) => {
+          const gps = l.lat != null && l.lng != null ? `${Number(l.lat).toFixed(4)}, ${Number(l.lng).toFixed(4)}` : (l.gps || approxGps(l));
+          return `<div class="fit-row">
+            <div>
+              <strong>${esc(l.name)}</strong>
+              <div class="tiny">${esc(l.address)}</div>
+              <div class="tiny">GPS ${esc(gps)}</div>
+            </div>
+            <button class="btn btn-ghost" data-act="edit-one-loc" data-id="${c.id}" data-loc="${l.id}">Edit</button>
+          </div>`;
+        }).join("") || `<p class="muted">No properties yet.</p>`}
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="close-modal">Done</button>
+          ${btn("location.add", "Add property", "add-location", `data-id="${c.id}"`)}
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function openEditOneLocation(cid, lid) {
+    if (!(can("location.add") || canEditField("address") || state.role === "owner")) return;
+    const c = custBy(cid);
+    const loc = locBy(cid, lid);
+    if (!c || !loc) return;
+    const coords = loc.lat != null && loc.lng != null
+      ? { lat: Number(loc.lat).toFixed(4), lng: Number(loc.lng).toFixed(4) }
+      : latLngFromXy(pct(loc.x), pct(loc.y));
+    const street = loc.street || "";
+    const city = loc.city || "";
+    const zip = loc.zip || "";
+    state.modal = {
+      previewMap: true,
+      html: `
+        <h3>Edit location · ${esc(loc.name)}</h3>
+        <p>Map, address, and GPS for this property only.</p>
+        <div class="modal-map-row">
+          <div>
+            <div class="field"><label>Property name</label><input id="el-name" value="${esc(loc.name)}"></div>
+            <div class="field"><label>Subdivision</label><input id="el-subdiv" value="${esc(loc.subdivision || "")}"></div>
+            <div class="field"><label>Street</label><input id="el-street" value="${esc(street)}" data-preview-pin="mini-preview" data-preview-x="el-x" data-preview-y="el-y"></div>
+            <div class="field"><label>City</label><input id="el-city" value="${esc(city)}" data-preview-pin="mini-preview" data-preview-x="el-x" data-preview-y="el-y"></div>
+            <div class="field"><label>Zip</label><input id="el-zip" value="${esc(zip)}"></div>
+            <div class="field"><label>Latitude</label><input id="el-lat" value="${coords.lat}" data-coord="1" data-preview-pin="mini-preview" data-pair-lat="el-lat" data-pair-lng="el-lng" inputmode="decimal"></div>
+            <div class="field"><label>Longitude</label><input id="el-lng" value="${coords.lng}" data-coord="1" data-preview-pin="mini-preview" data-pair-lat="el-lat" data-pair-lng="el-lng" inputmode="decimal"></div>
+            <input type="hidden" id="el-x" value="${pct(loc.x)}">
+            <input type="hidden" id="el-y" value="${pct(loc.y)}">
+            <div class="actions">
+              <button class="btn btn-ghost" data-act="edit-locations" data-id="${c.id}">Back</button>
+              <button class="btn btn-primary" data-act="save-one-loc" data-id="${c.id}" data-loc="${loc.id}">Save location</button>
+            </div>
+          </div>
+          ${miniMapHtml({
+            mapId: "mini-map-edit",
+            title: "Map · " + loc.name,
+            existing: c.locations.filter((l) => l.id !== loc.id).map((l) => ({ x: l.x, y: l.y, label: l.name, color: locPinColor(c, l) })),
+            preview: [{
+              x: loc.x, y: loc.y, label: loc.name, elId: "mini-preview",
+              xId: "el-x", yId: "el-y",
+              fillCity: "el-city", fillStreet: "el-street", fillZip: "el-zip",
+              fillLat: "el-lat", fillLng: "el-lng",
+              capId: "mini-cap-edit",
+            }],
+            caption: `${coords.lat}, ${coords.lng}`,
+            drag: true,
+          })}
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function saveEditOneLocation(cid, lid) {
+    if (!(can("location.add") || canEditField("address") || state.role === "owner")) return;
+    const loc = locBy(cid, lid);
+    if (!loc) return;
+    const street = (val("el-street") || "").trim();
+    const city = (val("el-city") || "").trim();
+    const zip = (val("el-zip") || "").trim();
+    let x = Number(val("el-x")) || pct(loc.x);
+    let y = Number(val("el-y")) || pct(loc.y);
+    let lat = Number(val("el-lat"));
+    let lng = Number(val("el-lng"));
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      const xy = xyFromLatLng(lat, lng);
+      x = xy.x;
+      y = xy.y;
+    } else {
+      const coords = latLngFromXy(x, y);
+      lat = Number(coords.lat);
+      lng = Number(coords.lng);
+    }
+    loc.name = val("el-name") || loc.name;
+    loc.subdivision = val("el-subdiv") || "";
+    loc.street = street;
+    loc.city = city;
+    loc.zip = zip;
+    loc.state = "FL";
+    loc.address = [street, city, zip ? `FL ${zip}` : "FL"].filter(Boolean).join(", ") || loc.address;
+    loc.x = `${x}%`;
+    loc.y = `${y}%`;
+    loc.lat = lat;
+    loc.lng = lng;
+    loc.gps = `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
+    loc.manualPin = true;
+    state.modal = null;
+    toast(`${loc.name} updated · ${loc.gps}`);
+    openEditLocations(cid);
+  }
+
+  function openAddLocation(id) {
+    if (!can("location.add")) return;
+    const c = custBy(id);
+    const base = c.locations[0];
+    const pos = pinFromAddress(base?.address || "", { x: `${Math.min(70, pct(base?.x) + 3)}%`, y: `${Math.min(78, pct(base?.y) + 2)}%`, place: "Near existing property" });
+    const coords = latLngFromXy(pct(pos.x), pct(pos.y));
+    state.modal = {
+      previewMap: true,
+      html: `
+        <h3>Add a property</h3>
+        <p>Same Bill-To (${esc(c.billTo || c.name)}). Own map — type address or lat/long, or drag / click the pin.</p>
+        <div class="modal-map-row">
+          <div>
+            <div class="field"><label>Property name</label><input id="al-name" placeholder="Canal house, rental, dock lot"></div>
+            <div class="field"><label>Street</label><input id="al-street" data-preview-pin="mini-preview" data-preview-x="al-x" data-preview-y="al-y" placeholder="Street address"></div>
+            <div class="field"><label>City</label><input id="al-city" data-preview-pin="mini-preview" data-preview-x="al-x" data-preview-y="al-y" placeholder="Boca Raton"></div>
+            <div class="field"><label>Zip</label><input id="al-zip" placeholder="33432"></div>
+            <div class="field"><label>Latitude</label><input id="al-lat" value="${coords.lat}" data-coord="1" data-preview-pin="mini-preview" data-pair-lat="al-lat" data-pair-lng="al-lng" inputmode="decimal" placeholder="26.3587"></div>
+            <div class="field"><label>Longitude</label><input id="al-lng" value="${coords.lng}" data-coord="1" data-preview-pin="mini-preview" data-pair-lat="al-lat" data-pair-lng="al-lng" inputmode="decimal" placeholder="-80.0831"></div>
+            <input type="hidden" id="al-x" value="${pct(pos.x)}">
+            <input type="hidden" id="al-y" value="${pct(pos.y)}">
+            <div class="actions">
+              <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+              <button class="btn btn-primary" data-act="save-location" data-id="${c.id}">Add property</button>
+            </div>
+          </div>
+          ${miniMapHtml({
+            mapId: "mini-map-add",
+            title: "Map · new property",
+            existing: c.locations.map((l) => ({ x: l.x, y: l.y, label: l.name, color: locPinColor(c, l) })),
+            preview: [{
+              x: pos.x, y: pos.y, label: "New location", elId: "mini-preview",
+              xId: "al-x", yId: "al-y",
+              fillCity: "al-city", fillStreet: "al-street", fillZip: "al-zip",
+              fillLat: "al-lat", fillLng: "al-lng",
+              capId: "mini-cap-add",
+            }],
+            caption: `${coords.lat}, ${coords.lng} · type address, edit lat/long, or drag the pin`,
+            drag: true,
+          })}
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function saveAddLocation(id) {
+    if (!can("location.add")) return;
+    const c = custBy(id);
+    const street = (val("al-street") || "").trim();
+    const city = (val("al-city") || "").trim();
+    const zip = (val("al-zip") || "").trim();
+    const address = [street, city, zip ? `FL ${zip}` : "FL"].filter(Boolean).join(", ") || "Florida";
+    let x = Number(val("al-x")) || Math.min(70, pct(c.locations[0]?.x) + 2);
+    let y = Number(val("al-y")) || Math.min(78, pct(c.locations[0]?.y) + 1);
+    let lat = Number(val("al-lat"));
+    let lng = Number(val("al-lng"));
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      const xy = xyFromLatLng(lat, lng);
+      x = xy.x;
+      y = xy.y;
+    } else {
+      const coords = latLngFromXy(x, y);
+      lat = Number(coords.lat);
+      lng = Number(coords.lng);
+    }
+    const loc = {
+      id: nid("L"),
+      name: val("al-name") || "Second property",
+      address,
+      street, city, state: "FL", zip,
+      x: `${x}%`,
+      y: `${y}%`,
+      lat, lng,
+      gps: `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`,
+      covered: true,
+      requestService: true,
+      requestedAt: Date.now(),
+      manualPin: true,
+    };
+    c.locations.push(loc);
+    if (state.role === "admin" || state.role === "sales") handOffToOps(c);
+    state.data.comms.push({ id: nid("CM"), customerId: id, who: role().name, channel: "Phone", date: TODAY, text: `Added property ${loc.name} — ${loc.address} · ${loc.gps}. Quote next; invoice after they choose a plan.` });
+    state.modal = null;
+    toast(`${loc.name} added · ${loc.gps}. Next: send a quote for this property.`);
+    render();
+  }
+
+  function requestLocService(id, locId) {
+    if (!can("location.request")) return;
+    const c = custBy(id);
+    const loc = c?.locations.find((l) => l.id === locId);
+    if (!loc) return;
+    if (loc.covered === false) {
+      toast("That location is not on the paid program.");
+      return;
+    }
+    loc.requestService = true;
+    loc.requestedAt = Date.now();
+    if (state.role === "admin") handOffToOps(c);
+    state.data.comms.push({ id: nid("CM"), customerId: id, who: role().name, channel: "Phone", date: TODAY, text: `Client asked to catch iguanas at ${loc.name}.` });
+    toast(`Service requested at ${loc.name}. It is on the assign map.`);
+    render();
+  }
+
+  function openReassign(id) {
+    const c = custBy(id);
+    state.modal = {
+      html: `
+        <h3>Reassign ${esc(c.name)}</h3>
+        <p>This moves the existing stop. It does not copy it onto a second technician (OPS-25).</p>
+        <div class="bestfit">
+          ${TECHS.map((t) => `<button class="bestfit-card" data-act="confirm-reassign" data-id="${c.id}" data-tech="${t.id}" data-day="Fri">${esc(t.name)} · Friday</button>`).join("")}
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function confirmReassign(id, techId, day) {
+    if (!can("schedule.reassign")) return;
+    const c = custBy(id);
+    const existing = state.data.stops.filter((s) => s.customerId === id && s.status === "scheduled");
+    const before = existing.length;
+    existing.forEach((s) => {
+      s.techId = techId;
+      if (day) s.day = day;
+    });
+    (state.data.services || []).filter((s) => s.customerId === id && s.techId).forEach((s) => {
+      const old = s.techId;
+      s.techId = techId;
+      if (c) c.techId = techId;
+      const loc = locBy(id, s.locationId);
+      if (loc) loc.techId = techId;
+    });
+    c.techId = techId;
+    state.modal = null;
+    toast(`Moved ${before} stop(s) to ${techName(techId)}. The original trapper no longer has them — nothing was copied.`);
+    state.page = "schedule";
+    render();
+  }
+
+  function generateSchedule() {
+    if (!can("schedule.generate")) return;
+    const queue = opsGenerateQueue();
+    if (!queue.length) {
+      toast("Nothing waiting to generate.");
+      return;
+    }
+    queue.forEach((svc) => {
+      const c = custBy(svc.customerId);
+      const loc = locBy(svc.customerId, svc.locationId);
+      patternDays(svc.days).forEach((d) => {
+        state.data.stops.push({
+          id: nid("S"), customerId: svc.customerId, locationId: svc.locationId,
+          techId: svc.techId, day: d, time: nextSlot(svc.techId, d),
+          durationMin: svc.durationMin || c?.durationMin || 20, type: "service",
+          status: "scheduled", actualMin: null, removals: null,
+        });
+      });
+      svc.generated = true;
+      svc.status = "live";
+      if (loc) {
+        loc.techId = svc.techId;
+        loc.days = svc.days;
+      }
+    });
+    toast(`Generated ${queue.length} service(s) onto live routes. Technicians will see them on the current schedule.`);
+    state.page = "schedule";
+    render();
+  }
+
+  function insertOneoff(id) {
+    if (!can("oneoff.insert")) return;
+    const s = id ? state.data.stops.find((x) => x.id === id) : state.data.stops.find((x) => x.pending);
+    if (!s) {
+      toast("No pending one-off.");
+      return;
+    }
+    const nearest = TECHS.slice().sort((a, b) => distMiles(s.x || a.x, s.y || a.y, a.x, a.y) - distMiles(s.x || b.x, s.y || b.y, b.x, b.y))[0];
+    s.pending = false;
+    s.type = "oneoff";
+    s.status = "scheduled";
+    s.techId = nearest.id;
+    s.day = "Thu";
+    s.time = nextSlot(nearest.id, "Thu");
+    s.notify = s.taskType === "inspect" || s.taskType === "meeting" ? "Office notified" : "";
+    toast(`Live task dropped onto ${nearest.name}’s Thursday route (nearest home). It is on the schedule now.`);
+    render();
+  }
+
+  function openNewOneoff() {
+    if (!can("oneoff.insert")) return;
+    state.modal = {
+      html: `
+        <h3>Live task — no full account</h3>
+        <p>Animal in a garage, inspection, client meeting. Assigned to the nearest technician and on the route immediately.</p>
+        <div class="field"><label>What happened</label><input id="oo-label" placeholder="Iguana in garage, Pompano"></div>
+        <div class="field"><label>Where (address or park)</label><input id="oo-addr" placeholder="Street or GPS note"></div>
+        <div class="field"><label>Task type</label>
+          <select id="oo-type">${TASK_TYPES.map((t) => `<option value="${t.id}">${esc(t.label)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Notify</label>
+          <select id="oo-notify">
+            <option value="">No extra ping</option>
+            <option value="ops">Ping Operations</option>
+            <option value="admin">Ping Administration</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          ${btn("oneoff.insert", "Drop on nearest tech", "save-oneoff")}
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function saveNewOneoff() {
+    if (!can("oneoff.insert")) return;
+    const x = "31%";
+    const y = "48%";
+    const nearest = TECHS.slice().sort((a, b) => distMiles(x, y, a.x, a.y) - distMiles(x, y, b.x, b.y))[0];
+    const type = val("oo-type") || "garage";
+    const notify = val("oo-notify");
+    state.data.stops.push({
+      id: nid("S"), customerId: null, locationId: null, techId: nearest.id,
+      day: "Thu", time: nextSlot(nearest.id, "Thu"), durationMin: 25,
+      type: "oneoff", status: "scheduled", actualMin: null, removals: null,
+      label: val("oo-label") || "Live task", address: val("oo-addr") || "Florida",
+      pending: false, taskType: type, x, y,
+      notify: notify ? `Pinged ${notify}` : "",
+    });
+    state.modal = null;
+    toast(`On ${nearest.name}’s live route now. ${notify ? "Department notified. " : ""}No customer record was created.`);
+    render();
+  }
+
+  function macroBlock() {
+    if (!state.data.blackout.includes("2026-08-28")) state.data.blackout.push("2026-08-28");
+    state.data.stops.forEach((s) => {
+      if (s.day === "Fri" && s.status === "scheduled") s.status = "blocked_off";
+    });
+    toast("Friday blocked company-wide. Existing stops are not flagged missed and contracts are not extended (OPS-12a).");
+    render();
+  }
+
+  function noshowCompany() {
+    const list = state.data.stops.filter((s) => s.techId === "johnny" && s.day === "Thu" && s.status === "scheduled");
+    list.forEach((s) => {
+      s.status = "noshow";
+      s.fault = "company";
+      s.reason = "Technician illness";
+      s.extended = false;
+      s.pendingExt = true;
+    });
+    toast(`${list.length} stop(s) logged. Approve or deny a contract extension — a make-up visit is not added automatically.`);
+    render();
+  }
+
+  function noshowCustomer() {
+    const s = state.data.stops.find((x) => x.id === "S-3");
+    if (!s) return;
+    s.status = "missed";
+    s.fault = "customer";
+    s.reason = "Gated — no answer";
+    s.extended = false;
+    toast("Customer-fault miss logged. Contract is not extended (BR-05).");
+    render();
+  }
+
+  function addDays(iso, days) {
+    const d = new Date(iso);
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function postPayCustomer(id) {
+    const inv = state.data.invoices.find((i) => i.customerId === id && (i.status === "sent" || i.status === "failed"))
+      || state.data.invoices.find((i) => i.customerId === id && i.status !== "paid");
+    if (inv) {
+      openRecordPay(inv.id);
+      return;
+    }
+    openNewPay(id);
+  }
+
+  function matchPay(id) {
+    if (!can("payment.post")) return;
+    const p = state.data.payments.find((x) => x.id === id);
+    const due = unpaidInvoices().slice().sort((a, b) => {
+      const an = payerLooksLike(p.memo, custBy(a.customerId)?.name) ? 0 : 1;
+      const bn = payerLooksLike(p.memo, custBy(b.customerId)?.name) ? 0 : 1;
+      return an - bn;
+    });
+    state.modal = {
+      html: `
+        <h3>Match bank line</h3>
+        <p>This deposit has no invoice number. Pick the client by name.</p>
+        <div class="preview">${money(p.amount)} · ${esc(p.method)}<div class="tiny">${esc(p.memo)}</div></div>
+        <div class="field"><label>Open invoice</label>
+          <select id="mail-inv">${due.map((i) => `<option value="${i.id}">${esc(invOptionLabel(i))}</option>`).join("")}</select>
+        </div>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          ${btn("payment.post", "This is that client — mark paid", "apply-mail-pay", `data-id="${p.id}"`)}
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function applyMatchPay(id) {
+    if (!can("payment.post")) return;
+    const p = state.data.payments.find((x) => x.id === id);
+    const inv = state.data.invoices.find((i) => i.id === val("mail-inv"));
+    if (!p || !inv) {
+      toast("Pick which client this bank line belongs to.");
+      return;
+    }
+    p.customerId = inv.customerId;
+    p.invoiceId = inv.id;
+    p.locationId = inv.locationId || null;
+    p.posted = true;
+    p.memo = `Matched ${p.method} to ${inv.id} — ${custBy(inv.customerId)?.name || ""} · ${invProperty(inv)}`;
+    inv.status = "paid";
+    inv.paidOn = TODAY;
+    markLocPaidFromInvoice(inv);
+    state.modal = null;
+    toast(`${inv.id} marked paid. Rick creates the service next.`);
+    render();
+  }
+
+  function openMail(id) {
+    if (!can("payment.post")) return;
+    const m = state.data.mail.find((x) => x.id === id);
+    if (!m) return;
+    m.opened = true;
+    const due = unpaidInvoices().slice().sort((a, b) => {
+      const an = payerLooksLike(m.from, custBy(a.customerId)?.name) ? 0 : 1;
+      const bn = payerLooksLike(m.from, custBy(b.customerId)?.name) ? 0 : 1;
+      return an - bn;
+    });
+    state.modal = {
+      html: `
+        <h3>Match deposit · ${esc(m.from)}</h3>
+        <p>This hit the bank. There is no invoice number on it. Compare the name to open invoices and pick the client.</p>
+        <div class="preview">
+          <strong>${esc(m.from)}</strong>
+          <div>${esc(m.kind)}${m.checkNo ? " #" + esc(m.checkNo) : ""} · ${money(m.amount)}</div>
+          <div class="tiny">${esc(m.note)}</div>
+        </div>
+        <div class="field"><label>Which invoice? (name on file)</label>
+          <select id="mail-inv">${due.length ? due.map((i) => {
+            const c = custBy(i.customerId);
+            const hit = payerLooksLike(m.from, c?.name);
+            return `<option value="${i.id}">${hit ? "Looks similar · " : ""}${esc(invOptionLabel(i))}</option>`;
+          }).join("") : `<option value="">No open invoices</option>`}</select>
+        </div>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="close-modal">Leave unmatched</button>
+          ${btn("payment.post", "This is that client — mark invoice paid", "apply-mail", `data-id="${m.id}"`)}
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function applyMail(id) {
+    if (!can("payment.post")) return;
+    const m = state.data.mail.find((x) => x.id === id);
+    if (!m || m.posted) return;
+    const invId = val("mail-inv") || m.invoiceId;
+    const inv = state.data.invoices.find((i) => i.id === invId);
+    if (!inv) {
+      toast("Pick which client this deposit belongs to.");
+      return;
+    }
+    const method = m.kind === "check" ? "Check" : m.kind === "cash" ? "Cash" : m.kind === "bank" ? "Bank transfer" : m.kind === "ach" ? "ACH" : "Card";
+    if (!applyInvoicePayment(inv, method, `${method}${m.checkNo ? " #" + m.checkNo : ""} from ${m.from} — opened in mail/counter`, m.checkNo)) {
+      toast("That invoice is already paid.");
+      return;
+    }
+    m.posted = true;
+    m.opened = true;
+    m.invoiceId = inv.id;
+    m.customerId = inv.customerId;
+    state.modal = null;
+    toast(`${inv.id} marked paid for ${custBy(inv.customerId)?.name || "client"}. Rick creates the service next, then assigns.`);
+    render();
+  }
+
+  function openRecordPay(invId) {
+    if (!can("payment.post")) return;
+    const inv = state.data.invoices.find((i) => i.id === invId);
+    if (!inv) return;
+    const c = custBy(inv.customerId);
+    const focus = state.payFocusId ? (state.data.payments || []).find((p) => p.id === state.payFocusId) : null;
+    const methodDefault = focus?.method || "Check";
+    state.modal = {
+      html: `
+        <h3>Mark invoice paid · ${esc(inv.id)}</h3>
+        <p>Payment is already on the register${focus ? ` (${esc(focus.method)}${focus.last4 ? " ····" + esc(focus.last4) : ""})` : ""}. Confirm here so Rick can create the service for this property.</p>
+        <div class="preview"><strong>${esc(inv.id)}</strong> · Bill-To ${esc(c?.billTo || c?.name || "")} · ${esc(invProperty(inv))} · ${money(inv.amount)} · ${esc(inv.status)}</div>
+        <div class="field"><label>Method on the register</label>
+          <select id="rp-method">${pay().optionsHtml(methodDefault)}</select>
+        </div>
+        <div class="field"><label>Reference / check # / last 4</label><input id="rp-check" value="${esc(focus?.last4 || focus?.checkNo || "")}" placeholder="optional"></div>
+        <div class="field"><label>Memo</label><textarea id="rp-memo" rows="2">${esc(focus?.memo || "Christy marked invoice paid — hand off to Rick")}</textarea></div>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          ${btn("payment.post", "Mark invoice paid", "confirm-record-pay", `data-id="${inv.id}"`)}
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function confirmRecordPay(invId) {
+    const inv = state.data.invoices.find((i) => i.id === invId);
+    if (!applyInvoicePayment(inv, val("rp-method") || "Check", val("rp-memo"), val("rp-check"))) {
+      toast("Could not mark paid.");
+      return;
+    }
+    state.modal = null;
+    toast(`${inv.id} is paid. Ops is notified — service can go on.`);
+    render();
+  }
+
+  function openNewPay(preCust) {
+    if (!can("payment.post")) return;
+    const due = unpaidInvoices();
+    if (!due.length) {
+      toast("No open invoices. Create/send a bill first, then add the payment to the register.");
+      return;
+    }
+    const selected = preCust ? (due.find((i) => i.customerId === preCust)?.id || due[0].id) : due[0].id;
+    state.modal = {
+      html: `
+        <h3>Add payment to register</h3>
+        <p>Christy’s team uses this. Attach the payment to the Bill-To invoice (link pay or external). It does <strong>not</strong> mark the invoice paid — Christy does that from the register.</p>
+        <div class="field"><label>Invoice</label>
+          <select id="np-inv">${due.map((i) => `<option value="${i.id}" ${i.id === selected ? "selected" : ""}>${esc(invOptionLabel(i))}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>How the money arrived</label>
+          <select id="np-method">${pay().optionsHtml("Check")}</select>
+        </div>
+        <div class="field"><label>Reference / check # / last 4</label><input id="np-check" placeholder="optional"></div>
+        <div class="field"><label>Memo</label><textarea id="np-memo" rows="2">On register — awaiting Christy to mark invoice paid</textarea></div>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="save-new-pay">Add to payment register</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function saveNewPay() {
+    if (!can("payment.post")) return;
+    const inv = state.data.invoices.find((i) => i.id === val("np-inv"));
+    if (!inv || inv.status === "paid") {
+      toast("Pick an open invoice.");
+      return;
+    }
+    const method = val("np-method") || "Check";
+    const checkNo = val("np-check") || "";
+    const src = pay().sourceOf(method);
+    state.data.payments.push({
+      id: nid("P"), invoiceId: inv.id, customerId: inv.customerId, locationId: inv.locationId || null, amount: inv.amount,
+      method, date: TODAY, checkNo, last4: String(checkNo || "").slice(-4),
+      source: src, linkPay: pay().isAuto(method), invoiceMarked: false, posted: true,
+      memo: val("np-memo") || `On register · ${method} · ${inv.id}`,
+    });
+    state.modal = null;
+    toast(`${inv.id} is on the payment register. Open it and mark the invoice paid.`);
+    render();
+  }
+
+  function enterComm() {
+    if (!can("commission.enter")) return;
+    if (state.data.commissions.some((b) => b.customerId === "C-1091" && b.period === "2026-08")) {
+      toast("Split already entered for Sarah Chen this period.");
+      return;
+    }
+    const c = custBy("C-1091");
+    const bonus = +(c.amount * state.data.settings.commissionPct / 100).toFixed(2);
+    state.data.commissions.push({
+      id: nid("B"), paymentId: "pending", customerId: "C-1091", amount: bonus,
+      splits: [{ techId: "pedro", pct: 100, dollars: bonus }], period: "2026-08",
+    });
+    toast(`Bonus ${money2(bonus)} on Sarah Chen’s renewal — 100% Pedro. First-term payments never generate this.`);
+    render();
+  }
+
+  function openMemo(id) {
+    if (!can("payment.post")) return;
+    const p = state.data.payments.find((x) => x.id === id);
+    state.modal = {
+      html: `
+        <h3>Edit payment memo</h3>
+        <p>Memos stay editable after save (ADM-14). Used to tie a payment to a location for bonus calc.</p>
+        <div class="field"><label>Memo</label><textarea id="memo-text" rows="3">${esc(p.memo)}</textarea></div>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="save-memo" data-id="${id}">Save memo</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function saveMemo(id) {
+    const p = state.data.payments.find((x) => x.id === id);
+    p.memo = val("memo-text");
+    state.modal = null;
+    toast("Memo updated after posting. The register did not lock the field.");
+    render();
+  }
+
+  function uploadDoc() {
+    if (!can("docs.upload")) return;
+    state.data.documents.unshift({
+      id: nid("D"), customerId: "C-1042", name: "Service photo — Walsh.jpg",
+      by: role().name, date: TODAY,
+    });
+    toast("Document attached on the account — visible to Ops and Admin, not siloed.");
+    render();
+  }
+
+  function toggleUser(id) {
+    const u = state.data.users.find((x) => x.id === id);
+    u.active = !u.active;
+    toast(u.name + (u.active ? " reactivated." : " deactivated."));
+    render();
+  }
+
+  function addReason() {
+    const label = val("new-reason") || "Flooded yard";
+    const fault = val("new-reason-fault") || "customer";
+    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "custom";
+    if (allReasons().some((r) => r.id === id || r.label.toLowerCase() === label.toLowerCase())) {
+      toast("That reason is already on the list.");
+      return;
+    }
+    if (!state.data.settings.extraReasons) state.data.settings.extraReasons = [];
+    state.data.settings.extraReasons.push({ id, label, fault });
+    toast("Reason saved. It is on the technician no-show list.");
+    render();
+  }
+
+  function resetDemo() {
+    if (window.IguanaStore) IguanaStore.reset();
+    state.data = seed();
+    state.modal = null;
+    state.selectedCustomer = null;
+    state.page = "dashboard";
+    toast("Demo data reset. Fields you typed were cleared.");
+    render();
+  }
+
+  function saveSettings() {
+    state.data.settings.commissionPct = Number(val("set-comm") || state.data.settings.commissionPct || 2);
+    state.data.settings.renewalWindow = Number(val("set-win") || state.data.settings.renewalWindow || 60);
+    if (document.getElementById("set-reminder")) state.data.settings.reminder = val("set-reminder") || "email";
+    toast("Company defaults saved on this browser.");
+    render();
+  }
+
+  function previewTpl(name) {
+    const visit = String(name).includes("Visit");
+    state.modal = {
+      html: visit
+        ? `<h3>${esc(name)}</h3><div class="preview">Hi Diane Walsh,<br>A technician is scheduled Friday 07:30 at Riverside Park.<br><br>This is an automated message from Iguana Control. You cannot reply to this text or email.</div><button class="btn btn-primary" data-act="close-modal">Looks right</button>`
+        : `<h3>${esc(name)}</h3><div class="preview"><strong>Subject: Sarah Chen · C-1091 · renewal</strong><br><br>Hello Sarah Chen,<br>Account C-1091 expires 24 Sep 2026.<br><br>Your iguana removal program is ready to renew.<br>— Iguana Control<br><br><span class="tiny">Replies stay on this account so Rick and Christy both see them.</span></div><button class="btn btn-primary" data-act="close-modal">Looks right</button>`,
+    };
+    render();
+  }
+
+  function startStop(id) {
+    const s = state.data.stops.find((x) => x.id === id);
+    s.status = "in_progress";
+    s.startedAt = Date.now();
+    toast("Clock started (OPS-14).");
+    render();
+  }
+
+  function completeStop(id) {
+    const s = state.data.stops.find((x) => x.id === id);
+    s.status = "complete";
+    s.actualMin = 22;
+    s.removals = { count: Number(val("rem-count") || 0), weight: Number(val("rem-wt") || 0) };
+    const text = val("mto-text");
+    if (text) {
+      state.data.mtos.unshift({
+        id: nid("M"), from: "johnny", dept: val("mto-dept") || "ops",
+        customerId: s.customerId, text, date: TODAY + " 11:05", read: false,
+      });
+    }
+    state.mobileStop = null;
+    toast("Stop complete. Duration stored for the report. Monthly customer report will only list dates with actual removals.");
+    render();
+  }
+
+  function addPhoto(id) {
+    const s = state.data.stops.find((x) => x.id === id);
+    s.photos = s.photos || [];
+    s.photos.push("photo-" + (s.photos.length + 1) + ".jpg");
+    s.draftCount = val("rem-count");
+    s.draftWt = val("rem-wt");
+    s.draftMto = val("mto-text");
+    s.draftDept = val("mto-dept");
+    toast("Photo queued on this stop (MOB-05 / OPS-21).");
+    render();
+  }
+
+  function missStop(id) {
+    const s = state.data.stops.find((x) => x.id === id);
+    const reason = REASONS.find((r) => r.id === val("miss-reason")) || REASONS.find((r) => r.id === "gate");
+    s.status = reason.fault === "company" ? "noshow" : "missed";
+    s.fault = reason.fault;
+    s.reason = reason.label;
+    s.extended = false;
+    s.pendingExt = true;
+    state.mobileStop = null;
+    toast("Miss logged for the office. Rick approves or denies a contract extension — a visit is not auto-added.");
+    render();
+  }
+
+  function decideExtension(id, yes) {
+    if (!can("noshow.mark")) return;
+    const s = state.data.stops.find((x) => x.id === id);
+    if (!s) return;
+    s.pendingExt = false;
+    s.extended = !!yes;
+    const c = custBy(s.customerId);
+    if (yes && c?.expires) c.expires = addDays(c.expires, 14);
+    toast(yes ? `Extension approved for ${stopLabel(s)}. Contract +1 visit — not an extra generated stop.` : `Extension denied for ${stopLabel(s)}. Miss stays on the log only.`);
+    render();
+  }
+
+  function trapStatus(id, status) {
+    if (!can("trap.update")) return;
+    const t = (state.data.traps || []).find((x) => x.id === id);
+    if (!t) return;
+    t.status = status;
+    t.lastSeen = TODAY;
+    toast(status === "retrieved" ? `${t.serial} retrieved — $${t.value} asset back.` : `${t.serial} marked ${status}.`);
+    render();
+  }
+
+  function toggleMapSelect(cid, lid) {
+    const key = `${cid}:${lid}`;
+    if (state.mapSelect.includes(key)) state.mapSelect = state.mapSelect.filter((k) => k !== key);
+    else state.mapSelect = state.mapSelect.concat(key);
+    render();
+  }
+
+  function bulkMove(techId) {
+    if (!can("schedule.reassign") || !state.mapSelect.length) return;
+    let n = 0;
+    state.mapSelect.forEach((key) => {
+      const [cid, lid] = key.split(":");
+      const c = custBy(cid);
+      const loc = locBy(cid, lid);
+      if (!c || !loc || loc.shared) return;
+      const prev = loc.techId;
+      loc.techId = techId;
+      svcsFor(cid, lid).forEach((svc) => {
+        if (svc.shared) return;
+        svc.techId = techId;
+        if (svc.generated) {
+          state.data.stops.filter((s) => s.customerId === cid && s.locationId === lid && s.status === "scheduled" && (!prev || s.techId === prev)).forEach((s) => {
+            s.techId = techId;
+          });
+        }
+      });
+      n += 1;
+    });
+    state.mapSelect = [];
+    state.mapLasso = false;
+    toast(`Moved ${n} properties to ${techName(techId)}. Original trappers no longer have those stops.`);
+    render();
+  }
+
+  function bulkDays(daysId) {
+    if (!can("schedule.reassign") || !state.mapSelect.length) return;
+    const newDays = patternDays(daysId);
+    let n = 0;
+    state.mapSelect.forEach((key) => {
+      const [cid, lid] = key.split(":");
+      const loc = locBy(cid, lid);
+      if (!loc || loc.shared) return;
+      loc.days = daysId;
+      svcsFor(cid, lid).forEach((svc) => {
+        if (svc.shared) return;
+        svc.days = daysId;
+        const tech = svc.techId || loc.techId;
+        state.data.stops = state.data.stops.filter((s) => !(s.customerId === cid && s.locationId === lid && s.status === "scheduled" && s.type !== "oneoff"));
+        if (tech && svc.generated !== false) {
+          newDays.forEach((d) => {
+            state.data.stops.push({
+              id: nid("S"), customerId: cid, locationId: lid,
+              techId: tech, day: d, time: nextSlot(tech, d),
+              durationMin: svc.durationMin || 20, type: "service",
+              status: "scheduled", actualMin: null, removals: null,
+            });
+          });
+          svc.generated = true;
+          svc.status = "live";
+        }
+      });
+      n += 1;
+    });
+    state.mapSelect = [];
+    state.mapLasso = false;
+    toast(`Switched ${n} properties to ${daysId}. Old days dropped off the original trapper — nothing was copied.`);
+    render();
+  }
+
+  function sendNotices() {
+    state.data.stops.filter((s) => s.day === "Fri" && !s.pending).forEach((s) => { s.noticed = true; });
+    toast("Friday visit notices queued — templated, two days ahead, no-reply.");
+    render();
+  }
+
+  function approxGps(loc) {
+    if (loc?.lat != null && loc?.lng != null) return `${Number(loc.lat).toFixed(4)}, ${Number(loc.lng).toFixed(4)}`;
+    if (loc?.gps && !loc.manualPin) return loc.gps;
+    const coords = latLngFromXy(pct(loc?.x), pct(loc?.y));
+    return `${coords.lat}, ${coords.lng}`;
+  }
+  function latLngFromXy(xPct, yPct) {
+    const lat = (26.9 - Number(yPct) * 0.025).toFixed(4);
+    const lng = (-82.4 + Number(xPct) * 0.04).toFixed(4);
+    return { lat, lng };
+  }
+  function xyFromLatLng(lat, lng) {
+    const y = Math.max(4, Math.min(94, (26.9 - Number(lat)) / 0.025));
+    const x = Math.max(4, Math.min(96, (Number(lng) + 82.4) / 0.04));
+    return { x, y };
+  }
+
+  function copyGps(gps) {
+    const text = gps || "";
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(() => toast("Copied " + text + " — paste into Google Maps.")).catch(() => toast(text));
+    } else {
+      toast("Copy: " + text);
+    }
+  }
+
+  function val(id) {
+    return document.getElementById(id)?.value.trim() || "";
+  }
+
+  render();
+})();
