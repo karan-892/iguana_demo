@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iguana Control — Billing & Service Prototype</title>
+<style>
+:root{
+  --bg:#f5f7fb; --panel:#fff; --line:#dfe5ee; --text:#172033; --muted:#667085;
+  --primary:#2457d6; --primary2:#eaf0ff; --success:#087443; --successbg:#e9f8ef;
+  --warn:#9a6700; --warnbg:#fff7df; --danger:#b42318; --dangerbg:#fff0ee;
+  --purple:#6941c6; --purplebg:#f2edff; --shadow:0 2px 10px rgba(16,24,40,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,Segoe UI,Arial,sans-serif}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.app{display:grid;grid-template-columns:270px minmax(520px,1fr) 360px;min-height:100vh}
+.sidebar{background:#101828;color:#fff;padding:20px 14px;position:sticky;top:0;height:100vh}
+.brand{font-weight:800;font-size:19px;padding:6px 10px 22px}
+.brand small{display:block;color:#98a2b3;font-weight:500;font-size:11px;margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:6px}
+.nav button{border:0;background:transparent;color:#c8d0dc;text-align:left;padding:10px 12px;border-radius:8px}
+.nav button:hover,.nav button.active{background:#1d2939;color:#fff}
+.nav .section{font-size:10px;color:#667085;text-transform:uppercase;letter-spacing:.08em;padding:14px 12px 4px}
+.main{padding:22px 24px 60px;min-width:0}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+h1{font-size:22px;margin:0 0 3px}
+.subtitle{color:var(--muted)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:#fff;padding:8px 12px;border-radius:7px;color:var(--text)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.success{background:var(--success);border-color:var(--success);color:#fff}
+.btn.danger{background:#fff;border-color:#f0b8b2;color:var(--danger)}
+.btn.small{padding:5px 8px;font-size:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);margin-bottom:14px}
+.card .head{padding:13px 15px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.card .body{padding:15px}
+.card h3{font-size:14px;margin:0}
+.stepbar{display:flex;gap:5px;overflow:auto;margin-bottom:14px}
+.step{min-width:125px;padding:9px 10px;border:1px solid var(--line);background:#fff;border-radius:7px;color:var(--muted);font-size:11px}
+.step.active{border-color:#a9bffb;background:var(--primary2);color:var(--primary);font-weight:700}
+.step.done{border-color:#b8e0c7;background:var(--successbg);color:var(--success)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+label{display:block;color:#475467;font-size:12px;font-weight:600;margin-bottom:5px}
+input,select,textarea{width:100%;border:1px solid #cfd6e2;border-radius:6px;padding:8px 9px;background:#fff;color:var(--text)}
+textarea{min-height:70px;resize:vertical}
+.formrow{margin-bottom:11px}
+.badge{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:700}
+.badge.green{background:var(--successbg);color:var(--success)}
+.badge.yellow{background:var(--warnbg);color:var(--warn)}
+.badge.red{background:var(--dangerbg);color:var(--danger)}
+.badge.blue{background:var(--primary2);color:var(--primary)}
+.badge.purple{background:var(--purplebg);color:var(--purple)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kpi{padding:12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.kpi .n{font-size:21px;font-weight:800}.kpi .l{font-size:11px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{border-bottom:1px solid #edf0f5;padding:9px 7px;text-align:left;vertical-align:top}
+th{font-size:11px;color:#667085;background:#fafbfc}
+tr.clickable:hover{background:#f7f9fc;cursor:pointer}
+.alert{padding:10px 12px;border-radius:7px;margin:9px 0;font-size:12px}
+.alert.info{background:var(--primary2);color:#21459e}.alert.warn{background:var(--warnbg);color:var(--warn)}
+.alert.success{background:var(--successbg);color:var(--success)}.alert.danger{background:var(--dangerbg);color:var(--danger)}
+.timeline{display:flex;flex-direction:column;gap:0}
+.titem{display:grid;grid-template-columns:20px 1fr;gap:8px;padding:10px 0}
+.dot{width:10px;height:10px;border-radius:50%;background:#98a2b3;margin-top:5px}
+.dot.blue{background:var(--primary)}.dot.green{background:#12b76a}.dot.yellow{background:#f79009}.dot.purple{background:#7f56d9}
+.muted{color:var(--muted)}
+.money{font-weight:800}
+.codepanel{background:#0b1220;color:#d7e0ea;height:100vh;position:sticky;top:0;overflow:auto;padding:18px 15px}
+.codepanel h2{font-size:14px;margin:0 0 5px;color:#fff}
+.codepanel .small{color:#98a2b3;font-size:11px;margin-bottom:13px}
+.codebox{border:1px solid #25324a;border-radius:8px;margin:10px 0;background:#0f172a}
+.codebox .ct{padding:8px 10px;border-bottom:1px solid #25324a;color:#b9c6d8;font-size:11px;font-weight:700}
+pre{margin:0;padding:10px;white-space:pre-wrap;word-break:break-word;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
+.jsonkey{color:#7dd3fc}.jsonstr{color:#86efac}.jsonnum{color:#fbbf24}
+.footer-note{font-size:11px;color:#98a2b3;margin-top:14px}
+.modal{position:fixed;inset:0;background:rgba(16,24,40,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
+.modal.show{display:flex}
+.modalbox{background:#fff;border-radius:12px;width:min(720px,96vw);max-height:90vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+.modalhead{padding:15px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}.modalbody{padding:16px}
+.hidden{display:none!important}
+@media(max-width:1150px){.app{grid-template-columns:220px 1fr}.codepanel{display:none}}
+@media(max-width:800px){.app{display:block}.sidebar{position:static;height:auto}.main{padding:15px}.grid2,.grid3,.kpis{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">Iguana Control <small>Clickable billing/service prototype</small></div>
+    <div class="nav">
+      <div class="section">Workflow</div>
+      <button class="active" data-screen="onboarding">1. New Customer</button>
+      <button data-screen="proposal">2. Proposal / Acceptance</button>
+      <button data-screen="service">3. Service & Billing Plan</button>
+      <button data-screen="invoice">4. Invoice</button>
+      <button data-screen="payments">5. Payment Register</button>
+      <button data-screen="renewals">6. Renewals</button>
+      <button data-screen="location">7. Location 360°</button>
+      <div class="section">Scenarios</div>
+      <button data-screen="scenario">Scenario Lab</button>
+      <div class="section">Prototype</div>
+      <button id="resetBtn">Reset Demo Data</button>
+    </div>
+  </aside>
+
+  <main class="main" id="main"></main>
+
+  <aside class="codepanel">
+    <h2>Backend / DB Inspector</h2>
+    <div class="small">Prototype uses localStorage. This panel shows the proposed records that would map to PostgreSQL tables.</div>
+    <div id="dbInspector"></div><div class="muted" style="padding:10px 4px 20px;font-size:11px">Prototype fixes are limited to clear admin/billing issues demonstrated in the Christy/Tom walkthroughs. Unspecified policies are not invented.</div>
+    <div class="footer-note">Green = saved. Yellow = pending/attention. The prototype intentionally keeps Payment as one centralized entity regardless of source: ONLINE, AUTOPAY, EXTERNAL.</div>
+  </aside>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modalbox">
+    <div class="modalhead"><strong id="modalTitle">Detail</strong><button class="btn small" onclick="closeModal()">Close</button></div>
+    <div class="modalbody" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+const KEY="iguana_proto_v1";
+const uid=(p)=>p+"_"+Math.random().toString(36).slice(2,8);
+const today=new Date().toISOString().slice(0,10);
+const addMonths=(date,n)=>{let d=new Date(date+"T12:00:00"); d.setMonth(d.getMonth()+n); return d.toISOString().slice(0,10)};
+const money=n=>"$"+Number(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+
+const initial={
+  meta:{version:1, lastAction:"Demo initialized"},
+  customers:[],
+  locations:[],
+  proposals:[],
+  contracts:[],
+  billingPlans:[],
+  billingPeriods:[],
+  invoices:[],
+  payments:[],
+  paymentAllocations:[],
+  autopayAuthorizations:[],
+  renewals:[],
+  services:[],
+  audit:[]
+};
+
+let db=load();
+let screen="onboarding";
+let selectedLocation=null;
+
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(initial)}catch(e){return structuredClone(initial)}}
+function save(action){
+  db.meta.lastAction=action;
+  db.meta.updatedAt=new Date().toISOString();
+  db.audit.unshift({id:uid("AUD"),at:new Date().toISOString(),action});
+  db.audit=db.audit.slice(0,80);
+  localStorage.setItem(KEY,JSON.stringify(db));
+  render();
+}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function getCustomer(id){return db.customers.find(x=>x.id===id)}
+function getLocation(id){return db.locations.find(x=>x.id===id)}
+function getContract(id){return db.contracts.find(x=>x.id===id)}
+function getInvoice(id){return db.invoices.find(x=>x.id===id)}
+function allocated(invoiceId){return db.paymentAllocations.filter(x=>x.invoiceId===invoiceId).reduce((s,x)=>s+x.amount,0)}
+function invoiceStatus(inv){
+  const p=allocated(inv.id), a=Number(inv.amount);
+  if(p<=0)return "OPEN";
+  if(p<a)return "PARTIAL";
+  return "PAID";
+}
+function statusBadge(s){
+  const map={PAID:"green",ACTIVE:"green","READY FOR SERVICE":"green",OPEN:"yellow",PENDING:"yellow","PENDING PAYMENT":"yellow","OVERDUE":"red","FAILED":"red","CANCELLED":"red","ABANDONED":"red","DRAFT":"blue","SCHEDULED":"blue","SENT":"blue","REVIEW":"purple","ACCEPTED":"purple","PARTIAL":"yellow","PROCESSING":"blue"};
+  return `<span class="badge ${map[s]||"blue"}">${esc(s)}</span>`;
+}
+function navigate(s){screen=s;document.querySelectorAll(".nav button[data-screen]").forEach(b=>b.classList.toggle("active",b.dataset.screen===s));render()}
+
+document.querySelectorAll(".nav button[data-screen]").forEach(b=>b.onclick=()=>navigate(b.dataset.screen));
+document.getElementById("resetBtn").onclick=()=>{if(confirm("Reset all prototype data?")){db=structuredClone(initial);selectedLocation=null;save("Reset demo data")}};
+
+function render(){
+  const main=document.getElementById("main");
+  const views={onboarding:viewOnboarding,proposal:viewProposal,service:viewService,invoice:viewInvoice,payments:viewPayments,renewals:viewRenewals,location:viewLocation,scenario:viewScenario};
+  main.innerHTML=views[screen]();
+  renderInspector();
+}
+
+function header(title,sub,actions=""){
+  return `<div class="topbar"><div><h1>${title}</h1><div class="subtitle">${sub}</div></div><div class="actions">${actions}</div></div>`;
+}
+function steps(active){
+  const arr=[["onboarding","Customer"],["proposal","Proposal"],["service","Service/Billing"],["invoice","Invoice"],["payments","Payment"],["location","Ready/Schedule"]];
+  return `<div class="stepbar">${arr.map((x,i)=>`<div class="step ${x[0]===active?"active":i<Math.max(0,arr.findIndex(a=>a[0]===active))?"done":""}">${i+1}. ${x[1]}</div>`).join("")}</div>`;
+}
+
+function viewOnboarding(){
+  return header("New Customer → Location","Prototype entry point: customer calls, staff captures customer + service location. The operational recurring service is not activated yet.",`<button class="btn primary" onclick="openNewCustomer()">＋ Add Customer</button>`)
+  +steps("onboarding")
+  +`<div class="alert info"><b>Business rule:</b> payment is the operational gate. The prototype can create the commercial/service intent first, but the recurring service remains <b>Pending Payment</b> until an invoice is paid.</div>
+  <div class="card"><div class="head"><h3>Recent customers</h3><span class="muted">${db.customers.length} records</span></div><div class="body">${db.customers.length?customerTable():"<div class='muted'>No customers yet. Click Add Customer to start the end-to-end flow.</div>"}</div></div>`;
+}
+function customerTable(){
+  return `<table><thead><tr><th>Customer</th><th>Location</th><th>Status</th><th>Next action</th></tr></thead><tbody>`
+  +db.customers.map(c=>{let l=db.locations.find(x=>x.customerId===c.id);let ct=l&&db.contracts.find(x=>x.locationId===l.id);return `<tr><td><b>${esc(c.name)}</b><br><span class="muted">${esc(c.email||"")}</span></td><td>${esc(l?.name||"—")}<br>${esc(l?.city||"")}</td><td>${statusBadge(ct?.status||"DRAFT")}</td><td><button class="btn small" onclick="goLocation('${l?.id||""}')">Open</button></td></tr>`}).join("")+"</tbody></table>";
+}
+
+function openNewCustomer(){
+  openModal("Create Customer + Location",`
+    <div class="grid2">
+      <div class="formrow"><label>Customer name</label><input id="f_name" value="John Smith"></div>
+      <div class="formrow"><label>Email</label><input id="f_email" value="john@example.com"></div>
+      <div class="formrow"><label>Phone</label><input id="f_phone" value="954-555-0101"></div>
+      <div class="formrow"><label>Customer type</label><select id="f_type"><option>Residential</option><option>Commercial</option><option>Municipal</option><option>HOA</option></select></div>
+      <div class="formrow"><label>Service location name</label><input id="f_loc" value="John Smith Residence"></div>
+      <div class="formrow"><label>Address</label><input id="f_addr" value="123 Example Street"></div>
+      <div class="formrow"><label>City</label><input id="f_city" value="Fort Lauderdale"></div>
+      <div class="formrow"><label>ZIP</label><input id="f_zip" value="33301"></div>
+    </div>
+    <div class="actions"><button class="btn primary" onclick="createCustomer()">Create Customer + Location</button></div>`);
+}
+function createCustomer(){
+  const c={id:uid("CUS"),name:document.getElementById("f_name").value,email:document.getElementById("f_email").value,phone:document.getElementById("f_phone").value,type:document.getElementById("f_type").value,createdAt:today};
+  const l={id:uid("LOC"),customerId:c.id,name:document.getElementById("f_loc").value,address:document.getElementById("f_addr").value,city:document.getElementById("f_city").value,zip:document.getElementById("f_zip").value};
+  db.customers.push(c);db.locations.push(l);selectedLocation=l.id;closeModal();save("Created customer and service location");navigate("proposal");
+}
+function goLocation(id){selectedLocation=id;navigate("location")}
+
+function viewProposal(){
+  const l=getLocation(selectedLocation),c=l&&getCustomer(l.customerId);
+  return header("Proposal / Customer Acceptance","The quote/proposal is pre-sale. It does not itself represent a payment. Acceptance creates the service/billing intent.",`<button class="btn" onclick="navigate('onboarding')">← Customer</button>`)
+  +steps("proposal")
+  +(l?`<div class="card"><div class="head"><h3>${esc(c.name)} — ${esc(l.name)}</h3>${statusBadge(db.proposals.find(p=>p.locationId===l.id)?.status||"DRAFT")}</div><div class="body">
+  <div class="grid2">
+    <div class="formrow"><label>Program</label><select id="p_program"><option>1-Year Residential Monitoring</option><option>1-Year Commercial Monitoring</option><option>6-Month Monitoring</option><option>Monthly / 12-Month Commitment</option></select></div>
+    <div class="formrow"><label>Contract term</label><select id="p_term"><option value="12">12 months</option><option value="6">6 months</option></select></div>
+    <div class="formrow"><label>Total contract value</label><input id="p_total" type="number" value="2400"></div>
+    <div class="formrow"><label>Billing frequency</label><select id="p_freq"><option value="annual">Annual / upfront</option><option value="monthly">Monthly</option></select></div>
+    <div class="formrow"><label>Installment amount</label><input id="p_installment" type="number" value="200"></div>
+    <div class="formrow"><label>AutoPay</label><select id="p_autopay"><option value="yes">Yes</option><option value="no">No</option></select></div>
+  </div>
+  <div class="alert info">Prototype decision: <b>Service/Contract + Billing Plan</b> are separate records. A 12-month service can be paid $200/month × 12 or paid upfront.</div>
+  <button class="btn primary" onclick="acceptProposal()">Customer Agreed — Create Service & Billing Plan</button>
+  </div></div>`:"<div class='alert warn'>Select/create a customer first.</div>");
+}
+function acceptProposal(){
+  const l=getLocation(selectedLocation); if(!l)return;
+  const existing=db.proposals.find(p=>p.locationId===l.id);
+  const p=existing||{id:uid("PROP"),locationId:l.id};
+  Object.assign(p,{program:document.getElementById("p_program").value,termMonths:Number(document.getElementById("p_term").value),totalValue:Number(document.getElementById("p_total").value),billingFrequency:document.getElementById("p_freq").value,installmentAmount:Number(document.getElementById("p_installment").value),autopay:document.getElementById("p_autopay").value==="yes",status:"ACCEPTED",acceptedAt:today});
+  if(!existing)db.proposals.push(p);
+  const ct={id:uid("CON"),locationId:l.id,proposalId:p.id,program:p.program,termMonths:p.termMonths,totalValue:p.totalValue,startDate:today,endDate:addMonths(today,p.termMonths),status:"PENDING PAYMENT"};
+  db.contracts.push(ct);
+  const bp={id:uid("BPL"),contractId:ct.id,frequency:p.billingFrequency,installmentAmount:p.billingFrequency==="annual"?p.totalValue:p.installmentAmount,installments:p.billingFrequency==="annual"?1:p.termMonths,autopay:p.autopay,status:"ACTIVE"};
+  db.billingPlans.push(bp);
+  // Create first invoice for prototype; future periods are generated by billing schedule action.
+  createFirstBillingPeriod(ct,bp);
+  selectedLocation=l.id;save("Customer accepted proposal; created contract and billing plan");navigate("service");
+}
+function createFirstBillingPeriod(ct,bp){
+  const existing=db.billingPeriods.find(x=>x.contractId===ct.id); if(existing)return;
+  const months = bp.frequency==="monthly" ? 1 : ct.termMonths;
+  const period={id:uid("PER"),contractId:ct.id,sequence:1,periodStart:ct.startDate,periodEnd:addMonths(ct.startDate,months),amount:bp.installmentAmount,status:"DUE"};
+  db.billingPeriods.push(period);
+  const inv={id:uid("INV"),invoiceNo:String(300000+db.invoices.length+1),locationId:ct.locationId,contractId:ct.id,billingPeriodId:period.id,description:ct.program+(bp.frequency==="monthly"?" — Billing Period 1":" — Full Term"),amount:period.amount,issueDate:today,dueDate:today,status:"SENT",source:"SYSTEM"};
+  db.invoices.push(inv);
+  period.invoiceId=inv.id;
+}
+
+function viewService(){
+  const l=getLocation(selectedLocation),c=l&&getCustomer(l.customerId),ct=l&&db.contracts.find(x=>x.locationId===l.id),bp=ct&&db.billingPlans.find(x=>x.contractId===ct.id);
+  return header("Service & Billing Plan","Separate operational commitment from the way it is billed. Service becomes active/dispatchable after payment.",`<button class="btn" onclick="navigate('proposal')">← Proposal</button>`)
+  +steps("service")
+  +(ct?`<div class="grid2">
+    <div class="card"><div class="head"><h3>Service Contract</h3>${statusBadge(ct.status)}</div><div class="body">
+      <div class="grid2"><div><span class="muted">Customer</span><br><b>${esc(c.name)}</b></div><div><span class="muted">Location</span><br><b>${esc(l.name)}</b></div>
+      <div><span class="muted">Program</span><br>${esc(ct.program)}</div><div><span class="muted">Term</span><br>${ct.termMonths} months</div>
+      <div><span class="muted">Start</span><br>${ct.startDate}</div><div><span class="muted">End / Renewal</span><br>${ct.endDate}</div></div>
+      <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+      <div class="alert ${ct.status==="ACTIVE"?"success":"warn"}">${ct.status==="ACTIVE"?"Payment confirmed — service is eligible for scheduling.":"Payment gate: service remains Pending Payment and should not be dispatched."}</div>
+      ${ct.status==="PENDING PAYMENT"?`<div class="card" style="margin-top:12px;background:#fffaf0"><div class="head"><h4 style="margin:0">Awaiting Payment</h4>${statusBadge(ct.paymentStatus||"AWAITING PAYMENT")}</div><div class="body"><div class="grid3"><div><span class="muted">Invoice</span><br><b>${db.invoices.find(i=>i.contractId===ct.id)?.invoiceNo||"—"}</b></div><div><span class="muted">Outstanding</span><br><b>${money(db.invoices.filter(i=>i.contractId===ct.id).reduce((s,i)=>s+Math.max(0,i.amount-allocated(i.id)),0))}</b></div><div><span class="muted">Service activation</span><br><b>Blocked until paid</b></div></div><div class="muted" style="margin-top:8px">No automatic abandonment rule is assumed here; the record remains actionable for Admin follow-up.</div></div></div>`:""}
+      ${ct.status!=="ACTIVE"?`<button class="btn primary" onclick="navigate('payments')">Go to Payment Register</button>`:`<button class="btn success" onclick="activateService()">Open Scheduling / Assign Technician</button>`}
+    </div></div>
+    <div class="card"><div class="head"><h3>Billing Plan</h3>${statusBadge(bp?.status||"DRAFT")}</div><div class="body">
+      <div class="kpis"><div class="kpi"><div class="n">${money(ct.totalValue)}</div><div class="l">Contract value</div></div>
+      <div class="kpi"><div class="n">${money(bp?.installmentAmount)}</div><div class="l">${bp?.frequency==="monthly"?"Monthly":"Annual"} installment</div></div>
+      <div class="kpi"><div class="n">${bp?.installments||0}</div><div class="l">Installments</div></div>
+      <div class="kpi"><div class="n">${bp?.autopay?"ON":"OFF"}</div><div class="l">AutoPay</div></div></div>
+      <div style="margin-top:14px"><b>Billing periods</b>${billingPeriods(ct.id)}</div>
+    </div></div>
+  </div>`:"<div class='alert warn'>No service contract yet. Accept the proposal first.</div>");
+}
+function billingPeriods(contractId){
+  const ps=db.billingPeriods.filter(x=>x.contractId===contractId);
+  return `<table style="margin-top:8px"><thead><tr><th>#</th><th>Period</th><th>Invoice</th><th>Amount</th><th>Status</th></tr></thead><tbody>${ps.map(p=>{let i=getInvoice(p.invoiceId);return `<tr><td>${p.sequence}</td><td>${p.periodStart} → ${p.periodEnd}</td><td>${i?.invoiceNo||"—"}</td><td>${money(p.amount)}</td><td>${statusBadge(i?invoiceStatus(i):p.status)}</td></tr>`}).join("")}</tbody></table>
+  <div style="margin-top:10px"><button class="btn small" onclick="generateNextPeriod()">Generate Next Billing Period / Invoice</button></div>`;
+}
+function generateNextPeriod(){
+  const l=getLocation(selectedLocation),ct=l&&db.contracts.find(x=>x.locationId===l.id),bp=ct&&db.billingPlans.find(x=>x.contractId===ct.id);
+  if(!ct||!bp)return;
+  const count=db.billingPeriods.filter(x=>x.contractId===ct.id).length;
+  if(count>=bp.installments){alert("All billing periods for this contract have already been generated.");return}
+  const start=addMonths(ct.startDate,count),end=addMonths(ct.startDate,count+1);
+  const period={id:uid("PER"),contractId:ct.id,sequence:count+1,periodStart:start,periodEnd:end,amount:bp.installmentAmount,status:"DUE"};
+  db.billingPeriods.push(period);
+  const inv={id:uid("INV"),invoiceNo:String(300000+db.invoices.length+1),locationId:ct.locationId,contractId:ct.id,billingPeriodId:period.id,description:ct.program+" — Billing Period "+(count+1),amount:bp.installmentAmount,issueDate:start,dueDate:start,status:"SENT",source:"RECURRING"};
+  db.invoices.push(inv);period.invoiceId=inv.id;save("Generated next recurring billing period and invoice");
+}
+
+function viewInvoice(){
+  const l=getLocation(selectedLocation),ct=l&&db.contracts.find(x=>x.locationId===l.id);
+  const invs=l?db.invoices.filter(x=>x.locationId===l.id):[];
+  return header("Invoices","Invoices are financial obligations. They are separate from the service contract and separate from payments.",`<button class="btn" onclick="navigate('service')">← Service</button><button class="btn primary" onclick="manualInvoice()">＋ Manual Invoice</button>`)
+  +steps("invoice")
+  +(l?`<div class="card"><div class="head"><h3>Invoice History — ${esc(l.name)}</h3><span class="muted">${invs.length} invoice(s)</span></div><div class="body"><table><thead><tr><th>Invoice</th><th>Description</th><th>Issue</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead><tbody>${invs.map(i=>{let paid=allocated(i.id);return `<tr class="clickable" onclick="openInvoice('${i.id}')"><td><b>${i.invoiceNo}</b></td><td>${esc(i.description)}<br><span class="muted">${esc(i.source)}</span></td><td>${i.issueDate}</td><td>${money(i.amount)}</td><td>${money(paid)}</td><td>${money(i.amount-paid)}</td><td>${statusBadge(invoiceStatus(i))}</td></tr>`}).join("")}</tbody></table></div></div>`:"<div class='alert warn'>No location selected.</div>");
+}
+function openInvoice(id){
+  const i=getInvoice(id),l=getLocation(i.locationId),ct=getContract(i.contractId);
+  const pays=db.paymentAllocations.filter(a=>a.invoiceId===id).map(a=>db.payments.find(p=>p.id===a.paymentId)).filter(Boolean);
+  openModal("Invoice "+i.invoiceNo,`<div class="grid2"><div><span class="muted">Location</span><br><b>${esc(l.name)}</b></div><div><span class="muted">Status</span><br>${statusBadge(invoiceStatus(i))}</div><div><span class="muted">Description</span><br>${esc(i.description)}</div><div><span class="muted">Amount</span><br><b>${money(i.amount)}</b></div><div><span class="muted">Issue date</span><br>${i.issueDate}</div><div><span class="muted">Due date</span><br>${i.dueDate}</div></div>
+  <hr style="border:0;border-top:1px solid var(--line);margin:15px 0">
+  <h3>Payments applied</h3>${pays.length?`<table><tr><th>Date</th><th>Source</th><th>Method</th><th>Amount</th></tr>${pays.map(p=>`<tr><td>${p.date}</td><td>${p.source}</td><td>${p.method}</td><td>${money(p.amount)}</td></tr>`).join("")}</table>`:"<div class='muted'>No payment applied yet.</div>"}
+  <div style="margin-top:14px"><button class="btn primary" onclick="closeModal();openPaymentModal('${i.id}')">Post Payment Directly to Invoice</button></div>`);
+}
+function manualInvoice(){
+  const l=getLocation(selectedLocation),ct=l&&db.contracts.find(x=>x.locationId===l.id);
+  if(!l){alert("Select a location first.");return}
+  openModal("Create Manual Invoice",`<div class="grid2"><div class="formrow"><label>Description</label><input id="mi_desc" value="Municipal / special service invoice"></div><div class="formrow"><label>Amount</label><input id="mi_amt" type="number" value="1000"></div><div class="formrow"><label>PO Number</label><input id="mi_po" value="PO-2026-001"></div><div class="formrow"><label>Service period</label><input id="mi_period" value="${today.slice(0,7)}"></div></div><div class="alert info">Municipal invoicing remains intentionally manual in this prototype because the source calls say requirements vary by municipality, including PO and service-period details.</div><button class="btn primary" onclick="createManualInvoice()">Create Invoice</button>`);
+}
+function createManualInvoice(){
+  const l=getLocation(selectedLocation);let ct=l&&db.contracts.find(x=>x.locationId===l.id);
+  if(!ct){ct={id:uid("CON"),locationId:l.id,program:"Manual / Municipal",termMonths:1,totalValue:Number(document.getElementById("mi_amt").value),startDate:today,endDate:addMonths(today,1),status:"PENDING PAYMENT"};db.contracts.push(ct)}
+  const i={id:uid("INV"),invoiceNo:String(300000+db.invoices.length+1),locationId:l.id,contractId:ct.id,description:document.getElementById("mi_desc").value+" | PO "+document.getElementById("mi_po").value+" | Period "+document.getElementById("mi_period").value,amount:Number(document.getElementById("mi_amt").value),issueDate:today,dueDate:today,status:"SENT",source:"MANUAL"};
+  db.invoices.push(i);closeModal();save("Created manual invoice");navigate("invoice");
+}
+
+function viewPayments(){
+  const all=db.payments.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  const open=db.invoices.filter(i=>invoiceStatus(i)!=="PAID").length;
+  const failed=db.autopayAuthorizations.filter(a=>a.status==="FAILED").length;
+  const pending=db.contracts.filter(c=>c.status==="PENDING PAYMENT").length;
+  return header("Central Payment Register","One permanent register for ONLINE, AUTOPAY and EXTERNAL payments. Posting never removes the transaction.",`<button class="btn primary" onclick="openPaymentModal()">＋ Record Payment</button>`)
+  +steps("payments")
+  +`<div class="kpis">
+    <div class="kpi"><div class="n">${all.length}</div><div class="l">Payments</div></div>
+    <div class="kpi"><div class="n">${money(all.reduce((s,p)=>s+p.amount,0))}</div><div class="l">Total payments</div></div>
+    <div class="kpi"><div class="n">${failed}</div><div class="l">AutoPay exceptions</div></div>
+    <div class="kpi"><div class="n">${pending}</div><div class="l">Awaiting payment</div></div>
+  </div>
+  ${failed?`<div class="alert danger"><b>Action required:</b> ${failed} AutoPay exception(s) need review. The prototype surfaces failures instead of requiring a separate report.</div>`:""}
+  <div class="card" style="margin-top:14px"><div class="head"><h3>Payment Register</h3><div class="actions">
+    <select id="paymentFilter" onchange="filterPayments()"><option value="ALL">All sources</option><option value="ONLINE">Online</option><option value="AUTOPAY">AutoPay</option><option value="EXTERNAL">External</option></select>
+  </div></div><div class="body">
+  <table><thead><tr><th>Date</th><th>Customer</th><th>Invoice</th><th>Source</th><th>Method</th><th>Amount</th><th>Status</th><th>Memo</th></tr></thead><tbody id="paymentRows">${all.length?all.map(p=>paymentRow(p)).join(""):`<tr><td colspan="8" class="muted">No payments yet.</td></tr>`}</tbody></table>
+  </div></div>
+  <div class="alert info"><b>Design fix from Christy's walkthrough:</b> online, AutoPay and external payments use one Payment record and one allocation path. The record remains searchable after posting, and the payment can carry a memo.</div>`;
+}
+function paymentRow(p){
+  let i=getInvoice(p.invoiceId),l=i&&getLocation(i.locationId),c=l&&getCustomer(l.customerId);
+  return `<tr class="clickable" data-source="${esc(p.source)}" onclick="openPayment('${p.id}')"><td>${p.date}</td><td>${esc(c?.name||"—")}</td><td>${i?.invoiceNo||"UNAPPLIED"}</td><td>${statusBadge(p.source)}</td><td>${esc(p.method)}</td><td class="money">${money(p.amount)}</td><td>${statusBadge(p.status)}</td><td>${esc(p.memo||"")}</td></tr>`;
+}
+function filterPayments(){
+  const f=document.getElementById("paymentFilter")?.value||"ALL";
+  document.querySelectorAll("#paymentRows tr").forEach(r=>r.style.display=(f==="ALL"||r.dataset.source===f)?"":"none");
+}
+function openPaymentModal(invoiceId){
+  const l=getLocation(selectedLocation), inv=invoiceId?getInvoice(invoiceId):null;
+  if(!l && !inv){alert("Select a location first.");return}
+  const invoices=(inv?[inv]:db.invoices.filter(i=>i.locationId===l.id && invoiceStatus(i)!=="PAID"));
+  openModal("Record / Process Payment",`
+    <div class="grid2">
+      <div class="formrow"><label>Invoice</label><select id="pay_inv">${invoices.map(i=>`<option value="${i.id}">${i.invoiceNo} — ${money(i.amount-allocated(i.id))} remaining</option>`).join("")}</select></div>
+      <div class="formrow"><label>Payment source</label><select id="pay_source"><option value="ONLINE">Online payment link</option><option value="AUTOPAY">AutoPay</option><option value="EXTERNAL">External / manual</option></select></div>
+      <div class="formrow"><label>Payment method</label><select id="pay_method"><option>Credit Card</option><option>ACH</option><option>Check</option><option>Virtual Credit Card</option><option>Other</option></select></div>
+      <div class="formrow"><label>Amount</label><input id="pay_amt" type="number" step="0.01" value="${inv?inv.amount-allocated(inv.id):200}"></div>
+      <div class="formrow"><label>Reference</label><input id="pay_ref" value="****3680"></div>
+      <div class="formrow"><label>Payment date</label><input id="pay_date" type="date" value="${today}"></div>
+    </div>
+    <div class="formrow"><label>Memo / allocation note</label><input id="pay_memo" value="${invoiceId?"Direct payment posted from invoice":"Payment received"}></div>
+    <div class="alert info"><b>Design rule:</b> Online and AutoPay use the same Payment entity. External payments also land in the same register; only source/method differ.</div>
+    <button class="btn primary" onclick="recordPayment()">Save Payment</button>`);
+}
+function recordPayment(){
+  const invoiceId=document.getElementById("pay_inv").value, i=getInvoice(invoiceId);
+  const amount=Number(document.getElementById("pay_amt").value), source=document.getElementById("pay_source").value;
+  if(!i||!amount){alert("Select an invoice and enter an amount.");return}
+  const p={id:uid("PAY"),invoiceId,locationId:i.locationId,date:document.getElementById("pay_date").value,source,method:document.getElementById("pay_method").value,reference:document.getElementById("pay_ref").value,amount,status:"POSTED",memo:document.getElementById("pay_memo").value};
+  db.payments.push(p);db.paymentAllocations.push({id:uid("ALLOC"),paymentId:p.id,invoiceId,amount});
+  if(invoiceStatus(i)==="PAID"){let ct=getContract(i.contractId);if(ct&&ct.status==="PENDING PAYMENT")ct.status="ACTIVE"; if(ct&&!db.services.some(s=>s.contractId===ct.id))db.services.push({id:uid("SRV"),contractId:ct.id,status:"READY FOR SERVICE",schedule:"Pending assignment",technician:"Unassigned"});}
+  closeModal();save(`${source} payment posted to invoice ${i.invoiceNo}`);navigate("payments");
+}
+function openPayment(id){
+  const p=db.payments.find(x=>x.id===id); if(!p)return;
+  const i=getInvoice(p.invoiceId),l=i&&getLocation(i.locationId),c=l&&getCustomer(l.customerId);
+  openModal("Payment "+p.id,`<div class="grid2">
+    <div><span class="muted">Customer</span><br><b>${esc(c?.name||"—")}</b></div>
+    <div><span class="muted">Invoice</span><br><b>${i?.invoiceNo||"Unapplied"}</b></div>
+    <div><span class="muted">Source</span><br>${statusBadge(p.source)}</div>
+    <div><span class="muted">Method</span><br>${esc(p.method)}</div>
+    <div><span class="muted">Amount</span><br><b>${money(p.amount)}</b></div>
+    <div><span class="muted">Status</span><br>${statusBadge(p.status)}</div>
+  </div>
+  <div class="formrow" style="margin-top:14px"><label>Memo / allocation note</label><textarea id="editPayMemo" rows="3">${esc(p.memo||"")}</textarea></div>
+  <div class="alert info">Memo can identify the billing month, school/location or other internal context without changing the financial amount.</div>
+  <div class="actions"><button class="btn primary" onclick="savePaymentMemo('${p.id}')">Save Memo</button><button class="btn" onclick="closeModal()">Close</button></div>`);
+}
+function savePaymentMemo(id){
+  const p=db.payments.find(x=>x.id===id); if(!p)return;
+  p.memo=document.getElementById("editPayMemo").value;
+  closeModal();save("Updated payment memo");
+}
+function viewRenewals(){
+  const now=new Date(today+"T12:00:00");
+  const horizon=new Date(now);horizon.setDate(horizon.getDate()+60);
+  const rows=db.contracts.filter(ct=>new Date(ct.endDate+"T12:00:00")<=horizon && ct.status!=="CANCELLED").map(ct=>{
+    let l=getLocation(ct.locationId),c=l&&getCustomer(l.customerId),bp=db.billingPlans.find(b=>b.contractId===ct.id),existing=db.renewals.find(r=>r.contractId===ct.id);
+    let amount=bp?.frequency==="monthly"?bp.installmentAmount:ct.totalValue;
+    return {ct,l,c,bp,existing,amount};
+  });
+  return header("Renewals","30–60 day review queue. The system prepares renewal information; staff reviews/modifies it before client communication.",`<button class="btn" onclick="seedRenewalScenario()">＋ Add Renewal Scenario</button>`)
+  +`<div class="alert info"><b>Workflow:</b> prepare → review → optionally edit → approve/send. A renewal does not automatically charge an AutoPay customer merely because the contract is approaching expiration.</div>
+  <div class="card"><div class="head"><h3>Renewal Review Report</h3><div class="actions"><span class="muted">${rows.length} due within 60 days</span><button class="btn small primary" onclick="prepareSelectedRenewals()">Prepare Selected</button></div></div><div class="body"><table><thead><tr><th><input type="checkbox" onchange="toggleAllRenewals(this.checked)"></th><th>Customer</th><th>Program</th><th>Expiration</th><th>Current billing</th><th>Proposed renewal</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows.length?rows.map(r=>`<tr><td><input type="checkbox" class="renewPick" value="${r.ct.id}"></td><td><b>${esc(r.c?.name||"—")}</b></td><td>${esc(r.ct.program)}</td><td>${r.ct.endDate}</td><td>${r.bp?.frequency==="monthly"?money(r.bp.installmentAmount)+"/month × "+r.bp.installments:money(r.ct.totalValue)+" upfront"}</td><td>${r.existing?.proposedText|| (r.bp?.frequency==="monthly"?money(r.amount)+"/month × "+r.bp.installments:money(r.amount))}</td><td>${statusBadge(r.existing?.status||"REVIEW")}</td><td><button class="btn small primary" onclick="reviewRenewal('${r.ct.id}')">Review</button></td></tr>`).join(""):`<tr><td colspan="8" class="muted">No renewal records in the 60-day window. Click Add Renewal Scenario to test.</td></tr>`}</tbody></table></div></div>`;
+}
+function toggleAllRenewals(checked){document.querySelectorAll(".renewPick").forEach(x=>x.checked=checked)}
+function prepareSelectedRenewals(){
+  const ids=[...document.querySelectorAll(".renewPick:checked")].map(x=>x.value);
+  if(!ids.length){alert("Select one or more renewal records first.");return}
+  ids.forEach(id=>{
+    const ct=getContract(id); if(!ct)return;
+    let r=db.renewals.find(x=>x.contractId===id);
+    const bp=db.billingPlans.find(x=>x.contractId===id);
+    const text=bp?.frequency==="monthly"?`${money(bp.installmentAmount)}/month × ${bp.installments} months`:`${money(ct.totalValue)} upfront`;
+    if(!r){r={id:uid("REN"),contractId:id,status:"DRAFT",proposedText:text,sent:false};db.renewals.push(r)}
+    else if(!r.proposedText)r.proposedText=text;
+  });
+  save("Prepared selected renewal drafts for review");
+}
+function seedRenewalScenario(){
+  const c={id:uid("CUS"),name:"Renewal Test Customer",email:"renewal@example.com",phone:"954-555-0202",type:"Commercial",createdAt:today};
+  const l={id:uid("LOC"),customerId:c.id,name:"Renewal Test Location",address:"456 Renewal Ave",city:"Pompano Beach",zip:"33060"};
+  const ct={id:uid("CON"),locationId:l.id,program:"1-Year Commercial Monitoring",termMonths:12,totalValue:2400,startDate:addMonths(today,-11),endDate:addMonths(today,1),status:"ACTIVE"};
+  const bp={id:uid("BPL"),contractId:ct.id,frequency:"monthly",installmentAmount:200,installments:12,autopay:true,status:"ACTIVE"};
+  db.customers.push(c);db.locations.push(l);db.contracts.push(ct);db.billingPlans.push(bp);save("Added renewal scenario with monthly $200 × 12 billing plan");selectedLocation=l.id;navigate("renewals");
+}
+function reviewRenewal(contractId){
+  const ct=getContract(contractId),l=getLocation(ct.locationId),c=getCustomer(l.customerId),bp=db.billingPlans.find(x=>x.contractId===ct.id);
+  let r=db.renewals.find(x=>x.contractId===contractId);
+  if(!r){r={id:uid("REN"),contractId,status:"DRAFT",proposedText:"",sent:false};db.renewals.push(r)}
+  const defaultText=bp?.frequency==="monthly"?`${money(bp.installmentAmount)}/month × ${bp.installments} months`:`${money(ct.totalValue)} upfront`;
+  openModal("Review Renewal — "+esc(c.name),`<div class="grid2"><div><label>Customer</label><input value="${esc(c.name)}" disabled></div><div><label>Expiration</label><input value="${ct.endDate}" disabled></div></div>
+  <div class="formrow"><label>Proposed renewal terms — editable before sending</label><input id="ren_text" value="${esc(r.proposedText||defaultText)}"></div>
+  <div class="alert warn">Client communication is manual after review. Do not auto-send merely because the renewal date is approaching.</div>
+  <div class="actions"><button class="btn" onclick="saveRenewal('${ct.id}',false)">Save Draft</button><button class="btn primary" onclick="saveRenewal('${ct.id}',true)">Approve & Send Renewal</button></div>`);
+}
+function saveRenewal(contractId,send){
+  let r=db.renewals.find(x=>x.contractId===contractId);r.proposedText=document.getElementById("ren_text").value;r.status=send?"SENT":"DRAFT";r.sent=send;r.sentAt=send?new Date().toISOString():null;closeModal();save(send?"Renewal approved and sent after review":"Renewal draft updated");navigate("renewals");
+}
+
+function viewLocation(){
+  const l=getLocation(selectedLocation),c=l&&getCustomer(l.customerId);
+  if(!l)return header("Location 360°","Select a location from the Customer screen.",`<button class="btn primary" onclick="navigate('onboarding')">Customers</button>`);
+  const ct=db.contracts.find(x=>x.locationId===l.id),bp=ct&&db.billingPlans.find(x=>x.contractId===ct.id);
+  const invs=db.invoices.filter(x=>x.locationId===l.id),pays=db.payments.filter(x=>x.locationId===l.id);
+  return header("Location 360°",`${esc(c.name)} · ${esc(l.name)}`,`<button class="btn" onclick="navigate('onboarding')">← Customers</button>`)
+  +`<div class="card"><div class="head"><h3>Customer / Bill-To</h3>${statusBadge(c.type)}</div><div class="body"><div class="grid3"><div><span class="muted">Customer</span><br><b>${esc(c.name)}</b></div><div><span class="muted">Location</span><br>${esc(l.address)}, ${esc(l.city)}</div><div><span class="muted">Email</span><br>${esc(c.email)}</div></div></div></div>
+  <div class="card"><div class="head"><h3>Recurring Services</h3>${ct?statusBadge(ct.status):""}</div><div class="body">${ct?`<table><tr><th>Service</th><th>Schedule</th><th>Tech</th><th>Last Service</th><th>Next / Renewal</th><th>Cancel Date</th></tr><tr><td>${esc(ct.program)}</td><td>WK — Pending</td><td>${db.services.find(s=>s.contractId===ct.id)?.technician||"Unassigned"}</td><td>—</td><td>${ct.endDate}</td><td>—</td></tr></table>`:"<div class='muted'>No recurring service yet.</div>"}</div></div>
+  <div class="card"><div class="head"><h3>Billing History</h3><span class="muted">Click an invoice to inspect it</span></div><div class="body">${invs.length?`<table><tr><th>Date</th><th>Invoice</th><th>Description</th><th>Amount</th><th>Balance</th></tr>${invs.map(i=>`<tr class="clickable" onclick="openInvoice('${i.id}')"><td>${i.issueDate}</td><td>${i.invoiceNo}</td><td>${esc(i.description)}</td><td>${money(i.amount)}</td><td>${money(i.amount-allocated(i.id))}</td></tr>`).join("")}</table>`:"<div class='muted'>No billing history.</div>"}</div></div>
+  <div class="card"><div class="head"><h3>Payment History</h3><button class="btn small primary" onclick="openPaymentModal()">Record Payment</button></div><div class="body">${pays.length?`<table><tr><th>Date</th><th>Invoice</th><th>Source</th><th>Method</th><th>Amount</th></tr>${pays.map(p=>{let i=getInvoice(p.invoiceId);return `<tr><td>${p.date}</td><td>${i?.invoiceNo||"—"}</td><td>${statusBadge(p.source)}</td><td>${p.method}</td><td>${money(p.amount)}</td></tr>`}).join("")}</table>`:"<div class='muted'>No payments yet.</div>"}</div></div>
+  ${bp?`<div class="card"><div class="head"><h3>Billing Plan</h3>${statusBadge(bp.autopay?"ACTIVE":"ACTIVE")}</div><div class="body"><div class="grid3"><div><span class="muted">Frequency</span><br><b>${bp.frequency}</b></div><div><span class="muted">Installment</span><br><b>${money(bp.installmentAmount)}</b></div><div><span class="muted">AutoPay</span><br><b>${bp.autopay?"Active":"Off"}</b></div></div></div></div>`:""}`;
+}
+function activateService(){
+  const l=getLocation(selectedLocation),ct=db.contracts.find(x=>x.locationId===l.id);
+  if(!ct||ct.status!=="ACTIVE"){alert("Service cannot be activated until the invoice is fully paid.");return}
+  let s=db.services.find(x=>x.contractId===ct.id);if(!s){s={id:uid("SRV"),contractId:ct.id,status:"READY FOR SERVICE",schedule:"Pending assignment",technician:"Unassigned"};db.services.push(s)}
+  openModal("Schedule / Assign Technician",`<div class="grid2"><div class="formrow"><label>Technician</label><select id="tech"><option>Unassigned</option><option>ENEGRON</option><option>RIMAYAN</option><option>THUTCHESON</option></select></div><div class="formrow"><label>Schedule</label><select id="sched"><option>WK — MON</option><option>WK — SAT</option><option>WK — M/W</option></select></div></div><button class="btn success" onclick="saveSchedule('${s.id}')">Activate & Save Schedule</button>`);
+}
+function saveSchedule(id){
+  const s=db.services.find(x=>x.id===id);s.technician=document.getElementById("tech").value;s.schedule=document.getElementById("sched").value;s.status="ACTIVE";let ct=db.contracts.find(x=>x.id===s.contractId);ct.status="ACTIVE";closeModal();save("Service activated and technician/schedule assigned");navigate("location");
+}
+
+function viewScenario(){
+  return header("Scenario Lab","Focused on the clear admin, billing, payment and renewal problems from Christy's/Tom's walkthroughs.",`<button class="btn danger" onclick="db=structuredClone(initial);selectedLocation=null;save('Reset scenario lab')">Reset</button>`)
+  +`<div class="grid2">
+  <div class="card"><div class="head"><h3>1. Customer Accepted — No Payment</h3><span class="badge yellow">NEW</span></div><div class="body"><p>Customer accepts the program, invoice is sent, but no payment arrives. Service stays blocked.</p><button class="btn primary" onclick="scenarioNoPayment()">Run</button></div></div>
+  <div class="card"><div class="head"><h3>2. Monthly AutoPay</h3></div><div class="body"><p>12-month commitment, $2,400 total, billed as 12 × $200 invoices.</p><button class="btn primary" onclick="scenarioMonthly()">Run</button></div></div>
+  <div class="card"><div class="head"><h3>3. Online Payment</h3></div><div class="body"><p>Customer uses the payment link. Payment is automatically posted into the same register.</p><button class="btn primary" onclick="scenarioOnline()">Run</button></div></div>
+  <div class="card"><div class="head"><h3>4. External / Manual Payment</h3></div><div class="body"><p>Admin receives check/ACH and posts directly to the selected invoice — no 9-step workflow.</p><button class="btn primary" onclick="scenarioExternal()">Run</button></div></div>
+  <div class="card"><div class="head"><h3>5. Partial Payment</h3></div><div class="body"><p>Test a payment smaller than the invoice and verify the live remaining balance.</p><button class="btn primary" onclick="scenarioPartial()">Run</button></div></div>
+  <div class="card"><div class="head"><h3>6. Failed AutoPay</h3></div><div class="body"><p>Payment failure becomes an exception visible to Admin instead of requiring a separate daily report.</p><button class="btn primary" onclick="scenarioFailed()">Run</button></div></div>
+  <div class="card"><div class="head"><h3>7. Renewal Review / Batch Prep</h3></div><div class="body"><p>Prepare 30–60 day renewals, review/edit amounts, and batch-select records before sending.</p><button class="btn primary" onclick="seedRenewalScenario();navigate('renewals')">Run</button></div></div>
+  <div class="card"><div class="head"><h3>8. Payment Memo / Allocation Note</h3></div><div class="body"><p>Edit a posted payment memo to record month, school/location or bonus context.</p><button class="btn primary" onclick="scenarioMemo()">Run</button></div></div>
+  <div class="card"><div class="head"><h3>9. Early Cancellation</h3></div><div class="body"><p>Show the standard-rate recalculation concept for a discounted fixed-term plan.</p><button class="btn primary" onclick="scenarioCancel()">Run</button></div></div>
+  </div>
+  <div class="card"><div class="head"><h3>Prototype decisions we can implement without client clarification</h3></div><div class="body"><div class="timeline">
+    <div class="titem"><div class="dot blue"></div><div><b>One centralized Payment Register</b><br><span class="muted">Online, AutoPay and external payments are different sources/methods of the same payment transaction.</span></div></div>
+    <div class="titem"><div class="dot green"></div><div><b>Direct payment posting</b><br><span class="muted">Admin can open an invoice and post a check/ACH directly against it.</span></div></div>
+    <div class="titem"><div class="dot yellow"></div><div><b>Dynamic invoice balance</b><br><span class="muted">Paid and remaining amounts are calculated from payment allocations, including partial payments.</span></div></div>
+    <div class="titem"><div class="dot purple"></div><div><b>Renewal review before sending</b><br><span class="muted">The system prepares renewal records 30–60 days out; staff reviews and edits before sending.</span></div></div>
+    <div class="titem"><div class="dot red"></div><div><b>AutoPay exceptions are surfaced</b><br><span class="muted">A failed payment is visible in the admin UI instead of requiring a separate report.</span></div></div>
+    <div class="titem"><div class="dot blue"></div><div><b>Payment history can carry context</b><br><span class="muted">Memo/allocation notes can identify month, school/location or other bonus-related context.</span></div></div>
+  </div></div></div>`;
+}
+function scenarioNoPayment(){
+  const c={id:uid("CUS"),name:"Accepted But Unpaid",email:"unpaid@example.com",type:"Residential",createdAt:today};
+  const l={id:uid("LOC"),customerId:c.id,name:"No Payment Demo Location",address:"101 Pending Way",city:"Pompano Beach",zip:"33060"};
+  const p={id:uid("PROP"),locationId:l.id,program:"1-Year Monitoring",termMonths:12,totalValue:2400,billingFrequency:"annual",installmentAmount:2400,autopay:false,status:"ACCEPTED",acceptedAt:today};
+  const ct={id:uid("CON"),locationId:l.id,proposalId:p.id,program:p.program,termMonths:12,totalValue:2400,startDate:today,endDate:addMonths(today,12),status:"PENDING PAYMENT",paymentStatus:"AWAITING PAYMENT"};
+  const bp={id:uid("BPL"),contractId:ct.id,frequency:"annual",installmentAmount:2400,installments:1,autopay:false,status:"ACTIVE"};
+  db.customers.push(c);db.locations.push(l);db.proposals.push(p);db.contracts.push(ct);db.billingPlans.push(bp);selectedLocation=l.id;createFirstBillingPeriod(ct,bp);
+  db.invoices[db.invoices.length-1].dueDate=addMonths(today,0);
+  save("Scenario: accepted customer awaiting payment");navigate("service");
+}
+function scenarioPartial(){
+  if(!selectedLocation){scenarioMonthly();}
+  const i=db.invoices.find(x=>x.locationId===selectedLocation && invoiceStatus(x)!=="PAID");
+  if(i){
+    const remaining=i.amount-allocated(i.id), amount=Math.max(1,Math.round(remaining*0.4*100)/100);
+    const p={id:uid("PAY"),invoiceId:i.id,locationId:i.locationId,date:today,source:"EXTERNAL",method:"Check",reference:"CHK-PARTIAL",amount,status:"POSTED",memo:"Partial payment — remaining balance shown dynamically"};
+    db.payments.push(p);db.paymentAllocations.push({id:uid("ALLOC"),paymentId:p.id,invoiceId:i.id,amount});
+    save("Scenario: partial payment posted");navigate("payments");
+  }
+}
+function scenarioMemo(){
+  if(!selectedLocation){scenarioMonthly();}
+  const i=db.invoices.find(x=>x.locationId===selectedLocation), p=i&&db.payments.find(x=>x.invoiceId===i.id);
+  if(p){p.memo="Month 1 / client location / bonus allocation note";save("Scenario: payment memo updated");navigate("payments");}
+  else {scenarioOnline();setTimeout(()=>scenarioMemo(),0);}
+}
+function scenarioMonthly(){
+  const c={id:uid("CUS"),name:"Monthly AutoPay Demo",email:"monthly@example.com",type:"Residential",createdAt:today};
+  const l={id:uid("LOC"),customerId:c.id,name:"Monthly Demo Location",address:"100 Billing Way",city:"Pompano Beach",zip:"33064"};
+  const ct={id:uid("CON"),locationId:l.id,program:"1-Year Monitoring",termMonths:12,totalValue:2400,startDate:today,endDate:addMonths(today,12),status:"PENDING PAYMENT"};
+  const bp={id:uid("BPL"),contractId:ct.id,frequency:"monthly",installmentAmount:200,installments:12,autopay:true,status:"ACTIVE"};
+  db.customers.push(c);db.locations.push(l);db.contracts.push(ct);db.billingPlans.push(bp);selectedLocation=l.id;createFirstBillingPeriod(ct,bp);save("Scenario: created monthly AutoPay contract");navigate("service");
+}
+function scenarioOnline(){if(!selectedLocation){scenarioMonthly();}let i=db.invoices.find(x=>x.locationId===selectedLocation);if(i){const paid=allocated(i.id);if(paid<i.amount){const p={id:uid("PAY"),invoiceId:i.id,locationId:i.locationId,date:today,source:"ONLINE",method:"Credit Card",reference:"****3680",amount:i.amount-paid,status:"POSTED",memo:"Customer paid via invoice link"};db.payments.push(p);db.paymentAllocations.push({id:uid("ALLOC"),paymentId:p.id,invoiceId:i.id,amount:p.amount});let ct=getContract(i.contractId);if(invoiceStatus(i)==="PAID")ct.status="ACTIVE";save("Scenario: online payment received and applied");navigate("payments");}}}
+function scenarioExternal(){if(!selectedLocation){scenarioMonthly();}let i=db.invoices.find(x=>x.locationId===selectedLocation);if(i){const paid=allocated(i.id);if(paid<i.amount){const p={id:uid("PAY"),invoiceId:i.id,locationId:i.locationId,date:today,source:"EXTERNAL",method:"Check",reference:"CHK-1001",amount:i.amount-paid,status:"POSTED",memo:"External check posted directly to invoice"};db.payments.push(p);db.paymentAllocations.push({id:uid("ALLOC"),paymentId:p.id,invoiceId:i.id,amount:p.amount});let ct=getContract(i.contractId);if(invoiceStatus(i)==="PAID")ct.status="ACTIVE";save("Scenario: external/manual payment posted");navigate("payments");}}}
+function scenarioFailed(){if(!selectedLocation){scenarioMonthly();}const l=getLocation(selectedLocation),ct=db.contracts.find(x=>x.locationId===l.id);db.autopayAuthorizations.push({id:uid("APA"),contractId:ct.id,status:"FAILED",method:"Credit Card",last4:"1234",failureCode:"CARD_DECLINED",failedAt:new Date().toISOString()});save("Scenario: AutoPay failed — exception created");navigate("payments");}
+function scenarioCancel(){if(!selectedLocation){scenarioMonthly();}const l=getLocation(selectedLocation),ct=db.contracts.find(x=>x.locationId===l.id);const monthsElapsed=2,standardRate=500,recalc=monthsElapsed*standardRate;openModal("Early Cancellation Recalculation",`<div class="alert warn"><b>Contract:</b> ${esc(ct.program)}</div><table><tr><th>Committed billing</th><td>${money(200)}/month</td></tr><tr><th>Standard monthly rate</th><td>${money(standardRate)}</td></tr><tr><th>Months used</th><td>${monthsElapsed}</td></tr><tr><th>Standard-rate obligation</th><td><b>${money(recalc)}</b></td></tr><tr><th>Paid so far</th><td>${money(400)}</td></tr><tr><th>Illustrative remaining adjustment</th><td><b>${money(recalc-400)}</b></td></tr></table><div class="alert info">This is the business rule Tom described: the heavily discounted monthly price is tied to the fixed 6/12-month commitment; premature cancellation can revert usage to the standard monthly rate. Exact accounting treatment should be confirmed before implementation.</div>`)}
+
+function renderInspector(){
+  const counts=Object.fromEntries(Object.keys(db).filter(k=>Array.isArray(db[k])).map(k=>[k,db[k].length]));
+  const show=(name,obj)=>`<div class="codebox"><div class="ct">${name} <span style="float:right">${Array.isArray(obj)?obj.length:1}</span></div><pre>${esc(JSON.stringify(obj,null,2))}</pre></div>`;
+  let relevant={
+    customers:db.customers.slice(-3),
+    locations:db.locations.slice(-3),
+    contracts:db.contracts.slice(-3),
+    billingPlans:db.billingPlans.slice(-3),
+    billingPeriods:db.billingPeriods.slice(-5),
+    invoices:db.invoices.slice(-5),
+    payments:db.payments.slice(-8),
+    paymentAllocations:db.paymentAllocations.slice(-8),
+    autopayAuthorizations:db.autopayAuthorizations.slice(-5),
+    renewals:db.renewals.slice(-5),
+    services:db.services.slice(-5)
+  };
+  document.getElementById("dbInspector").innerHTML=
+    `<div class="alert info" style="background:#111c31;color:#b9c6d8">localStorage key: <b>${KEY}</b><br>Last action: ${esc(db.meta.lastAction||"—")}</div>`
+    +Object.entries(relevant).map(([k,v])=>show(k,v)).join("");
+}
+
+function openModal(title,body){document.getElementById("modalTitle").textContent=title;document.getElementById("modalBody").innerHTML=body;document.getElementById("modal").classList.add("show")}
+function closeModal(){document.getElementById("modal").classList.remove("show")}
+document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
+
+render();
+</script>
+</body>
+</html>

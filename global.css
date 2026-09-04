@@ -951,6 +951,20 @@ h2 .inline-edit:focus { border-color: var(--line-strong); }
   align-items: center;
   margin-bottom: 4px;
 }
+.mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin: 4px 0 6px;
+}
+.mini-table th,
+.mini-table td {
+  text-align: left;
+  padding: 2px 6px 2px 0;
+  border-bottom: 1px solid var(--line, #e5e1d8);
+  color: var(--ink-soft, #5c574e);
+}
+.mini-table th { font-weight: 600; color: var(--ink, #1c1915); }
 @media (max-width: 900px) {
   .cust-panels { grid-template-columns: 1fr; }
   .panel-edit { opacity: 1; pointer-events: auto; }

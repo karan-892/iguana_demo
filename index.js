@@ -72,8 +72,8 @@
       title: "Administration Director",
       initials: "CB",
       color: "#1d6a75",
-      access: "Team puts payments on the register. You check the list → open Bill-To → mark invoice paid (link and external). Renewal messages for expiring plans — not re-quotes.",
-      chips: ["Register", "Mark invoice paid", "Renewals"],
+      access: "AutoPay pays & allocates overnight. You handle declines (contact → external pay → allocate → generate next period) and non-AutoPay register lines. Renewals prepare → review → send.",
+      chips: ["AutoPay exceptions", "Allocate", "Renewals"],
     },
     sales: {
       id: "sales",
@@ -207,6 +207,69 @@
     { id: "hoa2", name: "HOA 2-week", months: 0.5, list: 180, prepaid: null, freeMonths: 0, freq: "Every 2 weeks" },
   ];
 
+  function programById(id) { return PROGRAMS.find((p) => p.id === id); }
+  function programBillAmount(p) {
+    if (!p) return 0;
+    if (p.id === "12mo") return Math.round(p.list / Math.max(1, p.months));
+    return p.prepaid != null ? p.prepaid : p.list;
+  }
+  function buildCommitment(programId, startDate) {
+    const p = programById(programId) || PROGRAMS[0];
+    const monthly = p.id === "12mo";
+    const periods = monthly ? Math.max(1, Math.round(p.months)) : 1;
+    const installmentAmount = programBillAmount(p);
+    return {
+      programId: p.id,
+      termMonths: p.months,
+      totalValue: p.list,
+      billingFrequency: monthly ? "monthly" : "upfront",
+      installmentAmount,
+      periods,
+      autoPay: monthly,
+      committedOn: startDate || TODAY,
+    };
+  }
+  function buildBillingPeriods(commitment, startDate, firstInvoiceId) {
+    const start = startDate || TODAY;
+    const n = commitment.periods || 1;
+    const periods = [];
+    for (let i = 1; i <= n; i++) {
+      const dueOffset = commitment.billingFrequency === "monthly" ? i - 1 : 0;
+      periods.push({
+        id: `BP-${i}`,
+        n: i,
+        amount: commitment.installmentAmount,
+        status: i === 1 && firstInvoiceId ? "invoiced" : (i === 1 && !firstInvoiceId ? "upcoming" : "upcoming"),
+        invoiceId: i === 1 ? (firstInvoiceId || null) : null,
+        dueDate: addMonths(start, dueOffset),
+      });
+    }
+    if (firstInvoiceId && periods[0]) {
+      periods[0].status = "invoiced";
+      periods[0].invoiceId = firstInvoiceId;
+    }
+    return periods;
+  }
+  function seedLocBilling(programId, start, invId, lifecycle, paid) {
+    const commitment = buildCommitment(programId, start);
+    const billingPeriods = buildBillingPeriods(commitment, start, invId || null);
+    if (paid && billingPeriods[0]) {
+      billingPeriods[0].status = "paid";
+      billingPeriods[0].invoiceId = invId || billingPeriods[0].invoiceId;
+    }
+    return {
+      programId,
+      amount: commitment.installmentAmount,
+      start,
+      expires: addMonths(start, commitment.termMonths),
+      paid: !!paid,
+      autoPay: !!commitment.autoPay,
+      lifecycle: lifecycle || (paid ? "active" : (invId ? "waiting_payment" : "inquiry")),
+      commitment,
+      billingPeriods,
+    };
+  }
+
   const REASONS = [
     { id: "mechanical", label: "Mechanical failure", fault: "company" },
     { id: "sick", label: "Technician illness", fault: "company" },
@@ -239,8 +302,8 @@
           days: "Mon/Wed",
           durationMin: 20,
           locations: [
-            { id: "L-1042a", name: "Residence", address: "418 NE 4th St, Boca Raton, FL", x: "30%", y: "40%", covered: true, techId: "johnny", days: "Mon/Wed", gps: "26.3587, -80.0831", programId: "12pre", amount: 2000, start: "2026-03-01", expires: "2027-03-01", paid: true },
-            { id: "L-1042b", name: "Rental", address: "902 NE 20th Ave, Fort Lauderdale, FL", x: "32%", y: "50%", covered: true, requestService: true, requestedAt: 2, programId: "6mo", amount: 1200, start: "2026-08-01", expires: "2027-02-01", paid: true },
+            { id: "L-1042a", name: "Residence", address: "418 NE 4th St, Boca Raton, FL", x: "30%", y: "40%", covered: true, techId: "johnny", days: "Mon/Wed", gps: "26.3587, -80.0831", ...seedLocBilling("12pre", "2026-03-01", "INV-4419", "active", true) },
+            { id: "L-1042b", name: "Rental", address: "902 NE 20th Ave, Fort Lauderdale, FL", x: "32%", y: "50%", covered: true, requestService: true, requestedAt: 2, techId: "johnny", days: "Mon/Wed", ...seedLocBilling("6mo", "2026-08-01", "INV-4420", "active", true) },
           ],
           notes: "Gate code 4419. Dogs in backyard — use side path. Client asked to catch iguanas at the Fort Lauderdale rental too. Two properties, two plans, two invoices — Diane is the only Bill-To.",
           opsNote: "Customer asked to skip the week of Labor Day if possible.",
@@ -335,7 +398,7 @@
           backupId: "johnny",
           days: "Mon/Wed",
           durationMin: 25,
-          locations: [{ id: "L-1091a", name: "Residence", address: "880 Northlake Blvd, West Palm Beach, FL", x: "40%", y: "26%" }],
+          locations: [{ id: "L-1091a", name: "Residence", address: "880 Northlake Blvd, West Palm Beach, FL", x: "40%", y: "26%", ...seedLocBilling("12pre", "2025-09-24", "INV-4510", "waiting_payment", false) }],
           notes: "Standard prepaid rate. Review and send.",
           opsNote: "",
         },
@@ -347,10 +410,10 @@
           type: "commercial",
           billTo: "Harbor Oaks Management",
           status: "past_due",
-          programId: "6mo",
-          amount: 1400,
+          programId: "12mo",
+          amount: 233,
           start: "2026-04-01",
-          expires: "2026-10-01",
+          expires: "2027-04-01",
           paid: false,
           autoPay: true,
           municipal: false,
@@ -359,7 +422,7 @@
           backupId: "alejo",
           days: "Tue/Thu",
           durationMin: 40,
-          locations: [{ id: "L-1066a", name: "Campus", address: "210 Harbor Oaks Rd, Tampa, FL", x: "14%", y: "38%" }],
+          locations: [{ id: "L-1066a", name: "Campus", address: "210 Harbor Oaks Rd, Tampa, FL", x: "14%", y: "38%", ...seedLocBilling("12mo", "2026-04-01", "INV-4488", "past_due", false) }],
           notes: "Auto-pay declined 2026-08-26. Do not dispatch until paid (BR-01).",
           opsNote: "Card declined — leave off tomorrow's route until Admin clears it.",
         },
@@ -408,7 +471,7 @@
           backupId: null,
           days: null,
           durationMin: 20,
-          locations: [{ id: "L-1180a", name: "Residence", address: "55 SE 2nd Ave, Fort Lauderdale, FL", x: "31%", y: "50%" }],
+          locations: [{ id: "L-1180a", name: "Residence", address: "55 SE 2nd Ave, Fort Lauderdale, FL", x: "31%", y: "50%", lifecycle: "quoted" }],
           notes: "Quote sent with plan options. Waiting for Elena to say which program she wants — then Christy creates and sends the invoice.",
           opsNote: "",
         },
@@ -419,9 +482,9 @@
           email: "nina.patel@email.com",
           type: "residential",
           billTo: "Nina Patel",
-          status: "active",
+          status: "waiting_payment",
           programId: "6mo",
-          amount: 1200,
+          amount: 3200,
           start: "2026-08-27",
           expires: "2027-02-27",
           paid: false,
@@ -431,15 +494,15 @@
           backupId: null,
           days: null,
           durationMin: 20,
-          handedToOps: true,
-          handedAt: 1,
+          handedToOps: false,
+          handedAt: 0,
           createdBy: "admin",
           locations: [
-            { id: "L-1188a", name: "Residence", address: "210 SE 3rd Ave, Fort Lauderdale, FL", x: "31%", y: "51%", covered: true, requestService: true, requestedAt: 1, programId: "6mo", amount: 1200, start: "2026-08-27", expires: "2027-02-27", paid: false },
-            { id: "L-1188b", name: "Canal house", address: "44 SE 10th St, Deerfield Beach, FL", x: "29%", y: "43%", covered: true, requestService: true, requestedAt: 3, programId: "12pre", amount: 2000, start: "2026-08-27", expires: "2027-08-27", paid: false },
+            { id: "L-1188a", name: "Residence", address: "210 SE 3rd Ave, Fort Lauderdale, FL", x: "31%", y: "51%", covered: true, requestService: true, requestedAt: 1, ...seedLocBilling("6mo", "2026-08-27", "INV-4688", "waiting_payment", false) },
+            { id: "L-1188b", name: "Canal house", address: "44 SE 10th St, Deerfield Beach, FL", x: "29%", y: "43%", covered: true, requestService: true, requestedAt: 3, ...seedLocBilling("12pre", "2026-08-27", "INV-4689", "waiting_payment", false) },
           ],
-          notes: "Christy converted this account today. Two properties, two plans, two invoices — Nina is the only Bill-To.",
-          opsNote: "New from Administration — assign each property from the map.",
+          notes: "Commitment + invoices sent. Waiting for payment on each property before Rick creates service.",
+          opsNote: "Do not create service until Christy marks each property paid.",
         },
         {
           id: "C-1210",
@@ -466,8 +529,8 @@
           handedAt: 4,
           createdBy: "sales",
           locations: [
-            { id: "L-1210a", name: "Boca house", address: "610 NE 3rd Ave, Boca Raton, FL", x: "29%", y: "41%", covered: true, techId: "johnny", days: "Mon/Wed", programId: "12pre", amount: 2000, start: "2026-08-20", expires: "2027-08-20", paid: true, gps: "26.3591, -80.0822" },
-            { id: "L-1210b", name: "Deerfield rental", address: "88 SE 8th St, Deerfield Beach, FL", x: "28%", y: "44%", covered: true, techId: "bobby", days: "Tue/Thu", programId: "6mo", amount: 1200, start: "2026-08-20", expires: "2027-02-20", paid: true },
+            { id: "L-1210a", name: "Boca house", address: "610 NE 3rd Ave, Boca Raton, FL", x: "29%", y: "41%", covered: true, techId: "johnny", days: "Mon/Wed", gps: "26.3591, -80.0822", ...seedLocBilling("12pre", "2026-08-20", "INV-4710", "active", true) },
+            { id: "L-1210b", name: "Deerfield rental", address: "88 SE 8th St, Deerfield Beach, FL", x: "28%", y: "44%", covered: true, techId: "bobby", days: "Tue/Thu", ...seedLocBilling("6mo", "2026-08-20", "INV-4711", "active", true) },
           ],
           notes: "Jony called for two properties. Bill-To is only Jony. Boca house is 12-month prepaid; the rental is 6-month. Two invoices, two services.",
           opsNote: "Do not merge these into one job. Each address has its own trapper and invoice.",
@@ -491,7 +554,7 @@
           backupId: "bobby",
           days: "Thu",
           durationMin: 25,
-          locations: [{ id: "L-1077a", name: "Residence", address: "900 E Camino Real, Boca Raton, FL", x: "27%", y: "44%", gps: "26.3502, -80.0849" }],
+          locations: [{ id: "L-1077a", name: "Residence", address: "900 E Camino Real, Boca Raton, FL", x: "27%", y: "44%", gps: "26.3502, -80.0849", ...seedLocBilling("1mo", "2026-08-22", "INV-4531", "active", true) }],
           notes: "Short-term 1-month. Do not send another 1-month as the renewal — offer a 6- or 12-month rollover.",
           opsNote: "Prefers morning window before 9:30.",
         },
@@ -523,18 +586,18 @@
         { id: "Q-2201", customerId: "C-1180", locationIds: ["L-1180a"], locationId: "L-1180a", programId: null, optionsSent: true, sent: true, previewed: true, date: "2026-08-26" },
       ],
       invoices: [
-        { id: "INV-4419", customerId: "C-1042", locationId: "L-1042a", amount: 2000, status: "paid", sent: "2026-02-20", paidOn: "2026-02-21", kind: "initial" },
-        { id: "INV-4420", customerId: "C-1042", locationId: "L-1042b", amount: 1200, status: "paid", sent: "2026-08-01", paidOn: "2026-08-02", kind: "initial" },
-        { id: "INV-4502", customerId: "C-1108", locationId: "L-1108a", amount: 2100, status: "paid", sent: "2026-07-01", paidOn: "2026-07-03", kind: "renewal" },
-        { id: "INV-4510", customerId: "C-1091", locationId: "L-1091a", amount: 2000, status: "sent", sent: "2026-08-20", paidOn: null, kind: "renewal" },
-        { id: "INV-4531", customerId: "C-1077", locationId: "L-1077a", amount: 300, status: "paid", sent: "2026-08-20", paidOn: "2026-08-26", kind: "initial" },
-        { id: "INV-4601", customerId: "C-1020", locationId: "L-1020a", amount: 0, status: "draft", sent: null, paidOn: null, kind: "municipal", period: "August 2026" },
-        { id: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 233, status: "failed", sent: "2026-08-01", paidOn: null, kind: "autopay" },
-        { id: "INV-4301", customerId: "C-1004", locationId: "L-1004a", amount: 2000, status: "paid", sent: "2025-06-20", paidOn: "2025-06-22", kind: "initial" },
-        { id: "INV-4688", customerId: "C-1188", locationId: "L-1188a", amount: 1200, status: "sent", sent: "2026-08-27", paidOn: null, kind: "initial" },
-        { id: "INV-4689", customerId: "C-1188", locationId: "L-1188b", amount: 2000, status: "sent", sent: "2026-08-27", paidOn: null, kind: "initial" },
-        { id: "INV-4710", customerId: "C-1210", locationId: "L-1210a", amount: 2000, status: "paid", sent: "2026-08-20", paidOn: "2026-08-21", kind: "initial" },
-        { id: "INV-4711", customerId: "C-1210", locationId: "L-1210b", amount: 1200, status: "paid", sent: "2026-08-20", paidOn: "2026-08-21", kind: "initial" },
+        { id: "INV-4419", customerId: "C-1042", locationId: "L-1042a", contractId: "CON-1042a", amount: 2000, status: "sent", sent: "2026-02-20", paidOn: "2026-02-21", kind: "initial" },
+        { id: "INV-4420", customerId: "C-1042", locationId: "L-1042b", contractId: "CON-1042b", amount: 1200, status: "sent", sent: "2026-08-01", paidOn: "2026-08-02", kind: "initial" },
+        { id: "INV-4502", customerId: "C-1108", locationId: "L-1108a", amount: 2100, status: "sent", sent: "2026-07-01", paidOn: "2026-07-03", kind: "renewal" },
+        { id: "INV-4510", customerId: "C-1091", locationId: "L-1091a", contractId: "CON-1091a", amount: 2000, status: "sent", sent: "2026-08-20", paidOn: null, kind: "renewal" },
+        { id: "INV-4531", customerId: "C-1077", locationId: "L-1077a", contractId: "CON-1077a", amount: 300, status: "sent", sent: "2026-08-20", paidOn: "2026-08-26", kind: "initial" },
+        { id: "INV-4601", customerId: "C-1020", locationId: "L-1020a", amount: 0, status: "draft", sent: null, paidOn: null, kind: "municipal", period: "August 2026", po: "PO-4481" },
+        { id: "INV-4488", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 233, status: "sent", sent: "2026-08-01", paidOn: null, kind: "autopay" },
+        { id: "INV-4301", customerId: "C-1004", locationId: "L-1004a", amount: 2000, status: "sent", sent: "2025-06-20", paidOn: "2025-06-22", kind: "initial" },
+        { id: "INV-4688", customerId: "C-1188", locationId: "L-1188a", contractId: "CON-1188a", amount: 1200, status: "sent", sent: "2026-08-27", paidOn: null, kind: "initial" },
+        { id: "INV-4689", customerId: "C-1188", locationId: "L-1188b", contractId: "CON-1188b", amount: 2000, status: "sent", sent: "2026-08-27", paidOn: null, kind: "initial" },
+        { id: "INV-4710", customerId: "C-1210", locationId: "L-1210a", contractId: "CON-1210a", amount: 2000, status: "sent", sent: "2026-08-20", paidOn: "2026-08-21", kind: "initial" },
+        { id: "INV-4711", customerId: "C-1210", locationId: "L-1210b", contractId: "CON-1210b", amount: 1200, status: "sent", sent: "2026-08-20", paidOn: "2026-08-21", kind: "initial" },
       ],
       payments: [
         { id: "P-9001", invoiceId: "INV-4419", customerId: "C-1042", locationId: "L-1042a", amount: 2000, method: "Card", last4: "4419", source: "portal", date: "2026-02-21", memo: "Portal · Visa 4419 · Diane Walsh · Residence", invoiceMarked: true, linkPay: true },
@@ -550,7 +613,55 @@
         { id: "P-9289", invoiceId: "INV-4689", customerId: "C-1188", locationId: "L-1188b", amount: 2000, method: "Check", last4: "9901", source: "check", date: "2026-08-27", memo: "Check #9901 · team entered · Nina Canal house — mark invoice paid", invoiceMarked: false, linkPay: false },
         { id: "P-9310", invoiceId: "INV-4710", customerId: "C-1210", locationId: "L-1210a", amount: 2000, method: "Card", last4: "1210", source: "portal", date: "2026-08-21", memo: "Portal · Jony Morales Boca — marked paid", invoiceMarked: true, linkPay: true },
         { id: "P-9311", invoiceId: "INV-4711", customerId: "C-1210", locationId: "L-1210b", amount: 1200, method: "ACH", last4: "", source: "ach", date: "2026-08-21", memo: "ACH · Jony Morales Deerfield — marked paid", invoiceMarked: true, linkPay: true },
-        { id: "P-9340", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 233, method: "Zelle", last4: "", source: "zelle", date: "2026-08-27", memo: "Zelle replacement · team entered · Harbor Oaks — mark invoice paid", invoiceMarked: false, linkPay: false },
+        { id: "P-9340", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 233, method: "Zelle", last4: "", source: "EXTERNAL", date: "2026-08-27", memo: "Zelle replacement · Harbor Oaks — awaiting allocation", invoiceMarked: false, linkPay: false, status: "POSTED" },
+      ],
+      contracts: [
+        { id: "CON-1042a", customerId: "C-1042", locationId: "L-1042a", programId: "12pre", program: "12-month prepaid", termMonths: 12, totalValue: 2400, startDate: "2026-03-01", endDate: "2027-03-01", status: "ACTIVE" },
+        { id: "CON-1042b", customerId: "C-1042", locationId: "L-1042b", programId: "6mo", program: "6-month", termMonths: 6, totalValue: 1400, startDate: "2026-08-01", endDate: "2027-02-01", status: "ACTIVE" },
+        { id: "CON-1091a", customerId: "C-1091", locationId: "L-1091a", programId: "12pre", program: "12-month prepaid", termMonths: 12, totalValue: 2400, startDate: "2025-09-24", endDate: "2026-09-24", status: "PENDING PAYMENT" },
+        { id: "CON-1066a", customerId: "C-1066", locationId: "L-1066a", programId: "12mo", program: "12-month monthly", termMonths: 12, totalValue: 2400, startDate: "2026-04-01", endDate: "2027-04-01", status: "PENDING PAYMENT", paymentStatus: "AWAITING PAYMENT" },
+        { id: "CON-1188a", customerId: "C-1188", locationId: "L-1188a", programId: "6mo", program: "6-month", termMonths: 6, totalValue: 1400, startDate: "2026-08-27", endDate: "2027-02-27", status: "PENDING PAYMENT", paymentStatus: "AWAITING PAYMENT" },
+        { id: "CON-1188b", customerId: "C-1188", locationId: "L-1188b", programId: "12pre", program: "12-month prepaid", termMonths: 12, totalValue: 2400, startDate: "2026-08-27", endDate: "2027-08-27", status: "PENDING PAYMENT", paymentStatus: "AWAITING PAYMENT" },
+        { id: "CON-1210a", customerId: "C-1210", locationId: "L-1210a", programId: "12pre", program: "12-month prepaid", termMonths: 12, totalValue: 2400, startDate: "2026-08-20", endDate: "2027-08-20", status: "ACTIVE" },
+        { id: "CON-1210b", customerId: "C-1210", locationId: "L-1210b", programId: "6mo", program: "6-month", termMonths: 6, totalValue: 1400, startDate: "2026-08-20", endDate: "2027-02-20", status: "ACTIVE" },
+        { id: "CON-1077a", customerId: "C-1077", locationId: "L-1077a", programId: "1mo", program: "1-month", termMonths: 1, totalValue: 300, startDate: "2026-08-22", endDate: "2026-09-22", status: "ACTIVE" },
+      ],
+      billingPlans: [
+        { id: "BPL-1042a", contractId: "CON-1042a", frequency: "annual", installmentAmount: 2000, installments: 1, autopay: false, status: "ACTIVE" },
+        { id: "BPL-1042b", contractId: "CON-1042b", frequency: "annual", installmentAmount: 1200, installments: 1, autopay: false, status: "ACTIVE" },
+        { id: "BPL-1091a", contractId: "CON-1091a", frequency: "annual", installmentAmount: 2000, installments: 1, autopay: false, status: "ACTIVE" },
+        { id: "BPL-1066a", contractId: "CON-1066a", frequency: "monthly", installmentAmount: 200, installments: 12, autopay: true, status: "ACTIVE" },
+        { id: "BPL-1188a", contractId: "CON-1188a", frequency: "annual", installmentAmount: 1200, installments: 1, autopay: false, status: "ACTIVE" },
+        { id: "BPL-1188b", contractId: "CON-1188b", frequency: "annual", installmentAmount: 2000, installments: 1, autopay: false, status: "ACTIVE" },
+        { id: "BPL-1210a", contractId: "CON-1210a", frequency: "annual", installmentAmount: 2000, installments: 1, autopay: false, status: "ACTIVE" },
+        { id: "BPL-1210b", contractId: "CON-1210b", frequency: "annual", installmentAmount: 1200, installments: 1, autopay: false, status: "ACTIVE" },
+        { id: "BPL-1077a", contractId: "CON-1077a", frequency: "annual", installmentAmount: 300, installments: 1, autopay: false, status: "ACTIVE" },
+      ],
+      billingPeriods: [
+        { id: "PER-1042a-1", contractId: "CON-1042a", sequence: 1, periodStart: "2026-03-01", periodEnd: "2027-03-01", amount: 2000, status: "PAID", invoiceId: "INV-4419" },
+        { id: "PER-1042b-1", contractId: "CON-1042b", sequence: 1, periodStart: "2026-08-01", periodEnd: "2027-02-01", amount: 1200, status: "PAID", invoiceId: "INV-4420" },
+        { id: "PER-1091a-1", contractId: "CON-1091a", sequence: 1, periodStart: "2025-09-24", periodEnd: "2026-09-24", amount: 2000, status: "DUE", invoiceId: "INV-4510" },
+        { id: "PER-1066a-1", contractId: "CON-1066a", sequence: 1, periodStart: "2026-04-01", periodEnd: "2026-05-01", amount: 233, status: "DUE", invoiceId: "INV-4488" },
+        { id: "PER-1188a-1", contractId: "CON-1188a", sequence: 1, periodStart: "2026-08-27", periodEnd: "2027-02-27", amount: 1200, status: "DUE", invoiceId: "INV-4688" },
+        { id: "PER-1188b-1", contractId: "CON-1188b", sequence: 1, periodStart: "2026-08-27", periodEnd: "2027-08-27", amount: 2000, status: "DUE", invoiceId: "INV-4689" },
+        { id: "PER-1210a-1", contractId: "CON-1210a", sequence: 1, periodStart: "2026-08-20", periodEnd: "2027-08-20", amount: 2000, status: "PAID", invoiceId: "INV-4710" },
+        { id: "PER-1210b-1", contractId: "CON-1210b", sequence: 1, periodStart: "2026-08-20", periodEnd: "2027-02-20", amount: 1200, status: "PAID", invoiceId: "INV-4711" },
+        { id: "PER-1077a-1", contractId: "CON-1077a", sequence: 1, periodStart: "2026-08-22", periodEnd: "2026-09-22", amount: 300, status: "PAID", invoiceId: "INV-4531" },
+      ],
+      paymentAllocations: [
+        { id: "ALLOC-9001", paymentId: "P-9001", invoiceId: "INV-4419", amount: 2000 },
+        { id: "ALLOC-9002", paymentId: "P-9002", invoiceId: "INV-4420", amount: 1200 },
+        { id: "ALLOC-9114", paymentId: "P-9114", invoiceId: "INV-4502", amount: 2100 },
+        { id: "ALLOC-9230", paymentId: "P-9230", invoiceId: "INV-4531", amount: 300 },
+        { id: "ALLOC-9310", paymentId: "P-9310", invoiceId: "INV-4710", amount: 2000 },
+        { id: "ALLOC-9311", paymentId: "P-9311", invoiceId: "INV-4711", amount: 1200 },
+      ],
+      autopayAuthorizations: [
+        { id: "APA-1066", contractId: "CON-1066a", customerId: "C-1066", locationId: "L-1066a", status: "FAILED", method: "Credit Card", last4: "3301", failureCode: "CARD_DECLINED", failedAt: "2026-08-26T12:00:00" },
+      ],
+      renewals: [],
+      notifications: [
+        { id: "N-1", type: "AUTOPAY_FAILED", severity: "alert", title: "AutoPay declined", text: "Harbor Oaks · Campus · CARD_DECLINED ····3301. Contact customer — post external payment, then generate the next billing period manually.", customerId: "C-1066", locationId: "L-1066a", invoiceId: "INV-4488", date: "2026-08-26", read: false },
       ],
       mail: [],
       services: [
@@ -712,7 +823,7 @@
   function ensureData() {
     if (!state.data) state.data = seed();
     const d = state.data;
-    ["customers", "quotes", "invoices", "payments", "stops", "comms", "mtos", "mail", "documents", "users", "holidays", "commissions", "traps", "inbound", "services"].forEach((k) => {
+    ["customers", "quotes", "invoices", "payments", "stops", "comms", "mtos", "mail", "documents", "users", "holidays", "commissions", "traps", "inbound", "services", "contracts", "billingPlans", "billingPeriods", "paymentAllocations", "autopayAuthorizations", "renewals", "notifications"].forEach((k) => {
       if (!Array.isArray(d[k])) d[k] = [];
     });
     if (!d.settings) d.settings = { commissionPct: 2, renewalWindow: 60, reminder: "email", extraReasons: [] };
@@ -739,6 +850,10 @@
       const c = d.customers.find((x) => x.id === inv.customerId);
       if (c?.locations?.[0]) inv.locationId = c.locations[0].id;
     });
+    (d.contracts || []).forEach((ct) => {
+      const loc = locBy(ct.customerId, ct.locationId);
+      if (loc && !loc.contractId) loc.contractId = ct.id;
+    });
     d.quotes.forEach((q) => {
       if (!Array.isArray(q.locationIds) || !q.locationIds.length) {
         if (q.locationId) q.locationIds = [q.locationId];
@@ -761,7 +876,7 @@
   function techName(id) { return techBy(id)?.name || "—"; }
   function custBy(id) { return state.data.customers.find((c) => c.id === id); }
   function progBy(id) { return PROGRAMS.find((p) => p.id === id); }
-  function programAmount(p) { return p.prepaid != null ? p.prepaid : p.list; }
+  function programAmount(p) { return programBillAmount(p); }
   function addMonths(iso, months) {
     const d = new Date(iso + "T12:00:00");
     const whole = Math.floor(months);
@@ -772,6 +887,7 @@
   }
   function programOptionLabel(p) {
     const now = programAmount(p);
+    if (p.id === "12mo") return `${p.name} — ${money(now)}/mo × ${p.months} (term ${money(p.list)})`;
     const promo = p.prepaid != null ? ` · billed ${money(now)}` : "";
     const free = p.freeMonths ? ` · ${p.freeMonths} mo promotional` : "";
     return `${p.name} — list ${money(p.list)}${promo}${free}`;
@@ -799,7 +915,45 @@
     if (!c || !l) return false;
     if (c.municipal) return true;
     if (l.paid) return true;
-    return locInvoices(c.id, l.id).some((i) => i.status === "paid");
+    const ct = contractForLoc(c.id, l.id);
+    if (ct && ct.status === "ACTIVE") return true;
+    return locInvoices(c.id, l.id).some((i) => invoiceFinStatus(i) === "PAID");
+  }
+  function contractForLoc(cid, lid) {
+    if (!lid) return null;
+    return (state.data.contracts || []).find((x) => x.locationId === lid && (!cid || x.customerId === cid)) || null;
+  }
+  function planForContract(contractId) {
+    return (state.data.billingPlans || []).find((x) => x.contractId === contractId);
+  }
+  function periodsForContract(contractId) {
+    return (state.data.billingPeriods || []).filter((x) => x.contractId === contractId).sort((a, b) => a.sequence - b.sequence);
+  }
+  function allocated(invoiceId) {
+    return (state.data.paymentAllocations || []).filter((x) => x.invoiceId === invoiceId).reduce((s, x) => s + Number(x.amount || 0), 0);
+  }
+  function paymentAllocatedAmount(paymentId) {
+    return (state.data.paymentAllocations || []).filter((x) => x.paymentId === paymentId).reduce((s, x) => s + Number(x.amount || 0), 0);
+  }
+  function invoiceFinStatus(inv) {
+    if (!inv) return "OPEN";
+    if (inv.failed || inv.status === "failed") return "FAILED";
+    if (inv.status === "draft") return "DRAFT";
+    const paid = allocated(inv.id);
+    const amt = Number(inv.amount || 0);
+    if (paid <= 0 && inv.status === "paid") return "PAID"; // legacy
+    if (paid <= 0) return "OPEN";
+    if (paid + 0.001 < amt) return "PARTIAL";
+    return "PAID";
+  }
+  function invoiceBalance(inv) {
+    return Math.max(0, Number(inv?.amount || 0) - allocated(inv?.id));
+  }
+  function unpaidInvoices() {
+    return (state.data.invoices || []).filter((i) => {
+      const st = invoiceFinStatus(i);
+      return st === "OPEN" || st === "PARTIAL" || st === "FAILED";
+    });
   }
   function invProperty(inv) {
     if (!inv) return "—";
@@ -823,6 +977,365 @@
     if (p.id === "12mo") l.autoPay = true;
     return p;
   }
+  function commitLocationPlan(loc, programId, startDate, invoiceId, customerId) {
+    applyPlanToLocation(loc, programId, startDate);
+    const commitment = buildCommitment(programId, startDate || TODAY);
+    loc.commitment = commitment;
+    loc.billingPeriods = buildBillingPeriods(commitment, startDate || TODAY, invoiceId || null);
+    if (invoiceId) loc.lifecycle = "waiting_payment";
+    if (commitment.autoPay) loc.autoPay = true;
+
+    const cid = customerId || state.selectedCustomer;
+    const start = startDate || TODAY;
+    let ct = contractForLoc(cid, loc.id);
+    if (!ct) {
+      ct = {
+        id: nid("CON"), customerId: cid, locationId: loc.id, programId: commitment.programId,
+        program: progBy(commitment.programId)?.name || commitment.programId,
+        termMonths: commitment.termMonths, totalValue: commitment.totalValue,
+        startDate: start, endDate: addMonths(start, commitment.termMonths),
+        status: invoiceId ? "PENDING PAYMENT" : "DRAFT", paymentStatus: invoiceId ? "AWAITING PAYMENT" : null,
+      };
+      state.data.contracts.push(ct);
+    } else {
+      ct.programId = commitment.programId;
+      ct.program = progBy(commitment.programId)?.name || ct.program;
+      ct.termMonths = commitment.termMonths;
+      ct.totalValue = commitment.totalValue;
+      ct.startDate = start;
+      ct.endDate = addMonths(start, commitment.termMonths);
+      if (invoiceId && ct.status !== "ACTIVE") {
+        ct.status = "PENDING PAYMENT";
+        ct.paymentStatus = "AWAITING PAYMENT";
+      }
+    }
+    loc.contractId = ct.id;
+
+    let bp = planForContract(ct.id);
+    if (!bp) {
+      bp = {
+        id: nid("BPL"), contractId: ct.id,
+        frequency: commitment.billingFrequency === "monthly" ? "monthly" : "annual",
+        installmentAmount: commitment.installmentAmount,
+        installments: commitment.periods,
+        autopay: !!commitment.autoPay,
+        status: "ACTIVE",
+      };
+      state.data.billingPlans.push(bp);
+    } else {
+      bp.frequency = commitment.billingFrequency === "monthly" ? "monthly" : "annual";
+      bp.installmentAmount = commitment.installmentAmount;
+      bp.installments = commitment.periods;
+      bp.autopay = !!commitment.autoPay;
+    }
+
+    let period = (state.data.billingPeriods || []).find((p) => p.contractId === ct.id && p.sequence === 1);
+    const months = bp.frequency === "monthly" ? 1 : ct.termMonths;
+    if (!period) {
+      period = {
+        id: nid("PER"), contractId: ct.id, sequence: 1,
+        periodStart: start, periodEnd: addMonths(start, months),
+        amount: bp.installmentAmount, status: invoiceId ? "DUE" : "UPCOMING", invoiceId: invoiceId || null,
+      };
+      state.data.billingPeriods.push(period);
+    } else if (invoiceId) {
+      period.invoiceId = invoiceId;
+      period.status = "DUE";
+      period.amount = bp.installmentAmount;
+    }
+    if (invoiceId) {
+      const inv = (state.data.invoices || []).find((i) => i.id === invoiceId);
+      if (inv) {
+        inv.contractId = ct.id;
+        inv.billingPeriodId = period.id;
+        inv.amount = bp.installmentAmount;
+      }
+    }
+    return { commitment, contract: ct, billingPlan: bp, period };
+  }
+  function generateNextBillingPeriod(customerId, locationId, opts) {
+    const silent = !!(opts && opts.silent);
+    const loc = locBy(customerId, locationId);
+    const ct = contractForLoc(customerId, locationId);
+    const bp = ct && planForContract(ct.id);
+    if (!ct || !bp) {
+      if (!silent) toast("No billing plan on this property.");
+      return null;
+    }
+    if (bp.frequency !== "monthly") {
+      if (!silent) toast("Only monthly plans generate the next billing period.");
+      return null;
+    }
+    const count = periodsForContract(ct.id).length;
+    if (count >= bp.installments) {
+      if (!silent) toast("All billing periods for this contract are already generated.");
+      return null;
+    }
+    const start = addMonths(ct.startDate, count);
+    const period = {
+      id: nid("PER"), contractId: ct.id, sequence: count + 1,
+      periodStart: start, periodEnd: addMonths(ct.startDate, count + 1),
+      amount: bp.installmentAmount, status: "DUE", invoiceId: null,
+    };
+    const inv = {
+      id: nid("INV"), customerId, locationId, contractId: ct.id, billingPeriodId: period.id,
+      amount: bp.installmentAmount, status: "sent", sent: TODAY, paidOn: null,
+      kind: bp.autopay ? "autopay" : "recurring", periodN: count + 1,
+      description: `${ct.program} — Billing Period ${count + 1}`,
+    };
+    period.invoiceId = inv.id;
+    state.data.billingPeriods.push(period);
+    state.data.invoices.push(inv);
+    if (loc) loc.lifecycle = loc.lifecycle === "active" ? "active" : "waiting_payment";
+    if (!silent) {
+      toast(`Period ${count + 1} invoice ${inv.id} created (${money(inv.amount)}).`);
+      render();
+    }
+    return inv;
+  }
+
+  function pushNotify(n) {
+    if (!Array.isArray(state.data.notifications)) state.data.notifications = [];
+    state.data.notifications.unshift({
+      id: nid("N"),
+      date: TODAY,
+      read: false,
+      severity: n.severity || "info",
+      type: n.type || "INFO",
+      title: n.title || "Notice",
+      text: n.text || "",
+      customerId: n.customerId || null,
+      locationId: n.locationId || null,
+      invoiceId: n.invoiceId || null,
+    });
+  }
+
+  function unreadNotifications() {
+    return (state.data.notifications || []).filter((n) => !n.read);
+  }
+
+  function clearAutopayException(customerId, locationId, invoiceId) {
+    (state.data.autopayAuthorizations || []).forEach((a) => {
+      if (a.status !== "FAILED") return;
+      if (customerId && a.customerId !== customerId) return;
+      if (locationId && a.locationId && a.locationId !== locationId) return;
+      a.status = "CLEARED";
+      a.clearedAt = TODAY;
+      a.clearedInvoiceId = invoiceId || null;
+    });
+  }
+
+  function locHasAutopay(c, l) {
+    const ct = contractForLoc(c?.id, l?.id);
+    const bp = ct && planForContract(ct.id);
+    if (bp) return !!bp.autopay;
+    return !!(l?.autoPay || c?.autoPay || locPlan(c, l).autoPay);
+  }
+
+  function openAutopayInvoice(c, l) {
+    return locInvoices(c.id, l.id).find((i) => {
+      const st = invoiceFinStatus(i);
+      return st === "OPEN" || st === "PARTIAL" || st === "FAILED";
+    }) || null;
+  }
+
+  /** AutoPay posts + allocates itself. Christy only intervenes on decline. */
+  function runAutopayCharge(customerId, locationId, opts) {
+    const succeed = !opts || opts.succeed !== false;
+    const createIfMissing = !opts || opts.createIfMissing !== false;
+    const c = custBy(customerId);
+    const loc = locBy(customerId, locationId);
+    const ct = contractForLoc(customerId, locationId);
+    const bp = ct && planForContract(ct.id);
+    if (!c || !loc || !ct || !bp) {
+      toast("No AutoPay billing plan on this property.");
+      return;
+    }
+    if (!bp.autopay) {
+      toast("AutoPay is off for this billing plan.");
+      return;
+    }
+    let inv = openAutopayInvoice(c, loc);
+    if (!inv && createIfMissing && bp.frequency === "monthly") {
+      inv = generateNextBillingPeriod(customerId, locationId, { silent: true });
+    }
+    if (!inv || invoiceFinStatus(inv) === "PAID") {
+      toast("No open invoice for AutoPay to charge.");
+      render();
+      return;
+    }
+
+    const last4 = opts?.last4 || "4242";
+    if (!succeed) {
+      const failCode = opts?.failureCode || "CARD_DECLINED";
+      state.data.payments.push({
+        id: nid("P"), invoiceId: inv.id, customerId, locationId, amount: inv.amount,
+        method: "Auto-pay", last4, source: "AUTOPAY", date: TODAY,
+        memo: `AutoPay declined · ${failCode} · ${loc.name}`,
+        invoiceMarked: false, failed: true, linkPay: true, status: "FAILED", posted: true,
+      });
+      state.data.autopayAuthorizations.push({
+        id: nid("APA"), contractId: ct.id, customerId, locationId,
+        status: "FAILED", method: "Credit Card", last4, failureCode: failCode, failedAt: `${TODAY}T12:00:00`,
+      });
+      loc.lifecycle = "past_due";
+      c.failedPayment = true;
+      c.status = "past_due";
+      pushNotify({
+        type: "AUTOPAY_FAILED",
+        severity: "alert",
+        title: "AutoPay declined",
+        text: `${c.billTo || c.name} · ${loc.name} · ${failCode} ····${last4}. Contact the customer. When they pay externally, allocate on the register, then generate the next billing period manually.`,
+        customerId, locationId, invoiceId: inv.id,
+      });
+      state.data.comms.push({
+        id: nid("CM"), customerId, who: "AutoPay", channel: "System", date: TODAY,
+        text: `AutoPay FAILED on ${inv.id} (${failCode}). Service/billing held until Christy posts an external payment and allocates.`,
+      });
+      toast(`AutoPay declined on ${inv.id}. Exception + notification for Christy.`);
+      render();
+      return;
+    }
+
+    const p = {
+      id: nid("P"), invoiceId: inv.id, customerId, locationId, amount: invoiceBalance(inv) || inv.amount,
+      method: "Auto-pay", last4, source: "AUTOPAY", date: TODAY,
+      memo: `AutoPay charged · ${loc.name} · allocated automatically`,
+      invoiceMarked: true, failed: false, linkPay: true, status: "POSTED", posted: true, appliedAuto: true,
+    };
+    state.data.payments.push(p);
+    allocatePaymentToInvoice(p, inv, p.amount);
+    clearAutopayException(customerId, locationId, inv.id);
+    c.failedPayment = false;
+    if (c.status === "past_due") syncCustomerLifecycle(c);
+
+    let nextInv = null;
+    if (bp.frequency === "monthly") {
+      nextInv = generateNextBillingPeriod(customerId, locationId, { silent: true });
+    }
+
+    pushNotify({
+      type: "AUTOPAY_PAID",
+      severity: "ok",
+      title: "AutoPay paid",
+      text: `${c.billTo || c.name} · ${loc.name} · ${inv.id} paid ${money(p.amount)} automatically.`
+        + (nextInv ? ` Next period invoice ${nextInv.id} created — no register mark needed.` : " No further periods to generate."),
+      customerId, locationId, invoiceId: inv.id,
+    });
+    state.data.comms.push({
+      id: nid("CM"), customerId, who: "AutoPay", channel: "System", date: TODAY,
+      text: `AutoPay SUCCESS on ${inv.id} (${money(p.amount)}). Allocated automatically.`
+        + (nextInv ? ` Generated ${nextInv.id} for the next period.` : ""),
+    });
+    toast(`AutoPay paid ${inv.id}${nextInv ? ` · next period ${nextInv.id}` : ""}. Christy does not mark the register.`);
+    render();
+  }
+
+  function runOvernightAutopay() {
+    if (!can("payment.post") && state.role !== "owner") {
+      toast("Only Administration runs the AutoPay cycle.");
+      return;
+    }
+    let charged = 0;
+    let skipped = 0;
+    (state.data.billingPlans || []).filter((bp) => bp.autopay && bp.status !== "INACTIVE").forEach((bp) => {
+      const ct = (state.data.contracts || []).find((x) => x.id === bp.contractId);
+      if (!ct || ct.status === "CANCELLED") return;
+      const c = custBy(ct.customerId);
+      const loc = locBy(ct.customerId, ct.locationId);
+      if (!c || !loc) return;
+      const failedOpen = (state.data.autopayAuthorizations || []).some((a) => a.contractId === ct.id && a.status === "FAILED");
+      if (failedOpen) {
+        skipped += 1;
+        return;
+      }
+      const open = openAutopayInvoice(c, loc);
+      if (!open) {
+        skipped += 1;
+        return;
+      }
+      // Charge existing due invoice only (createIfMissing false). Success path auto-creates the next period.
+      runAutopayCharge(ct.customerId, ct.locationId, { succeed: true, last4: "1001", createIfMissing: false });
+      charged += 1;
+    });
+    if (!charged) toast(skipped ? `Overnight AutoPay: nothing due (${skipped} plan(s) skipped / waiting / exception).` : "No AutoPay plans due.");
+    else toast(`Overnight AutoPay finished · ${charged} automatic charge(s). See notifications.`);
+  }
+  function markLocationPeriodPaid(loc, inv) {
+    if (!loc) return;
+    loc.paid = true;
+    loc.lifecycle = "active";
+    if (!Array.isArray(loc.billingPeriods)) return;
+    const bp = loc.billingPeriods.find((p) => p.invoiceId === inv?.id)
+      || loc.billingPeriods.find((p) => p.status === "invoiced")
+      || loc.billingPeriods[0];
+    if (bp) {
+      bp.status = "paid";
+      if (inv?.id) bp.invoiceId = inv.id;
+    }
+  }
+  function syncCustomerLifecycle(c) {
+    if (!c || c.status === "lapsed" || c.status === "renewal") return;
+    if (c.failedPayment) {
+      c.status = "past_due";
+      return;
+    }
+    const locs = (c.locations || []).filter((l) => l.covered !== false);
+    if (!locs.length) return;
+    if (locs.some((l) => l.lifecycle === "past_due")) {
+      c.status = "past_due";
+      return;
+    }
+    if (locs.some((l) => l.lifecycle === "waiting_payment")) {
+      c.status = "waiting_payment";
+      return;
+    }
+    if (locs.every((l) => l.lifecycle === "active" || locPaid(c, l))) {
+      c.status = "active";
+    }
+  }
+  function billingPlanLabel(loc) {
+    const ct = loc?.contractId ? (state.data.contracts || []).find((x) => x.id === loc.contractId) : null;
+    const bp = ct ? planForContract(ct.id) : null;
+    if (bp) {
+      if (bp.frequency === "monthly") return `${ct.program || "Monthly"} · ${money(bp.installmentAmount)} × ${bp.installments}`;
+      return `${ct.program || "Upfront"} · ${money(bp.installmentAmount)} × 1`;
+    }
+    const cmt = loc?.commitment;
+    if (!cmt) {
+      const p = progBy(loc?.programId);
+      return p ? p.name : "No billing plan";
+    }
+    if (cmt.billingFrequency === "monthly") {
+      return `${progBy(cmt.programId)?.name || "Monthly"} · ${money(cmt.installmentAmount)} × ${cmt.periods}`;
+    }
+    return `${progBy(cmt.programId)?.name || "Upfront"} · ${money(cmt.installmentAmount)} × 1`;
+  }
+  function billingPeriodLabel(loc) {
+    const ct = contractForLoc(null, loc?.id) || (loc?.contractId ? (state.data.contracts || []).find((x) => x.id === loc.contractId) : null);
+    const top = ct ? periodsForContract(ct.id) : [];
+    if (top.length) {
+      const cur = top.find((p) => p.status === "DUE") || top.find((p) => p.status === "PAID") || top[0];
+      const paidN = top.filter((p) => p.status === "PAID").length;
+      return `Period ${cur.sequence} of ${top.length} · ${cur.status}${top.length > 1 ? ` · ${paidN}/${top.length} paid` : ""}`;
+    }
+    const periods = loc?.billingPeriods || [];
+    if (!periods.length) return "";
+    const cur = periods.find((p) => p.status === "invoiced") || periods.find((p) => p.status === "paid") || periods[0];
+    const paidN = periods.filter((p) => p.status === "paid").length;
+    return `Period ${cur.n} of ${periods.length} · ${cur.status}${periods.length > 1 ? ` · ${paidN}/${periods.length} paid` : ""}`;
+  }
+  function lifecycleBadge(lifecycle) {
+    const map = {
+      inquiry: ["badge-mute", "Inquiry"],
+      quoted: ["badge-sea", "Quoted"],
+      waiting_payment: ["badge-warn", "Waiting for payment"],
+      active: ["badge-ok", "Active"],
+      past_due: ["badge-bad", "Past due"],
+    };
+    const [cls, label] = map[lifecycle] || ["badge-mute", lifecycle || "—"];
+    return `<span class="badge ${cls}">${esc(label)}</span>`;
+  }
   function syncCustomerFromLocations(c) {
     if (!c) return;
     const locs = (c.locations || []).filter((l) => l.covered !== false);
@@ -836,15 +1349,7 @@
     if (plans[0].start) c.start = plans[0].start;
   }
   function markLocPaidFromInvoice(inv) {
-    const c = custBy(inv?.customerId);
-    const loc = inv?.locationId ? locBy(inv.customerId, inv.locationId) : c?.locations?.[0];
-    if (loc) loc.paid = true;
-    if (!c) return;
-    c.failedPayment = false;
-    if (c.status === "inquiry" || c.status === "past_due") c.status = "active";
-    syncCustomerFromLocations(c);
-    handOffToOps(c);
-    state.data.stops.filter((s) => s.customerId === c.id && (!inv.locationId || s.locationId === inv.locationId) && s.status === "blocked").forEach((s) => { s.status = "scheduled"; });
+    activateContractFromInvoice(inv);
   }
   function locNeedsInvoice(c, l) {
     if (!c || !l || l.covered === false) return false;
@@ -879,10 +1384,11 @@
   }
   function payNeedsMark(p) {
     if (!p || p.failed) return false;
-    if (p.invoiceMarked === true) return false;
-    if (p.invoiceMarked === false) return true;
-    const inv = p.invoiceId ? (state.data.invoices || []).find((i) => i.id === p.invoiceId) : null;
-    return !!(inv && inv.status !== "paid");
+    if (!p.invoiceId) return false;
+    const inv = (state.data.invoices || []).find((i) => i.id === p.invoiceId);
+    if (!inv) return false;
+    if (invoiceFinStatus(inv) === "PAID") return false;
+    return paymentAllocatedAmount(p.id) + 0.001 < Number(p.amount || 0);
   }
   function locPaymentAwaitingMark(c, l) {
     if (!c || !l) return null;
@@ -1325,9 +1831,6 @@
     }
     persist();
   }
-  function unpaidInvoices() {
-    return (state.data.invoices || []).filter((i) => i.status === "sent" || i.status === "failed");
-  }
   function mailWaiting() {
     return (state.data.mail || []).filter((m) => !m.posted);
   }
@@ -1335,24 +1838,87 @@
     const a = String(payer || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     return String(customerName || "").toLowerCase().split(/\s+/).some((p) => p.length > 2 && a.includes(p.replace(/[^a-z0-9]/g, "")));
   }
-  function applyInvoicePayment(inv, method, memo, checkNo) {
-    if (!can("payment.post") || !inv || inv.status === "paid") return false;
-    inv.status = "paid";
-    inv.paidOn = TODAY;
+  function activateContractFromInvoice(inv) {
+    if (!inv) return;
+    const ct = inv.contractId
+      ? (state.data.contracts || []).find((x) => x.id === inv.contractId)
+      : contractForLoc(inv.customerId, inv.locationId);
+    if (ct) {
+      ct.status = "ACTIVE";
+      ct.paymentStatus = "PAID";
+    }
+    const period = (state.data.billingPeriods || []).find((p) => p.invoiceId === inv.id);
+    if (period) period.status = "PAID";
     const c = custBy(inv.customerId);
-    if (c) markLocPaidFromInvoice(inv);
+    const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
+    if (loc) {
+      loc.paid = true;
+      loc.lifecycle = "active";
+      loc.contractId = ct?.id || loc.contractId;
+    }
+    if (c) {
+      c.failedPayment = false;
+      syncCustomerFromLocations(c);
+      syncCustomerLifecycle(c);
+      handOffToOps(c);
+    }
+    if (ct && !(state.data.services || []).some((s) => s.contractId === ct.id || (s.customerId === inv.customerId && s.locationId === inv.locationId))) {
+      // Ops creates real service record later; flag ready via locNeedsService + handOff
+    }
+    state.data.stops.filter((s) => s.customerId === inv.customerId && (!inv.locationId || s.locationId === inv.locationId) && s.status === "blocked").forEach((s) => { s.status = "scheduled"; });
+  }
+  function allocatePaymentToInvoice(payment, inv, amount) {
+    if (!payment || !inv) return false;
+    const amt = Math.min(Number(amount || payment.amount || 0), invoiceBalance(inv) || Number(inv.amount || 0));
+    if (amt <= 0 && invoiceFinStatus(inv) === "PAID") return true;
+    if (amt <= 0) return false;
+    state.data.paymentAllocations.push({
+      id: nid("ALLOC"), paymentId: payment.id, invoiceId: inv.id, amount: amt,
+    });
+    payment.invoiceMarked = true;
+    payment.posted = true;
+    payment.status = "POSTED";
+    payment.invoiceId = inv.id;
+    if (invoiceFinStatus(inv) === "PAID") {
+      inv.paidOn = TODAY;
+      activateContractFromInvoice(inv);
+      const hadFail = (state.data.autopayAuthorizations || []).some((a) => a.status === "FAILED" && a.customerId === inv.customerId && (!a.locationId || a.locationId === inv.locationId));
+      clearAutopayException(inv.customerId, inv.locationId, inv.id);
+      if (hadFail) {
+        const c = custBy(inv.customerId);
+        const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
+        const bp = inv.contractId ? planForContract(inv.contractId) : null;
+        pushNotify({
+          type: "AUTOPAY_RECOVERED",
+          severity: "ok",
+          title: "External payment recovered AutoPay fail",
+          text: `${c?.billTo || c?.name || ""} · ${loc?.name || ""} · ${inv.id} allocated.`
+            + (bp?.frequency === "monthly" ? " Generate the next billing period manually — AutoPay will not until the exception is clear." : ""),
+          customerId: inv.customerId, locationId: inv.locationId, invoiceId: inv.id,
+        });
+      }
+    }
+    return true;
+  }
+  function applyInvoicePayment(inv, method, memo, checkNo, amountOverride) {
+    if (!can("payment.post") || !inv) return false;
+    if (invoiceFinStatus(inv) === "PAID") return false;
     const src = pay().sourceOf(method);
-    const existing = (state.data.payments || []).find((p) =>
+    const bal = invoiceBalance(inv) || Number(inv.amount || 0);
+    const payAmt = amountOverride != null ? Number(amountOverride) : bal;
+    let existing = (state.data.payments || []).find((p) =>
       !p.failed && (p.id === state.payFocusId || p.invoiceId === inv.id) && payNeedsMark(p)
-    ) || (state.data.payments || []).find((p) =>
-      !p.failed && (p.id === state.payFocusId || p.invoiceId === inv.id)
     );
-    if (existing) {
-      existing.invoiceMarked = true;
-      existing.posted = true;
-      existing.invoiceId = inv.id;
-      existing.customerId = inv.customerId;
-      existing.locationId = inv.locationId || existing.locationId || null;
+    if (!existing) {
+      existing = {
+        id: nid("P"), invoiceId: inv.id, customerId: inv.customerId, locationId: inv.locationId || null,
+        amount: payAmt, method, date: TODAY, checkNo: checkNo || "", last4: String(checkNo || "").slice(-4),
+        source: src === "check" || src === "zelle" || src === "wire" ? "EXTERNAL" : (src === "autopay" ? "AUTOPAY" : "ONLINE"),
+        linkPay: pay().isAuto(method), invoiceMarked: false, posted: true, status: "POSTED",
+        memo: memo || `${method}${checkNo ? " #" + checkNo : ""} · posted to ${inv.id}`,
+      };
+      state.data.payments.push(existing);
+    } else {
       if (method) existing.method = method;
       if (checkNo) {
         existing.checkNo = checkNo;
@@ -1360,23 +1926,16 @@
       }
       if (memo) existing.memo = memo;
       existing.source = existing.source || src;
-    } else {
-      state.data.payments.push({
-        id: nid("P"), invoiceId: inv.id, customerId: inv.customerId, locationId: inv.locationId || null, amount: inv.amount,
-        method, date: TODAY, checkNo: checkNo || "", last4: String(checkNo || "").slice(-4),
-        source: src,
-        linkPay: pay().isAuto(method),
-        invoiceMarked: true,
-        posted: true,
-        memo: memo || `${method}${checkNo ? " #" + checkNo : ""} · marked paid · ${invProperty(inv)}`,
+    }
+    const ok = allocatePaymentToInvoice(existing, inv, Math.min(payAmt, existing.amount || payAmt));
+    state.payFocusId = null;
+    if (ok) {
+      state.data.comms.push({
+        id: nid("CM"), customerId: inv.customerId, who: role().name, channel: "Office", date: TODAY,
+        text: `Payment allocated to ${inv.id} (${method}${checkNo ? " #" + checkNo : ""}). Balance ${money(invoiceBalance(inv))}. ${invoiceFinStatus(inv) === "PAID" ? "Contract active — Rick can create service." : "Partial — Ops still blocked."}`,
       });
     }
-    state.payFocusId = null;
-    state.data.comms.push({
-      id: nid("CM"), customerId: inv.customerId, who: role().name, channel: "Office", date: TODAY,
-      text: `Invoice ${inv.id} marked paid (${method}${checkNo ? " #" + checkNo : ""}). Rick creates the service next for ${invProperty(inv)}.`,
-    });
-    return true;
+    return ok;
   }
   function eligibleToSchedule(c) {
     if (!c) return false;
@@ -1390,6 +1949,7 @@
       renewal: ["badge-warn", "Renewal window"],
       past_due: ["badge-bad", "Past due"],
       inquiry: ["badge-sea", "Inquiry"],
+      waiting_payment: ["badge-warn", "Waiting for payment"],
       lapsed: ["badge-mute", "Non-renewed"],
       paid: ["badge-ok", "Paid"],
       draft: ["badge-mute", "Draft"],
@@ -1403,6 +1963,13 @@
       blocked_off: ["badge-mute", "Company day off"],
       pending: ["badge-warn", "Unassigned"],
       sent: ["badge-sea", "Sent"],
+      OPEN: ["badge-warn", "Open"],
+      PARTIAL: ["badge-warn", "Partial"],
+      PAID: ["badge-ok", "Paid"],
+      "PENDING PAYMENT": ["badge-warn", "Pending payment"],
+      ACTIVE: ["badge-ok", "Active"],
+      FAILED: ["badge-bad", "Failed"],
+      DRAFT: ["badge-mute", "Draft"],
       unassigned_done: ["badge-warn", "Waiting to drop"],
     };
     const [cls, label] = map[status] || ["badge-mute", status];
@@ -1736,20 +2303,90 @@
     const muni = state.data.customers.filter((c) => c.municipal);
     const todayPays = paymentsInFilter("today").filter((p) => !p.failed);
     const awaiting = (state.data.payments || []).filter((p) => payNeedsMark(p)).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const waitingLocs = [];
+    (state.data.contracts || []).filter((ct) => ct.status === "PENDING PAYMENT").forEach((ct) => {
+      const c = custBy(ct.customerId);
+      const l = locBy(ct.customerId, ct.locationId);
+      if (c && l) waitingLocs.push({ c, l, ct });
+    });
+    (state.data.customers || []).forEach((c) => {
+      (c.locations || []).forEach((l) => {
+        if (waitingLocs.some((w) => w.l.id === l.id)) return;
+        if (l.lifecycle === "waiting_payment" || (l.covered !== false && !locPaid(c, l) && locInvoices(c.id, l.id).some((i) => invoiceFinStatus(i) === "OPEN" || invoiceFinStatus(i) === "PARTIAL"))) {
+          waitingLocs.push({ c, l, ct: contractForLoc(c.id, l.id) });
+        }
+      });
+    });
+    const failedAuth = (state.data.autopayAuthorizations || []).filter((a) => a.status === "FAILED");
+    const notes = unreadNotifications();
+    const autopayPlans = (state.data.billingPlans || []).filter((bp) => bp.autopay).length;
     return `
-      ${head("Administration", "Your team puts every payment on the register (link + check/Zelle/wire). You check the list → open Bill-To / property → Mark invoice paid → Rick creates the service.")}
+      ${head("Administration", "AutoPay pays + allocates + creates the next period automatically. You only work exceptions (declines) and non-AutoPay register lines.")}
+      ${notes.length ? `
+        <div class="card" style="margin-bottom:16px">
+          <h3>Notifications <span class="muted">${notes.length} unread</span></h3>
+          ${notes.slice(0, 8).map((n) => `
+            <div class="fit-row ${n.severity === "alert" ? "queue-new" : ""}">
+              <div>
+                <span class="badge ${n.severity === "alert" ? "badge-bad" : n.severity === "ok" ? "badge-ok" : "badge-sea"}">${esc(n.type || "INFO")}</span>
+                <strong>${esc(n.title)}</strong>
+                <div class="tiny">${esc(n.date)} · ${esc(n.text)}</div>
+              </div>
+              <div class="actions">
+                ${n.customerId ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${n.customerId}">Open</button>` : ""}
+                <button class="btn btn-ghost" data-act="dismiss-notify" data-id="${n.id}">Dismiss</button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
       <div class="card" style="margin-bottom:16px">
-        <h3>1 · Payment register <span class="muted">start here every day</span></h3>
-        <p class="tiny">Team already added these lines (invoice-link pays and external pays). You only verify and <strong>Mark invoice paid</strong>. No unmatched-mail queue — that work is done before it hits your list.</p>
-        ${awaiting.length ? awaiting.slice(0, 8).map(payRegisterRow).join("") : `<p class="muted">Nothing waiting to mark paid. Open the full register to review by week or month.</p>`}
+        <h3>1 · Waiting for payment <span class="muted">contracts pending</span></h3>
+        <p class="tiny">Ops blocked until balance is zero. AutoPay accounts charge overnight — no register mark needed on success.</p>
+        ${waitingLocs.length ? waitingLocs.slice(0, 8).map(({ c, l, ct }) => `
+          <div class="fit-row">
+            <div>
+              ${statusBadge(ct?.status || l.lifecycle || "PENDING PAYMENT")}
+              ${locHasAutopay(c, l) ? `<span class="badge badge-sea">AutoPay</span>` : ""}
+              <strong>${esc(c.billTo || c.name)}</strong> · ${esc(l.name)}
+              <div class="tiny">${esc(billingPlanLabel(l))}${billingPeriodLabel(l) ? " · " + esc(billingPeriodLabel(l)) : ""}</div>
+            </div>
+            <button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Open Bill-To</button>
+          </div>
+        `).join("") : `<p class="muted">No properties waiting for payment.</p>`}
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <h3>2 · Payment register <span class="muted">manual / external</span></h3>
+        <p class="tiny">AutoPay successes are already allocated. Unallocated lines are portal/external. After recovering a decline, generate the next period yourself.</p>
+        ${awaiting.length ? awaiting.slice(0, 8).map(payRegisterRow).join("") : `<p class="muted">Nothing waiting to allocate.</p>`}
         <div class="actions" style="margin-top:10px">
           <button class="btn btn-primary" data-act="nav" data-page="payments">Open payment register</button>
-          ${btn("payment.post", "Add payment to register", "new-pay")}
+          ${btn("payment.post", "Record payment", "new-pay")}
         </div>
       </div>
-      ${failed.length ? `
+      <div class="card" style="margin-bottom:16px">
+        <h3>AutoPay <span class="muted">${autopayPlans} plan(s) on</span></h3>
+        <p class="tiny">Success → post + allocate + next monthly period + notification. Decline → exception; contact customer → external pay → allocate → <strong>Generate next period</strong>.</p>
+        <div class="actions">${btn("payment.post", "Run overnight AutoPay", "run-overnight-autopay", "", "btn-sun")}</div>
+      </div>
+      ${failed.length || failedAuth.length ? `
         <div class="card" style="margin-bottom:16px">
-          <h3>Failed auto-pay <span class="muted">stays visible</span></h3>
+          <h3>AutoPay exceptions <span class="muted">contact customer</span></h3>
+          ${failedAuth.map((a) => {
+            const c = custBy(a.customerId);
+            const loc = a.locationId ? locBy(a.customerId, a.locationId) : null;
+            return `<div class="fit-row queue-new">
+              <div>
+                <span class="badge badge-bad">${esc(a.failureCode || "FAILED")}</span>
+                <strong>${esc(c?.name || "—")}</strong>${loc ? ` · ${esc(loc.name)}` : ""}
+                <div class="tiny">${esc(a.method || "")}${a.last4 ? " ····" + esc(a.last4) : ""} · ${esc((a.failedAt || "").slice(0, 10))} · external pay → allocate → generate next period</div>
+              </div>
+              <div class="actions">
+                <button class="btn btn-sun" data-act="contact-autopay" data-id="${c?.id}" data-loc="${a.locationId || ""}">Log contact</button>
+                <button class="btn btn-ghost" data-act="open-customer" data-id="${c?.id}">Open Bill-To</button>
+              </div>
+            </div>`;
+          }).join("")}
           ${failed.map((p) => {
             const c = custBy(p.customerId);
             return `<div class="fit-row queue-new">
@@ -1758,18 +2395,15 @@
                 <strong>${esc(c?.name || "—")}</strong>
                 <div class="tiny">${esc(p.date)} · ${esc(p.method)}${p.last4 ? " · " + esc(p.last4) : ""} · ${money(p.amount)}</div>
               </div>
-              <div class="actions">
-                <button class="btn btn-ghost" data-act="open-customer" data-id="${c?.id}">Open Bill-To</button>
-                ${btn("payment.post", "Mark replacement paid", "post-pay", `data-id="${c?.id}"`)}
-              </div>
+              <button class="btn btn-ghost" data-act="open-customer" data-id="${c?.id}">Open Bill-To</button>
             </div>`;
           }).join("")}
         </div>
       ` : ""}
       <div class="card" style="margin-bottom:16px">
-        <h3>2 · Renewal report <span class="muted">separate from the payment register</span></h3>
-        <p class="tiny">Programs nearing expiry. Send a renewal message / invoice (not a new sales quote). After they pay, mark the invoice paid from the register.</p>
-        ${table(["Send?", "Bill-To", "Property", "Expires", "Amount", "Flag"], renew.slice(0, 6).map((row) => {
+        <h3>3 · Renewal report <span class="muted">prepare → review → send</span></h3>
+        <p class="tiny">Programs nearing expiry. Prepare drafts, edit proposed text, then approve — no AutoPay charge on send.</p>
+        ${table(["Prep?", "Bill-To", "Property", "Expires", "Amount", "Flag"], renew.slice(0, 6).map((row) => {
           const m = renewalMeta(row);
           return [
             m.batchable
@@ -1783,37 +2417,39 @@
           ];
         }))}
         <div class="actions" style="margin-top:10px">
-          ${btn("renewal.send", "Send renewal messages", "batch-renewals")}
+          ${btn("renewal.send", "Prepare selected", "prepare-renewals", "", "btn-sun")}
           <button class="btn btn-ghost" data-act="nav" data-page="renewals">Full renewal report</button>
         </div>
       </div>
       <div class="card" style="margin-bottom:16px">
         <h3>Add a customer</h3>
-        <p class="tiny">Call came in. Add Bill-To and properties, then quote → invoice → payment register.</p>
+        <p class="tiny">Call → Bill-To + locations → quote → accept / contract invoice → AutoPay or register → Ready for service.</p>
         <div class="actions">${btn("customer.create", "Add customer", "new-customer")}</div>
       </div>
       <div class="grid-4">
-        ${stat("Today’s payments", todayPays.length, "On the register")}
-        ${stat("Failed auto-pay", failed.length, "Stays visible", failed.length ? "alert" : "")}
-        ${stat("Open invoices", due.length, "Mark paid → Rick", due.length ? "alert" : "")}
-        ${stat("Renewal window", renew.length, "Message / quote")}
+        ${stat("Waiting for payment", waitingLocs.length, "Pending contracts")}
+        ${stat("Awaiting allocation", awaiting.length, "On the register", awaiting.length ? "alert" : "")}
+        ${stat("AutoPay exceptions", failed.length + failedAuth.length, "Contact customer", (failed.length || failedAuth.length) ? "alert" : "")}
+        ${stat("Notifications", notes.length, "AutoPay + billing", notes.length ? "alert" : "")}
       </div>
       <div class="split section-gap">
         <div class="card">
-          <h3>Unpaid invoice follow-up</h3>
-          <p class="tiny">Open Bill-To and mark paid when money is confirmed.</p>
+          <h3>Open invoices</h3>
+          <p class="tiny">Balance from allocations. Zero balance → contract ACTIVE.</p>
           ${due.length ? due.map((i) => {
             const c = custBy(i.customerId);
             return `<div class="fit-row">
-              <div><strong>${esc(i.id)}</strong> · ${custBtn(i.customerId, c?.name || "")}<div class="tiny">${esc(invProperty(i))} · ${money(i.amount)} · sent ${esc(i.sent || "—")}</div></div>
-              ${btn("payment.post", "Mark invoice paid", "post-pay", `data-id="${c?.id}"`)}
+              <div><strong>${esc(i.id)}</strong> · ${custBtn(i.customerId, c?.name || "")}<div class="tiny">${esc(invProperty(i))} · ${money(i.amount)} · bal ${money(invoiceBalance(i))} · ${esc(invoiceFinStatus(i))} · sent ${esc(i.sent || "—")}</div></div>
+              <button class="btn btn-ghost" data-act="open-customer" data-id="${c?.id}">Open property</button>
             </div>`;
           }).join("") : `<p class="muted">No open invoices.</p>`}
         </div>
         <div class="card">
-          <h3>Municipal hours</h3>
-          <p class="tiny">You run this report — Rick confirms the hours.</p>
-          ${muni.length ? muni.map((c) => `<div class="fit-row"><div><strong>${esc(c.name)}</strong><div class="tiny">${esc(c.po)} · ${c.hoursUsed}/${c.poCapHours} hrs</div></div></div>`).join("") : `<p class="muted">None.</p>`}
+          <h3>Municipal</h3>
+          <p class="tiny">Manual invoice with PO # and service period. Rick confirms hours.</p>
+          ${muni.length ? muni.map((c) => `<div class="fit-row"><div><strong>${esc(c.name)}</strong><div class="tiny">${esc(c.po)} · ${c.hoursUsed}/${c.poCapHours} hrs</div></div>
+            <button class="btn btn-ghost" data-act="manual-invoice" data-id="${c.id}">Manual invoice</button>
+          </div>`).join("") : `<p class="muted">None.</p>`}
           <div class="tiny" style="margin-top:8px">Admin MTOs: ${mtos.filter((x) => !x.read).length} unread</div>
         </div>
       </div>
@@ -1956,6 +2592,7 @@
   function scheduleHint(c) {
     if (state.role === "sales") return `<span class="muted">—</span>`;
     if (c.status === "lapsed") return statusBadge("lapsed");
+    if (c.status === "waiting_payment") return statusBadge("waiting_payment");
     if (c.municipal) return `<span class="gate"><span class="badge badge-sea">PO — schedulable</span></span>`;
     const locs = (c.locations || []).filter((l) => l.covered !== false);
     const paidN = locs.filter((l) => locPaid(c, l)).length;
@@ -1970,12 +2607,10 @@
     const showOpsNotes = state.role !== "sales";
     const showMoney = can("payment.viewAmount");
     const showProgramPrice = state.role !== "tech";
-    const openInvs = state.data.invoices.filter((i) => i.customerId === c.id && (i.status === "sent" || i.status === "failed"));
     const needsQuote = (c.locations || []).some((l) => locNeedsQuote(c, l));
     const quotedReady = (c.locations || []).some((l) => locNeedsInvoice(c, l) && !locNeedsQuote(c, l));
     const canEditCust = canEditField("name");
     const canEditLoc = can("location.add") || canEditField("address") || state.role === "owner";
-    void openInvs;
     const typeLabel = { residential: "Residential", commercial: "Commercial", hoa: "HOA", municipal: "Municipal" };
     return `
       <button class="btn btn-ghost" data-act="nav" data-page="${state.role === "admin" ? "payments" : "customers"}">← ${state.role === "admin" ? "Payment register" : "Customers"}</button>
@@ -2014,9 +2649,9 @@
         </div>
         <div class="panel-box">
           ${canEditLoc ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-locations" data-id="${c.id}">Edit locations</button>` : ""}
-          <div class="panel-kicker">Locations</div>
+          <div class="panel-kicker">Locations · 360°</div>
           <h3>${(c.locations || []).length} propert${(c.locations || []).length === 1 ? "y" : "ies"}</h3>
-          <p class="tiny">Mark invoice paid on the property that has a payment on the register. Other properties stay unpaid until their payment lands.</p>
+          <p class="tiny">Proposal → contract + billing plan → invoice → allocate payment → Ready for service.</p>
           <div class="panel-locs">
             ${(c.locations || []).map((l) => {
               const plan = locPlan(c, l);
@@ -2027,14 +2662,26 @@
               const svcs = svcsFor(c.id, l.id);
               const awaitPay = locPaymentAwaitingMark(c, l);
               const paidHere = locPaid(c, l);
+              const ct = contractForLoc(c.id, l.id);
+              const bp = ct ? planForContract(ct.id) : null;
+              const periods = ct ? periodsForContract(ct.id) : [];
               const focusHere = state.payFocusId && awaitPay && awaitPay.id === state.payFocusId;
-              return `<div class="panel-loc ${l.covered === false ? "unpaid" : ""} ${awaitPay || locNeedsService(c, l) || locNeedsTech(c, l) ? "need" : ""} ${focusHere ? "pay-focus" : ""}">
+              const life = l.lifecycle || (paidHere ? "active" : (invs.some((i) => {
+                const st = invoiceFinStatus(i);
+                return st === "OPEN" || st === "PARTIAL" || st === "FAILED";
+              }) ? "waiting_payment" : (q?.sent ? "quoted" : "inquiry")));
+              const canGenNext = bp && bp.frequency === "monthly" && periods.length < (bp.installments || 12) && (can("invoice.create") || state.role === "owner");
+              const onAutopay = locHasAutopay(c, l);
+              const apaFail = (state.data.autopayAuthorizations || []).some((a) => a.status === "FAILED" && a.customerId === c.id && a.locationId === l.id);
+              return `<div class="panel-loc ${l.covered === false ? "unpaid" : ""} ${awaitPay || life === "waiting_payment" || locNeedsService(c, l) || locNeedsTech(c, l) || apaFail ? "need" : ""} ${focusHere ? "pay-focus" : ""}">
                 <div class="panel-loc-top">
                   <strong>${esc(l.name)}</strong>
-                  ${paidHere ? `<span class="badge badge-ok">Invoice paid</span>` : ""}
-                  ${awaitPay ? `<span class="badge badge-warn">Payment on register · ${money(awaitPay.amount)} · ${esc(awaitPay.method)}</span>` : ""}
+                  ${ct ? statusBadge(ct.status) : lifecycleBadge(life)}
+                  ${onAutopay ? `<span class="badge badge-sea">AutoPay ON</span>` : ""}
+                  ${apaFail ? `<span class="badge badge-bad">AutoPay failed</span>` : ""}
+                  ${paidHere ? `<span class="badge badge-ok">Ready for service</span>` : ""}
+                  ${awaitPay ? `<span class="badge badge-warn">Unallocated · ${money(awaitPay.amount)} · ${esc(awaitPay.method)}</span>` : ""}
                   ${!paidHere && !awaitPay && l.covered === false ? `<span class="badge badge-bad">Unpaid</span>` : ""}
-                  ${!paidHere && !awaitPay && invs.some((i) => i.status === "sent" || i.status === "failed") ? `<span class="badge badge-sea">Invoice sent · awaiting payment</span>` : ""}
                   ${locNeedsQuote(c, l) ? `<span class="badge badge-warn">Needs quote</span>` : ""}
                   ${!locNeedsQuote(c, l) && locNeedsInvoice(c, l) ? `<span class="badge badge-sea">Ready to invoice</span>` : ""}
                   ${locNeedsService(c, l) ? `<span class="badge badge-warn">Needs service</span>` : ""}
@@ -2042,8 +2689,19 @@
                 </div>
                 <div class="tiny">${esc(l.address)}</div>
                 <div class="tiny">GPS ${esc(gps)}${l.subdivision ? ` · ${esc(l.subdivision)}` : ""}</div>
-                <div class="tiny">Plan: ${plan.programId ? `${esc(prog?.name || plan.programId)}${showProgramPrice ? ` · ${money(plan.amount)}` : ""}${plan.start ? ` · ${esc(plan.start)} → ${esc(plan.expires || "—")}` : ""}` : (q?.sent ? "On quote — waiting on client" : "No plan yet")}</div>
-                <div class="tiny">Quote: ${q?.sent ? `Sent ${esc(q.date || "")}` : "Not yet"} · Invoice: ${invs.length ? invs.map((i) => `${esc(i.id)} ${i.status}`).join(", ") : "None"}</div>
+                <div class="tiny"><strong>Contract</strong> ${ct ? `${esc(ct.id)} · ${esc(ct.program || "")} · ${esc(ct.startDate || "")} → ${esc(ct.endDate || "")}` : "None yet"}</div>
+                <div class="tiny"><strong>Billing plan</strong> ${esc(billingPlanLabel(l))}${onAutopay ? " · AutoPay charges & allocates overnight — Christy does not mark those lines" : ""}</div>
+                ${apaFail ? `<div class="tiny" style="color:var(--bad,#b42318)">Decline recovery: contact customer → Record external payment → Allocate → Generate next period (manual).</div>` : ""}
+                ${billingPeriodLabel(l) ? `<div class="tiny">${esc(billingPeriodLabel(l))}</div>` : ""}
+                ${periods.length ? `<div class="tiny" style="margin-top:6px"><strong>Periods</strong></div>
+                  <table class="mini-table"><thead><tr><th>#</th><th>Dates</th><th>Amt</th><th>Inv</th><th>Status</th></tr></thead><tbody>
+                  ${periods.map((p) => `<tr><td>${p.sequence}</td><td>${esc(p.periodStart)} → ${esc(p.periodEnd)}</td><td>${money(p.amount)}</td><td>${esc(p.invoiceId || "—")}</td><td>${esc(p.status)}</td></tr>`).join("")}
+                  </tbody></table>` : ""}
+                <div class="tiny" style="margin-top:6px"><strong>Invoices</strong> ${invs.length ? invs.map((i) => {
+                  const st = invoiceFinStatus(i);
+                  return `${esc(i.id)} ${st} · paid ${money(allocated(i.id))} · bal ${money(invoiceBalance(i))}`;
+                }).join("; ") : "None"}</div>
+                <div class="tiny">Quote: ${q?.sent ? `Sent ${esc(q.date || "")}` : "Not yet"} · Plan dates: ${plan.programId ? `${esc(prog?.name || plan.programId)}${showProgramPrice ? ` · ${money(plan.amount)}` : ""}${plan.start ? ` · ${esc(plan.start)} → ${esc(plan.expires || "—")}` : ""}` : (q?.sent ? "On quote" : "No plan yet")}</div>
                 <div class="tiny">${svcs.length ? svcs.map((s) => {
                   const sch = SERVICE_SCHEDULES.find((x) => x.id === s.schedule)?.label || s.days || "—";
                   return s.techId ? `${esc(techName(s.techId))} · ${esc(sch)}` : `Setup · ${esc(sch)}`;
@@ -2054,18 +2712,26 @@
                     if (!awaitPay) return "";
                     const inv = locInvoiceForMark(c, l, awaitPay);
                     if (!inv) return "";
-                    return btn("payment.post", "Mark invoice paid", "open-record-pay", `data-id="${inv.id}" data-pay="${awaitPay.id}"`, "btn-sun");
+                    return btn("payment.post", "Allocate payment", "open-record-pay", `data-id="${inv.id}" data-pay="${awaitPay.id}"`, "btn-sun");
                   })()}
                   ${(() => {
                     if (!(can("invoice.create") || can("invoice.send") || state.role === "owner")) return "";
-                    const invs = locInvoices(c.id, l.id);
                     const draft = invs.find((i) => i.status === "draft");
-                    const open = invs.find((i) => i.status === "sent" || i.status === "failed");
+                    const open = invs.find((i) => {
+                      const st = invoiceFinStatus(i);
+                      return st === "OPEN" || st === "PARTIAL" || st === "FAILED";
+                    });
                     if (draft) return btn("invoice.send", "Send invoice", "send-invoice", `data-id="${draft.id}"`);
                     if (open) return `<button class="btn btn-ghost" data-act="send-invoice" data-id="${open.id}">View invoice</button>`;
                     if (!canInvoiceLocation(c, l)) return "";
-                    return btn("invoice.create", "Send invoice", "invoice-one-loc", `data-id="${c.id}" data-loc="${l.id}"`, "btn-sun");
+                    return btn("invoice.create", "Accept / send invoice", "invoice-one-loc", `data-id="${c.id}" data-loc="${l.id}"`, "btn-sun");
                   })()}
+                  ${canGenNext ? `<button class="btn btn-ghost" data-act="generate-next-period" data-id="${c.id}" data-loc="${l.id}">Generate next period${apaFail || !onAutopay ? "" : " (manual)"}</button>` : ""}
+                  ${onAutopay && (can("payment.post") || state.role === "owner") ? `
+                    <button class="btn btn-sun" data-act="run-autopay" data-id="${c.id}" data-loc="${l.id}">Simulate AutoPay success</button>
+                    <button class="btn btn-ghost" data-act="run-autopay-fail" data-id="${c.id}" data-loc="${l.id}">Simulate decline</button>
+                  ` : ""}
+                  ${(c.municipal || c.type === "municipal") && (can("invoice.create") || state.role === "owner") ? `<button class="btn btn-ghost" data-act="manual-invoice" data-id="${c.id}" data-loc="${l.id}">Manual invoice</button>` : ""}
                   ${locNeedsService(c, l) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
                   ${locNeedsTech(c, l) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
                 </div>
@@ -2101,10 +2767,13 @@
     return `
       <div class="card">
         <h3>Billing timeline</h3>
-        <p class="tiny">Bill-To is ${esc(c.billTo || c.name)}. Each line is one property. Memos can name the house so bonuses stay clear.</p>
+        <p class="tiny">Bill-To is ${esc(c.billTo || c.name)}. Balances come from payment allocations.</p>
         <div class="timeline">
-          ${[...inv.map((i) => ({ when: i.sent || i.paidOn || "—", kind: i.status === "failed" ? "bad" : i.status === "paid" ? "ok" : "warn", text: `Invoice ${i.id} · ${invProperty(i)} · ${money(i.amount)} · ${i.status}` })),
-             ...pays.map((p) => ({ when: p.date, kind: p.failed ? "bad" : "ok", text: `Payment ${money(p.amount)} · ${p.method} · ${p.memo}` }))]
+          ${[...inv.map((i) => {
+            const st = invoiceFinStatus(i);
+            return { when: i.sent || i.paidOn || "—", kind: st === "FAILED" ? "bad" : st === "PAID" ? "ok" : "warn", text: `Invoice ${i.id} · ${invProperty(i)} · ${money(i.amount)} · paid ${money(allocated(i.id))} · bal ${money(invoiceBalance(i))} · ${st}` };
+          }),
+             ...pays.map((p) => ({ when: p.date, kind: p.failed ? "bad" : payNeedsMark(p) ? "warn" : "ok", text: `Payment ${money(p.amount)} · alloc ${money(paymentAllocatedAmount(p.id))} · ${p.method} · ${p.memo}` }))]
             .sort((a, b) => String(a.when).localeCompare(String(b.when)))
             .map((t) => `
               <div class="tl-item">
@@ -2552,34 +3221,50 @@
   function viewInvoices() {
     const rows = state.data.invoices.map((i) => {
       const c = custBy(i.customerId);
+      const st = invoiceFinStatus(i);
+      const paid = allocated(i.id);
+      const bal = invoiceBalance(i);
       let act = "";
       if (i.status === "draft") act = btn("invoice.send", "Preview & send", "send-invoice", `data-id="${i.id}"`);
-      else if (i.status === "paid") act = `<span class="tiny">Paid ${esc(i.paidOn || "")} · still on the register</span>`;
-      else act = btn("payment.post", "Post payment", "open-record-pay", `data-id="${i.id}"`);
+      else if (st === "PAID") act = `<span class="tiny">Paid ${esc(i.paidOn || "")}</span>`;
+      else act = btn("payment.post", "Post / allocate", "open-record-pay", `data-id="${i.id}"`);
       return [
         i.id,
         custBtn(i.customerId, c?.billTo || c?.name || "—"),
         esc(invProperty(i)),
-        (can("invoice.send") || can("payment.post") || state.role === "owner") && i.status !== "paid"
+        (can("invoice.send") || can("payment.post") || state.role === "owner") && st !== "PAID"
           ? inline("invoice", "amount", i.amount, `data-id="${i.id}"`, "number")
           : money(i.amount),
-        statusBadge(i.status),
+        money(paid),
+        money(bal),
+        statusBadge(st),
         i.kind,
         i.sent || "—",
         act,
       ];
     });
     return `
-      ${head("Invoices", "One invoice per property. The Bill-To is the same person. Send the bill, then post payment on that invoice. Portal, website, and ACH apply themselves.")}
+      ${head("Invoices", "One invoice per property / billing period. Status is allocation-derived: OPEN, PARTIAL, or PAID. Full pay activates the contract for Ops.")}
       ${writeBar("invoice.send", "Send invoice")}
-      ${table(["Invoice", "Bill-To", "Property", "Amount", "Status", "Kind", "Sent", ""], rows)}
+      <div class="actions" style="margin-bottom:10px">${btn("invoice.create", "Manual municipal invoice", "manual-invoice", "", "btn-ghost")}</div>
+      ${table(["Invoice", "Bill-To", "Property", "Amount", "Paid", "Balance", "Status", "Kind", "Sent", ""], rows)}
     `;
   }
 
   function viewPayments() {
     const isOps = state.role === "ops";
     const filter = state.payFilter || "month";
-    const list = paymentsInFilter(filter).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)));
+    const srcFilter = state.paySrcFilter || "all";
+    let list = paymentsInFilter(filter).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)));
+    if (srcFilter !== "all") {
+      list = list.filter((p) => {
+        const s = String(p.source || "").toUpperCase();
+        if (srcFilter === "ONLINE") return s === "ONLINE" || s === "PORTAL" || s === "WEBSITE" || !!p.linkPay;
+        if (srcFilter === "AUTOPAY") return s === "AUTOPAY" || s === "AUTOPAY";
+        if (srcFilter === "EXTERNAL") return s === "EXTERNAL" || s === "CHECK" || s === "ZELLE" || s === "WIRE" || s === "ACH" || (!p.linkPay && !p.failed);
+        return true;
+      });
+    }
     const filters = [
       ["today", "Today"],
       ["week", "This week"],
@@ -2587,12 +3272,20 @@
       ["prev", "Previous month"],
       ["all", "All"],
     ];
+    const srcFilters = [
+      ["all", "All sources"],
+      ["ONLINE", "Online"],
+      ["AUTOPAY", "AutoPay"],
+      ["EXTERNAL", "External"],
+    ];
     const rows = list.map((p) => {
       const c = p.customerId ? custBy(p.customerId) : null;
       const loc = p.locationId ? locBy(p.customerId, p.locationId) : c?.locations?.[0];
-      const channel = payIsLink(p) ? "Invoice link" : "External (team)";
+      const inv = p.invoiceId ? (state.data.invoices || []).find((i) => i.id === p.invoiceId) : null;
+      const channel = String(p.source || "").toUpperCase() || (payIsLink(p) ? "ONLINE" : "EXTERNAL");
       const ref = p.last4 ? (String(p.last4).length <= 4 ? "····" + p.last4 : p.last4) : (p.checkNo || "—");
       const needs = payNeedsMark(p);
+      const allocAmt = paymentAllocatedAmount(p.id);
       let act = "";
       if (isOps) {
         const need = c && loc && locNeedsService(c, loc);
@@ -2602,41 +3295,48 @@
       } else if (p.failed) {
         act = c ? `<button class="btn btn-sun" data-act="open-pay-row" data-id="${p.id}">Open Bill-To</button>` : "—";
       } else if (needs) {
-        act = `<button class="btn btn-sun" data-act="open-pay-row" data-id="${p.id}">Open · mark invoice paid</button>`;
+        act = `<button class="btn btn-sun" data-act="open-pay-row" data-id="${p.id}">Open · allocate</button>`;
       } else {
-        act = c ? `<button class="btn btn-ghost" data-act="open-pay-row" data-id="${p.id}">Open Bill-To / property</button>` : "—";
+        act = c ? `<button class="btn btn-ghost" data-act="open-pay-row" data-id="${p.id}">Open Bill-To</button>` : "—";
+      }
+      if (!isOps && can("payment.post")) {
+        act += ` <button class="btn btn-ghost" data-act="edit-memo" data-id="${p.id}">Memo</button>`;
       }
       const status = p.failed
         ? statusBadge("failed")
         : needs
-          ? `<span class="badge badge-warn">Awaiting mark paid</span>`
-          : `<span class="badge badge-ok">Invoice marked paid</span>`;
+          ? `<span class="badge badge-warn">Awaiting allocation</span>`
+          : `<span class="badge badge-ok">Allocated</span>`;
       return [
         p.date,
         c ? `<button class="btn btn-ghost linkish" data-act="open-pay-row" data-id="${p.id}">${esc(c.billTo || c.name)}</button>` : "—",
-        c ? esc(c.id) : "—",
         p.invoiceId || "—",
         loc ? esc(loc.name) : "—",
         can("payment.viewAmount") || isOps ? money(p.amount) : "—",
+        can("payment.viewAmount") || isOps ? money(allocAmt) : "—",
+        inv && (can("payment.viewAmount") || isOps) ? money(invoiceBalance(inv)) : "—",
         esc(p.method || "—"),
         esc(ref),
-        channel,
+        esc(channel),
         status,
         act,
       ];
     });
     return `
       ${head("Payment register", isOps
-        ? "After Christy marks an invoice paid, open Bill-To and create the service for that property."
-        : "Your team adds every payment here first (invoice-link and external). You check the list, open Bill-To / property, and mark the invoice paid — for both link pays and checks/Zelle/wires.")}
+        ? "After Christy allocates payment and balance is zero, open Bill-To and create service."
+        : "Record payment = create payment + allocation. Unallocated register lines still need Allocate on the property. Memos stay editable.")}
       ${isOps
-        ? `<div class="notice">You do not mark invoices. When Christy has marked paid: open Bill-To → create service → assign on the map.</div>`
-        : `<div class="notice">No unmatched-mail section. Team already attached Bill-To + invoice when they added the line. Invoice link pays still need you to mark the invoice paid before Rick creates the service.</div>`}
-      <div class="seg" style="margin-bottom:12px">
+        ? `<div class="notice">You do not allocate invoices. When balance is zero: open Bill-To → create service → assign on the map.</div>`
+        : `<div class="notice">Sources: ONLINE / AUTOPAY / EXTERNAL. Direct post allocates in one step. Portal lines may await allocation.</div>`}
+      <div class="seg" style="margin-bottom:8px">
         ${filters.map(([id, lab]) => `<button class="${filter === id ? "on" : ""}" data-act="pay-filter" data-filter="${id}">${lab}</button>`).join("")}
       </div>
-      <p class="tiny" style="margin-bottom:10px">${list.length} payment${list.length === 1 ? "" : "s"} · ${esc(payFilterLabel(filter))}${!isOps ? ` · ${btn("payment.post", "Add payment to register", "new-pay", "", "btn-ghost")}` : ""}</p>
-      ${table(["Date", "Bill-To", "Bill-To #", "Invoice", "Property", "Amount", "MOP", "Card / ref", "Source", "Status", ""], rows)}
+      <div class="seg" style="margin-bottom:12px">
+        ${srcFilters.map(([id, lab]) => `<button class="${srcFilter === id ? "on" : ""}" data-act="pay-src-filter" data-filter="${id}">${lab}</button>`).join("")}
+      </div>
+      <p class="tiny" style="margin-bottom:10px">${list.length} payment${list.length === 1 ? "" : "s"} · ${esc(payFilterLabel(filter))}${!isOps ? ` · ${btn("payment.post", "Record payment", "new-pay", "", "btn-ghost")}` : ""}</p>
+      ${table(["Date", "Bill-To", "Invoice", "Property", "Amount", "Allocated", "Inv bal", "MOP", "Ref", "Source", "Status", ""], rows)}
     `;
   }
 
@@ -2763,38 +3463,55 @@
   function payRegisterRow(p) {
     const c = p.customerId ? custBy(p.customerId) : null;
     const needs = payNeedsMark(p);
-    const src = payIsLink(p) ? "Invoice link" : "External (team)";
+    const src = String(p.source || "").toUpperCase() || (payIsLink(p) ? "ONLINE" : "EXTERNAL");
     return `<div class="fit-row">
       <div>
-        <span class="badge ${p.failed ? "badge-bad" : needs ? "badge-warn" : "badge-ok"}">${p.failed ? "Declined" : needs ? "Awaiting mark paid" : "Invoice marked paid"}</span>
+        <span class="badge ${p.failed ? "badge-bad" : needs ? "badge-warn" : "badge-ok"}">${p.failed ? "Declined" : needs ? "Awaiting allocation" : "Allocated"}</span>
         ${c
           ? `<button class="btn btn-ghost linkish" data-act="open-pay-row" data-id="${p.id}">${esc(c.billTo || c.name)}</button>`
           : `<strong>${esc(p.memo || "—")}</strong>`}
-        <div class="tiny">${esc(p.date)} · ${esc(src)} · ${esc(p.method || "")}${p.last4 ? " · ····" + esc(p.last4) : ""} · ${money(p.amount)} · ${p.invoiceId ? esc(p.invoiceId) + " · " : ""}${esc(p.memo || "")}</div>
+        <div class="tiny">${esc(p.date)} · ${esc(src)} · ${esc(p.method || "")}${p.last4 ? " · ····" + esc(p.last4) : ""} · ${money(p.amount)} · alloc ${money(paymentAllocatedAmount(p.id))} · ${p.invoiceId ? esc(p.invoiceId) + " · " : ""}${esc(p.memo || "")}</div>
       </div>
       ${c
-        ? `<button class="btn ${needs ? "btn-sun" : "btn-ghost"}" data-act="open-pay-row" data-id="${p.id}">${needs ? "Open · mark invoice paid" : "Open Bill-To"}</button>`
+        ? `<button class="btn ${needs ? "btn-sun" : "btn-ghost"}" data-act="open-pay-row" data-id="${p.id}">${needs ? "Open · allocate" : "Open Bill-To"}</button>`
         : ""}
     </div>`;
+  }
+
+  function renewalProposedText(row) {
+    const bp = (() => {
+      const ct = contractForLoc(row.customerId, row.locationId);
+      return ct ? planForContract(ct.id) : null;
+    })();
+    if (bp?.frequency === "monthly") return `${money(row.amount)}/month × ${bp.installments} — same terms`;
+    return `${money(row.amount)} upfront — same terms`;
   }
 
   function viewRenewals() {
     const rows = renewalCandidates().map((row) => {
       const m = renewalMeta(row);
+      const ct = contractForLoc(row.customerId, row.locationId);
+      const existing = (state.data.renewals || []).find((r) => r.rowId === row.id || (ct && r.contractId === ct.id));
       const send = m.batchable
         ? `<label class="chk"><input type="checkbox" data-act="renew-toggle" data-id="${row.id}" ${(state.renewPick || []).includes(row.id) ? "checked" : ""}></label>`
         : `<span class="tiny">Hold</span>`;
-      const act = m.noticeOnly
-        ? btn("renewal.send", "Send renewal message", "send-renewal", `data-id="${row.id}"`)
-        : btn("renewal.send", m.rollover ? "Send rollover quote" : "Send renewal quote", "send-renewal", `data-id="${row.id}"`);
-      return [send, custBtn(row.customerId, row.name), esc(row.locName), row.expires, m.window, money(row.amount), m.flag, act];
+      const status = existing
+        ? statusBadge(existing.status === "SENT" ? "sent" : "DRAFT")
+        : `<span class="badge badge-mute">Not prepared</span>`;
+      const act = existing?.status === "SENT"
+        ? `<span class="tiny">Sent ${esc((existing.sentAt || "").slice(0, 10))}</span>`
+        : `<button class="btn btn-ghost" data-act="review-renewal" data-id="${row.id}">Review / edit</button>`;
+      return [send, custBtn(row.customerId, row.name), esc(row.locName), row.expires, m.window, money(row.amount), esc(existing?.proposedText || renewalProposedText(row)), m.flag, status, act];
     });
     return `
-      ${head("Renewal report", "Separate from the payment register. Programs nearing expiry appear here. You review and send a renewal message / invoice so they can renew by paying — not a new sales quote. Clients who already paid their current plan are not re-quoted.")}
+      ${head("Renewal report", "Prepare → review / edit proposed text → approve & send. AutoPay is never charged on send.")}
       ${writeBar("renewal.send", "Send renewal")}
-      <p class="tiny" style="margin-bottom:10px">Send renewal messages for expiring programs only. After they pay, the line appears on the payment register for you to mark invoice paid → Rick continues service. Do not send program quotes to accounts that already paid.</p>
-      ${table(["Send?", "Bill-To", "Property", "Expires", "Window", "Amount", "Flag", ""], rows)}
-      <div class="actions" style="margin-top:12px">${btn("renewal.send", "Send checked renewal messages", "batch-renewals")}</div>
+      <div class="notice">Workflow matches the billing prototype: batch prepare drafts, edit amounts/text, then approve. No automatic card charge.</div>
+      ${table(["Prep?", "Bill-To", "Property", "Expires", "Window", "Amount", "Proposed", "Flag", "Status", ""], rows)}
+      <div class="actions" style="margin-top:12px">
+        ${btn("renewal.send", "Prepare selected", "prepare-renewals", "", "btn-sun")}
+        ${btn("renewal.send", "Approve & send prepared", "batch-renewals")}
+      </div>
     `;
   }
 
@@ -3479,6 +4196,7 @@
       "open-customer": () => { state.selectedCustomer = ds.id; state.page = "customer"; state.payFocusId = null; render(); },
       "open-pay-row": () => openPayRow(ds.id),
       "pay-filter": () => { state.payFilter = ds.filter || "month"; render(); },
+      "pay-src-filter": () => { state.paySrcFilter = ds.filter || "all"; render(); },
       "open-pay": () => { state.payView = true; state.payInvoice = ds.inv || "INV-4510"; render(); },
       "close-pay": () => { state.payView = false; render(); },
       "lookup-pay": () => { state.payInvoice = document.getElementById("pay-id")?.value.trim() || ""; render(); },
@@ -3511,9 +4229,44 @@
       "confirm-invoice": () => confirmInvoice(ds.id),
       "send-renewal": () => openRenewal(ds.id),
       "confirm-renewal": () => confirmRenewal(ds.id),
+      "review-renewal": () => reviewRenewal(ds.id),
+      "prepare-renewals": () => prepareRenewals(),
+      "save-renewal-draft": () => saveRenewalDraft(ds.id),
+      "approve-renewal": () => approveRenewal(ds.id),
       "renew-toggle": () => toggleRenewPick(ds.id),
       "batch-renewals": () => batchRenewals(),
-      "open-record-pay": () => openRecordPay(ds.id),
+      "generate-next-period": () => generateNextBillingPeriod(ds.id, ds.loc),
+      "run-autopay": () => runAutopayCharge(ds.id, ds.loc, { succeed: true }),
+      "run-autopay-fail": () => runAutopayCharge(ds.id, ds.loc, { succeed: false }),
+      "run-overnight-autopay": () => runOvernightAutopay(),
+      "dismiss-notify": () => {
+        const n = (state.data.notifications || []).find((x) => x.id === ds.id);
+        if (n) n.read = true;
+        render();
+      },
+      "contact-autopay": () => {
+        const c = custBy(ds.id);
+        if (!c) return;
+        const loc = ds.loc ? locBy(ds.id, ds.loc) : c.locations?.[0];
+        state.data.comms.unshift({
+          id: nid("CM"), customerId: c.id, who: role()?.name || "Christy Brown", channel: "Phone", date: TODAY,
+          text: `Called about AutoPay decline${loc ? ` at ${loc.name}` : ""}. Asked them to pay by check / Zelle / portal. Will allocate when funds hit the register, then generate next billing period manually.`,
+        });
+        pushNotify({
+          type: "AUTOPAY_CONTACT",
+          severity: "info",
+          title: "Customer contacted",
+          text: `${c.billTo || c.name}${loc ? ` · ${loc.name}` : ""} — follow up when external payment posts.`,
+          customerId: c.id, locationId: loc?.id || null,
+        });
+        state.selectedCustomer = c.id;
+        state.page = "customer";
+        toast("Contact logged. When they pay, Record payment / Allocate, then Generate next period.");
+        render();
+      },
+      "manual-invoice": () => openManualInvoice(ds.id, ds.loc),
+      "save-manual-invoice": () => saveManualInvoice(),
+      "open-record-pay": () => { if (ds.pay) state.payFocusId = ds.pay; openRecordPay(ds.id); },
       bestfit: () => openAssign(ds.id),
       "open-assign": () => openAssign(ds.id, ds.loc),
       "compare-routes": () => openCompareRoutes(ds.id, ds.loc),
@@ -3590,18 +4343,18 @@
 
   function payNow() {
     const inv = state.data.invoices.find((i) => i.id === state.payInvoice);
-    if (!inv || inv.status === "paid") return;
+    if (!inv || invoiceFinStatus(inv) === "PAID") return;
     const method = val("pay-method") || "Portal";
     const c = custBy(inv.customerId);
     const src = pay().sourceOf(method);
-    // Client paid on the link — line goes on the register; Christy still marks the invoice paid.
+    // Client paid on the link — line goes on the register; Christy allocates to activate.
     state.data.payments.push({
       id: nid("P"), invoiceId: inv.id, customerId: inv.customerId, locationId: inv.locationId || null, amount: inv.amount,
-      method, date: TODAY, source: src, linkPay: true, invoiceMarked: false, posted: true,
+      method, date: TODAY, source: "ONLINE", linkPay: true, invoiceMarked: false, posted: true, status: "POSTED",
       last4: String(Math.floor(1000 + Math.random() * 9000)),
-      memo: `Invoice link · ${c?.name || "client"} · on register — mark invoice paid`,
+      memo: `Invoice link · ${c?.name || "client"} · on register — allocate to activate`,
     });
-    toast("Payment is on the register. Christy opens Bill-To and marks the invoice paid.");
+    toast("Payment is on the register. Christy allocates to the invoice to activate service.");
     state.payView = false;
     render();
   }
@@ -3846,6 +4599,7 @@
       requestService: true,
       requestedAt: Date.now(),
       manualPin: true,
+      lifecycle: "inquiry",
     };
     return loc;
   }
@@ -4033,6 +4787,9 @@
         date: TODAY,
       });
     }
+    use.forEach((l) => {
+      if (l.lifecycle !== "active" && l.lifecycle !== "waiting_payment") l.lifecycle = "quoted";
+    });
     const n = locationIds.length;
     state.data.comms.push({
       id: nid("CM"), customerId: id, who: role().name, channel: "Email", date: TODAY,
@@ -4049,15 +4806,18 @@
 
   function convertPreviewInner(programId) {
     const p = progBy(programId) || PROGRAMS[0];
-    const amount = programAmount(p);
+    const commitment = buildCommitment(programId, TODAY);
+    const amount = commitment.installmentAmount;
     const expires = addMonths(TODAY, p.months);
-    const billing = p.prepaid != null
-      ? `Prepaid ${money(amount)} now (list ${money(p.list)}${p.freeMonths ? `, ${p.freeMonths} promotional months` : ""}). Early cancel claws back at the standalone rate (ADM-21).`
-      : `Term billed at list ${money(p.list)}. ${p.id === "12mo" ? "Monthly installment plan — this invoice is the first charge, not a lump-sum renewal value." : ""}`;
+    const billing = commitment.billingFrequency === "monthly"
+      ? `Monthly billing plan: ${money(amount)} × ${commitment.periods} (term value ${money(commitment.totalValue)}). Period 1 invoices now. With AutoPay ON, later periods charge + allocate overnight and the next invoice is created automatically — Christy only handles declines.`
+      : (p.prepaid != null
+        ? `Upfront commitment: ${money(amount)} now (list ${money(p.list)}${p.freeMonths ? `, ${p.freeMonths} promotional months` : ""}). One billing period for the term.`
+        : `Upfront / term invoice ${money(amount)}.`);
     return `
       <div class="preview">
         <strong>${esc(p.name)}</strong>
-        <div>Invoice amount: ${money(amount)}</div>
+        <div>Billing: ${commitment.billingFrequency === "monthly" ? "Monthly" : "Upfront"} · Invoice amount: ${money(amount)}${commitment.autoPay ? " · AutoPay recommended" : ""}</div>
         <div>Visit pattern: ${esc(p.freq)}</div>
         <div>Start ${TODAY} → expires ${expires} <span class="tiny">(BR-04, system-calculated)</span></div>
         <div class="tiny" style="margin-top:6px">${esc(billing)}</div>
@@ -4089,7 +4849,7 @@
       wide: true,
       html: `
         <h3>Send invoice</h3>
-        <p>This invoice is for <strong>${esc(loc.name)}</strong> only. Bill-To stays ${esc(c.billTo || c.name)}.</p>
+        <p>Accepts the proposal for <strong>${esc(loc.name)}</strong>: creates contract <em>PENDING PAYMENT</em>, billing plan, period 1, and sends the invoice. Ops stays blocked until allocated balance is zero.</p>
         <div class="invoice-sheet">
           <h3>${esc(loc.name)}</h3>
           <p class="tiny">${esc(loc.address)}</p>
@@ -4099,6 +4859,7 @@
           <label>Program</label>
           <select id="io-program" data-act="preview-io-program">${options}</select>
         </div>
+        <div class="field chk-field"><label class="chk"><input type="checkbox" id="io-autopay" ${selectedProg === "12mo" ? "checked" : ""}> AutoPay — charge &amp; allocate overnight; generate next monthly period automatically</label></div>
         <div id="io-preview">${convertPreviewInner(selectedProg)}</div>
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
@@ -4131,27 +4892,37 @@
       return;
     }
     const pid = val("io-program") || locPlan(c, loc).programId || "12pre";
-    applyPlanToLocation(loc, pid, TODAY);
     let inv = existing;
     if (!inv) {
-      inv = { id: nid("INV"), customerId: c.id, locationId: loc.id, amount: loc.amount, status: "draft", sent: null, paidOn: null, kind: "initial" };
+      inv = { id: nid("INV"), customerId: c.id, locationId: loc.id, amount: 0, status: "draft", sent: null, paidOn: null, kind: "initial", periodN: 1 };
       state.data.invoices.push(inv);
-    } else {
-      inv.amount = loc.amount;
     }
+    commitLocationPlan(loc, pid, TODAY, inv.id, c.id);
+    const wantAutopay = !!document.getElementById("io-autopay")?.checked || pid === "12mo";
+    const bp = planForContract(loc.contractId);
+    if (bp) {
+      bp.autopay = wantAutopay;
+      loc.autoPay = wantAutopay;
+      if (wantAutopay) c.autoPay = true;
+    }
+    inv.amount = loc.amount;
+    inv.status = "sent";
+    inv.sent = TODAY;
+    inv.periodN = 1;
+    if (wantAutopay) inv.kind = "autopay";
     const q = locQuote(c.id, loc.id);
     if (q) q.programId = pid;
     syncCustomerFromLocations(c);
-    inv.status = "sent";
-    inv.sent = TODAY;
+    syncCustomerLifecycle(c);
+    const cmt = loc.commitment;
     state.data.comms.push({
       id: nid("CM"), customerId: c.id, who: role().name, channel: "Email", date: TODAY,
-      text: `Invoice ${inv.id} sent for ${loc.name} only (${progBy(pid)?.name || pid} · ${money(inv.amount)}). Other properties not billed on this invoice.`,
+      text: `Contract + invoice ${inv.id} for ${loc.name} (${billingPlanLabel(loc)})${wantAutopay ? " · AutoPay ON — overnight charge allocates without Christy marking the register" : " · AutoPay OFF — Christy allocates from the register"}. Pending payment — Ops unlocks when balance is zero.`,
     });
     state.modal = null;
     state.page = "customer";
     state.selectedCustomer = c.id;
-    toast(`Invoice ${inv.id} sent for ${loc.name}.`);
+    toast(`Invoice ${inv.id} sent · ${cmt?.billingFrequency === "monthly" ? "period 1 of " + cmt.periods : "upfront"}${wantAutopay ? " · AutoPay ON" : ""}.`);
     render();
   }
 
@@ -4182,7 +4953,7 @@
       wide: true,
       html: `
         <h3>Send invoice to all</h3>
-        <p>Bill-To ${esc(c.billTo || c.name)}. Each property gets its own invoice and is sent now. Pick the program per address.</p>
+        <p>Bill-To ${esc(c.billTo || c.name)}. Each property gets its own contract + billing plan + period-1 invoice (PENDING PAYMENT). Ops unlocks only after full allocation.</p>
         ${blocks}
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
@@ -4203,21 +4974,22 @@
     const created = [];
     targets.forEach((l) => {
       const pid = val(`cv-program-${l.id}`) || "12pre";
-      applyPlanToLocation(l, pid, TODAY);
-      const inv = { id: nid("INV"), customerId: id, locationId: l.id, amount: l.amount, status: "sent", sent: TODAY, paidOn: null, kind: "initial" };
+      const inv = { id: nid("INV"), customerId: id, locationId: l.id, amount: 0, status: "sent", sent: TODAY, paidOn: null, kind: "initial", periodN: 1 };
       state.data.invoices.push(inv);
+      commitLocationPlan(l, pid, TODAY, inv.id, id);
+      inv.amount = l.amount;
       created.push(inv);
       const q = locQuote(id, l.id);
       if (q) q.programId = pid;
     });
     syncCustomerFromLocations(c);
+    syncCustomerLifecycle(c);
     if (created.length) {
       state.data.comms.push({
         id: nid("CM"), customerId: c.id, who: role().name, channel: "Email", date: TODAY,
-        text: `Sent ${created.length} invoice${created.length === 1 ? "" : "s"} (${created.map((i) => i.id).join(", ")}) — one per property.`,
+        text: `Sent ${created.length} contract invoice${created.length === 1 ? "" : "s"} (${created.map((i) => i.id).join(", ")}). Pending payment — Ops after allocation.`,
       });
     }
-    handOffToOps(c);
     state.modal = null;
     const n = created.length;
     if (!n) {
@@ -4226,8 +4998,8 @@
       return;
     }
     toast(n === 1
-      ? `Invoice ${created[0].id} sent.`
-      : `${n} invoices sent — one per property.`);
+      ? `Invoice ${created[0].id} sent · waiting for payment.`
+      : `${n} invoices sent · waiting for payment on each property.`);
     state.page = "customer";
     state.selectedCustomer = c.id;
     render();
@@ -4273,50 +5045,124 @@
   }
 
   function openRenewal(id) {
+    reviewRenewal(id);
+  }
+
+  function prepareRenewals() {
+    if (!can("renewal.send")) return;
+    if (!Array.isArray(state.data.renewals)) state.data.renewals = [];
+    const picked = (state.renewPick || []).filter((id) => {
+      const row = parseRenewId(id);
+      return row && renewalMeta(row).batchable;
+    });
+    if (!picked.length) {
+      toast("Select one or more standard renewals to prepare.");
+      return;
+    }
+    let n = 0;
+    picked.forEach((id) => {
+      const row = parseRenewId(id);
+      const ct = contractForLoc(row.customerId, row.locationId);
+      let r = state.data.renewals.find((x) => x.rowId === id || (ct && x.contractId === ct.id));
+      const text = renewalProposedText(row);
+      if (!r) {
+        r = { id: nid("REN"), rowId: id, contractId: ct?.id || null, customerId: row.customerId, locationId: row.locationId, status: "DRAFT", proposedText: text, sent: false };
+        state.data.renewals.push(r);
+      } else if (r.status !== "SENT") {
+        r.proposedText = r.proposedText || text;
+        r.status = "DRAFT";
+      }
+      n += 1;
+    });
+    state.renewPick = [];
+    toast(`Prepared ${n} renewal draft${n === 1 ? "" : "s"} for review.`);
+    render();
+  }
+
+  function reviewRenewal(id) {
     const row = parseRenewId(id);
     if (!row) return;
     const m = renewalMeta(row);
-    const body = m.noticeOnly
-      ? `<p>Your program at ${esc(row.locName)} expires ${esc(row.expires)}. This is a renewal invitation only — we will not charge your saved card until you say yes.</p>`
-      : m.rollover
-        ? `<p>Your 1-month term at ${esc(row.locName)} ends ${esc(row.expires)}. We are not sending another 1-month. Please choose a 6- or 12-month program (${money(1200)} / ${money(2000)}).</p>`
-        : `<p>${esc(row.locName)} expires ${esc(row.expires)}. Renewal ${money(row.amount)} for the same program. Bill-To remains ${esc(row.name)}.</p>`;
+    const ct = contractForLoc(row.customerId, row.locationId);
+    if (!Array.isArray(state.data.renewals)) state.data.renewals = [];
+    let r = state.data.renewals.find((x) => x.rowId === row.id || (ct && x.contractId === ct.id));
+    const defaultText = renewalProposedText(row);
+    if (!r) {
+      r = { id: nid("REN"), rowId: row.id, contractId: ct?.id || null, customerId: row.customerId, locationId: row.locationId, status: "DRAFT", proposedText: defaultText, sent: false };
+      state.data.renewals.push(r);
+    }
     state.modal = {
       html: `
-        <h3>${m.noticeOnly ? "Renewal notice — no charge" : "Renewal notice preview"}</h3>
-        <p>You send this. The system does not. Hello ${esc(row.name)} is in the letter. This letter is for ${esc(row.locName)} only.</p>
-        <div class="invoice-sheet">
-          <h3>Hello ${esc(row.name)},</h3>
-          ${body}
-          <p class="tiny">${esc(m.flag)}</p>
+        <h3>Review renewal · ${esc(row.locName)}</h3>
+        <p>Edit proposed terms before sending. AutoPay will <strong>not</strong> be charged on send.</p>
+        <div class="preview">
+          <strong>${esc(row.name)}</strong> · ${esc(row.locName)} · expires ${esc(row.expires)}
+          <div class="tiny">${esc(m.flag)}</div>
         </div>
+        <div class="field"><label>Proposed renewal terms</label><input id="ren-text" value="${esc(r.proposedText || defaultText)}"></div>
+        <div class="field"><label>Amount (optional override)</label><input id="ren-amt" type="number" step="0.01" value="${esc(row.amount)}"></div>
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="close-modal">Back</button>
-          <button class="btn btn-primary" data-act="confirm-renewal" data-id="${row.id}">${m.noticeOnly ? "Send notice (do not invoice)" : m.rollover ? "Send rollover offer" : "Send renewal invoice"}</button>
+          <button class="btn btn-ghost" data-act="save-renewal-draft" data-id="${row.id}">Save draft</button>
+          <button class="btn btn-primary" data-act="approve-renewal" data-id="${row.id}">Approve &amp; send</button>
         </div>
       `,
     };
     render();
   }
 
-  function confirmRenewal(id) {
+  function saveRenewalDraft(id) {
+    const row = parseRenewId(id);
+    if (!row) return;
+    const ct = contractForLoc(row.customerId, row.locationId);
+    let r = (state.data.renewals || []).find((x) => x.rowId === row.id || (ct && x.contractId === ct.id));
+    if (!r) return;
+    r.proposedText = val("ren-text") || r.proposedText;
+    const amt = Number(val("ren-amt"));
+    if (Number.isFinite(amt) && amt > 0) r.amount = amt;
+    r.status = "DRAFT";
+    state.modal = null;
+    toast("Renewal draft saved.");
+    render();
+  }
+
+  function approveRenewal(id) {
+    confirmRenewal(id, true);
+  }
+
+  function confirmRenewal(id, fromReview) {
     const row = parseRenewId(id);
     if (!row) return;
     const c = custBy(row.customerId);
     const l = locBy(row.customerId, row.locationId);
     const m = renewalMeta(row);
+    const ct = contractForLoc(row.customerId, row.locationId);
+    if (!Array.isArray(state.data.renewals)) state.data.renewals = [];
+    let r = state.data.renewals.find((x) => x.rowId === row.id || (ct && x.contractId === ct.id));
+    const proposed = fromReview ? (val("ren-text") || r?.proposedText || renewalProposedText(row)) : (r?.proposedText || renewalProposedText(row));
+    const amtOverride = fromReview ? Number(val("ren-amt")) : Number(r?.amount);
+    const amount = Number.isFinite(amtOverride) && amtOverride > 0 ? amtOverride : row.amount;
+    if (!r) {
+      r = { id: nid("REN"), rowId: row.id, contractId: ct?.id || null, customerId: row.customerId, locationId: row.locationId, status: "DRAFT", proposedText: proposed, sent: false };
+      state.data.renewals.push(r);
+    }
+    r.proposedText = proposed;
+    r.amount = amount;
+    r.status = "SENT";
+    r.sent = true;
+    r.sentAt = TODAY;
     if (l) l.renewalSent = TODAY;
     if (c) c.renewalSent = TODAY;
-    if (m.noticeOnly) {
-      state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Renewal notice for ${row.locName} — no charge. Auto-pay will not run until they confirm.` });
+    if (m.noticeOnly || row.autoPay) {
+      state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Renewal notice for ${row.locName}: ${proposed}. AutoPay not charged.` });
       state.modal = null;
       toast(`Notice sent to ${row.name} for ${row.locName}. Saved card was not charged.`);
       render();
       return;
     }
-    const inv = { id: nid("INV"), customerId: row.customerId, locationId: row.locationId, amount: row.amount, status: "sent", sent: TODAY, paidOn: null, kind: "renewal" };
+    const inv = { id: nid("INV"), customerId: row.customerId, locationId: row.locationId, contractId: ct?.id || null, amount, status: "sent", sent: TODAY, paidOn: null, kind: "renewal", description: proposed };
     state.data.invoices.push(inv);
-    state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Renewal ${inv.id} emailed for ${row.locName}. Subject: ${row.name} · ${row.locName} · renewal.` });
+    state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Renewal ${inv.id} emailed for ${row.locName}: ${proposed}. No AutoPay charge on send.` });
     state.modal = null;
     toast("Renewal invoice " + inv.id + " sent to " + row.name + " for " + row.locName + ".");
     render();
@@ -4331,33 +5177,106 @@
 
   function batchRenewals() {
     if (!can("renewal.send")) return;
-    const ids = (state.renewPick || []).filter((id) => {
-      const row = parseRenewId(id);
-      return row && renewalMeta(row).batchable;
-    });
-    if (!ids.length) {
-      toast("Check the generic amounts first. Odd numbers and 1-month rollovers stay out of the batch.");
+    if (!Array.isArray(state.data.renewals)) state.data.renewals = [];
+    const drafts = state.data.renewals.filter((r) => r.status === "DRAFT");
+    if (!drafts.length) {
+      toast("Prepare renewal drafts first, then approve & send.");
       return;
     }
-    ids.forEach((id) => {
-      const row = parseRenewId(id);
+    drafts.forEach((r) => {
+      const row = parseRenewId(r.rowId) || (r.customerId && r.locationId ? {
+        id: r.rowId, customerId: r.customerId, locationId: r.locationId,
+        name: custBy(r.customerId)?.billTo || custBy(r.customerId)?.name,
+        locName: locBy(r.customerId, r.locationId)?.name,
+        amount: r.amount || locPlan(custBy(r.customerId), locBy(r.customerId, r.locationId)).amount,
+        autoPay: locPlan(custBy(r.customerId), locBy(r.customerId, r.locationId)).autoPay,
+        expires: locPlan(custBy(r.customerId), locBy(r.customerId, r.locationId)).expires,
+        programId: locPlan(custBy(r.customerId), locBy(r.customerId, r.locationId)).programId,
+      } : null);
+      if (!row) return;
+      const m = renewalMeta(row);
       const c = custBy(row.customerId);
       const l = locBy(row.customerId, row.locationId);
-      const m = renewalMeta(row);
       if (l) l.renewalSent = TODAY;
       if (c) c.renewalSent = TODAY;
-      if (m.noticeOnly) {
-        state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal notice for ${row.locName} — no charge.` });
+      r.status = "SENT";
+      r.sent = true;
+      r.sentAt = TODAY;
+      if (m.noticeOnly || row.autoPay) {
+        state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal notice for ${row.locName}: ${r.proposedText}. AutoPay not charged.` });
       } else {
-        const inv = { id: nid("INV"), customerId: row.customerId, locationId: row.locationId, amount: row.amount, status: "sent", sent: TODAY, paidOn: null, kind: "renewal" };
+        const inv = { id: nid("INV"), customerId: row.customerId, locationId: row.locationId, contractId: r.contractId, amount: r.amount || row.amount, status: "sent", sent: TODAY, paidOn: null, kind: "renewal", description: r.proposedText };
         state.data.invoices.push(inv);
-        state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal ${inv.id} to ${row.name} · ${row.locName}.` });
+        state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal ${inv.id} to ${row.name} · ${row.locName}. No AutoPay charge.` });
       }
     });
-    const n = ids.length;
+    const n = drafts.length;
     state.renewPick = [];
     state.modal = null;
-    toast(`Batch sent for ${n} propert${n === 1 ? "y" : "ies"}. Same letter, own invoice each. Odd amounts were not included.`);
+    toast(`Approved & sent ${n} renewal${n === 1 ? "" : "s"} after review. No AutoPay charges.`);
+    render();
+  }
+
+  function openManualInvoice(customerId, locationId) {
+    if (!can("invoice.create") && state.role !== "owner") {
+      toast("Only Administration creates invoices.");
+      return;
+    }
+    const munis = (state.data.customers || []).filter((c) => c.municipal || c.type === "municipal");
+    const c = custBy(customerId) || munis[0];
+    if (!c) {
+      toast("No municipal customer on file.");
+      return;
+    }
+    const locs = c.locations || [];
+    const loc = locationId ? locBy(c.id, locationId) : locs[0];
+    state.modal = {
+      html: `
+        <h3>Manual municipal invoice</h3>
+        <p>Description, amount, PO #, and service period — separate from residential AutoPay flow.</p>
+        <div class="field"><label>Bill-To</label>
+          <select id="mi-cust">${munis.map((x) => `<option value="${x.id}" ${x.id === c.id ? "selected" : ""}>${esc(x.billTo || x.name)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Location</label>
+          <select id="mi-loc">${(locs.length ? locs : [{ id: "", name: "—" }]).map((l) => `<option value="${l.id}" ${loc && l.id === loc.id ? "selected" : ""}>${esc(l.name || "—")}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Description</label><input id="mi-desc" value="Municipal service — ${esc(TODAY.slice(0, 7))}"></div>
+        <div class="field"><label>Amount</label><input id="mi-amt" type="number" step="0.01" value="0"></div>
+        <div class="field"><label>PO #</label><input id="mi-po" value="${esc(c.po || "")}"></div>
+        <div class="field"><label>Service period</label><input id="mi-period" value="August 2026" placeholder="e.g. August 2026"></div>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="save-manual-invoice">Create invoice</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function saveManualInvoice() {
+    if (!can("invoice.create") && state.role !== "owner") return;
+    const cid = val("mi-cust");
+    const c = custBy(cid);
+    if (!c) {
+      toast("Pick a municipal Bill-To.");
+      return;
+    }
+    const lid = val("mi-loc") || c.locations?.[0]?.id || null;
+    const amt = Number(val("mi-amt"));
+    const inv = {
+      id: nid("INV"), customerId: cid, locationId: lid, amount: Number.isFinite(amt) ? amt : 0,
+      status: "sent", sent: TODAY, paidOn: null, kind: "municipal",
+      description: val("mi-desc") || "Municipal service",
+      po: val("mi-po") || c.po || "",
+      period: val("mi-period") || "",
+    };
+    state.data.invoices.push(inv);
+    state.data.comms.push({
+      id: nid("CM"), customerId: cid, who: role().name, channel: "Office", date: TODAY,
+      text: `Manual municipal invoice ${inv.id}: ${inv.description} · ${money(inv.amount)} · PO ${inv.po} · ${inv.period}.`,
+    });
+    state.modal = null;
+    toast(`Invoice ${inv.id} created · ${money(inv.amount)} · PO ${inv.po}.`);
     render();
   }
 
@@ -4736,7 +5655,7 @@
           <div class="field"><label>Mobile</label><input id="eb-mobile" value="${esc(c.mobile || "")}"></div>
           <div class="field"><label>Email</label><input id="eb-email" value="${esc(c.email || "")}"></div>
           <div class="field"><label>Status</label>
-            <select id="eb-status">${[["inquiry","Inquiry"],["active","Active"],["renewal","Renewal window"],["past_due","Past due"],["lapsed","Non-renewed"]].map(([v, lab]) => `<option value="${v}" ${c.status === v ? "selected" : ""}>${lab}</option>`).join("")}</select>
+            <select id="eb-status">${[["inquiry","Inquiry"],["waiting_payment","Waiting for payment"],["active","Active"],["renewal","Renewal window"],["past_due","Past due"],["lapsed","Non-renewed"]].map(([v, lab]) => `<option value="${v}" ${c.status === v ? "selected" : ""}>${lab}</option>`).join("")}</select>
           </div>
         </div>
         <div class="field"><label>Customer instructions</label><textarea id="eb-notes" rows="3">${esc(c.notes || "")}</textarea></div>
@@ -4987,9 +5906,9 @@
       requestService: true,
       requestedAt: Date.now(),
       manualPin: true,
+      lifecycle: "inquiry",
     };
     c.locations.push(loc);
-    if (state.role === "admin" || state.role === "sales") handOffToOps(c);
     state.data.comms.push({ id: nid("CM"), customerId: id, who: role().name, channel: "Phone", date: TODAY, text: `Added property ${loc.name} — ${loc.address} · ${loc.gps}. Quote next; invoice after they choose a plan.` });
     state.modal = null;
     toast(`${loc.name} added · ${loc.gps}. Next: send a quote for this property.`);
@@ -5307,19 +6226,21 @@
     const c = custBy(inv.customerId);
     const focus = state.payFocusId ? (state.data.payments || []).find((p) => p.id === state.payFocusId) : null;
     const methodDefault = focus?.method || "Check";
+    const bal = invoiceBalance(inv);
     state.modal = {
       html: `
-        <h3>Mark invoice paid · ${esc(inv.id)}</h3>
-        <p>Payment is already on the register${focus ? ` (${esc(focus.method)}${focus.last4 ? " ····" + esc(focus.last4) : ""})` : ""}. Confirm here so Rick can create the service for this property.</p>
-        <div class="preview"><strong>${esc(inv.id)}</strong> · Bill-To ${esc(c?.billTo || c?.name || "")} · ${esc(invProperty(inv))} · ${money(inv.amount)} · ${esc(inv.status)}</div>
-        <div class="field"><label>Method on the register</label>
+        <h3>Allocate payment · ${esc(inv.id)}</h3>
+        <p>Post / confirm allocation to this invoice. When balance reaches zero the contract becomes <strong>ACTIVE</strong> and Rick can create service.</p>
+        <div class="preview"><strong>${esc(inv.id)}</strong> · Bill-To ${esc(c?.billTo || c?.name || "")} · ${esc(invProperty(inv))} · Amount ${money(inv.amount)} · Paid ${money(allocated(inv.id))} · Balance ${money(bal)} · ${esc(invoiceFinStatus(inv))}</div>
+        <div class="field"><label>Method</label>
           <select id="rp-method">${pay().optionsHtml(methodDefault)}</select>
         </div>
+        <div class="field"><label>Amount to allocate</label><input id="rp-amt" type="number" step="0.01" value="${esc(focus?.amount || bal)}"></div>
         <div class="field"><label>Reference / check # / last 4</label><input id="rp-check" value="${esc(focus?.last4 || focus?.checkNo || "")}" placeholder="optional"></div>
-        <div class="field"><label>Memo</label><textarea id="rp-memo" rows="2">${esc(focus?.memo || "Christy marked invoice paid — hand off to Rick")}</textarea></div>
+        <div class="field"><label>Memo</label><textarea id="rp-memo" rows="2">${esc(focus?.memo || "Payment allocated — activate service when paid in full")}</textarea></div>
         <div class="actions">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
-          ${btn("payment.post", "Mark invoice paid", "confirm-record-pay", `data-id="${inv.id}"`)}
+          ${btn("payment.post", "Save allocation", "confirm-record-pay", `data-id="${inv.id}"`)}
         </div>
       `,
     };
@@ -5328,12 +6249,13 @@
 
   function confirmRecordPay(invId) {
     const inv = state.data.invoices.find((i) => i.id === invId);
-    if (!applyInvoicePayment(inv, val("rp-method") || "Check", val("rp-memo"), val("rp-check"))) {
-      toast("Could not mark paid.");
+    const amt = Number(val("rp-amt"));
+    if (!applyInvoicePayment(inv, val("rp-method") || "Check", val("rp-memo"), val("rp-check"), Number.isFinite(amt) ? amt : undefined)) {
+      toast("Could not allocate payment.");
       return;
     }
     state.modal = null;
-    toast(`${inv.id} is paid. Ops is notified — service can go on.`);
+    toast(`${inv.id} · ${invoiceFinStatus(inv)} · balance ${money(invoiceBalance(inv))}`);
     render();
   }
 
@@ -5341,25 +6263,30 @@
     if (!can("payment.post")) return;
     const due = unpaidInvoices();
     if (!due.length) {
-      toast("No open invoices. Create/send a bill first, then add the payment to the register.");
+      toast("No open invoices. Create/send a bill first, then post payment.");
       return;
     }
     const selected = preCust ? (due.find((i) => i.customerId === preCust)?.id || due[0].id) : due[0].id;
+    const selInv = due.find((i) => i.id === selected) || due[0];
     state.modal = {
       html: `
-        <h3>Add payment to register</h3>
-        <p>Christy’s team uses this. Attach the payment to the Bill-To invoice (link pay or external). It does <strong>not</strong> mark the invoice paid — Christy does that from the register.</p>
+        <h3>Record payment (direct post)</h3>
+        <p>One step: payment lands on the register <strong>and</strong> allocates to the invoice. Full pay activates the contract for Ops.</p>
         <div class="field"><label>Invoice</label>
-          <select id="np-inv">${due.map((i) => `<option value="${i.id}" ${i.id === selected ? "selected" : ""}>${esc(invOptionLabel(i))}</option>`).join("")}</select>
+          <select id="np-inv">${due.map((i) => `<option value="${i.id}" ${i.id === selected ? "selected" : ""}>${esc(invOptionLabel(i))} · bal ${money(invoiceBalance(i))}</option>`).join("")}</select>
         </div>
-        <div class="field"><label>How the money arrived</label>
-          <select id="np-method">${pay().optionsHtml("Check")}</select>
+        <div class="field"><label>Source</label>
+          <select id="np-source"><option value="EXTERNAL">External / manual</option><option value="ONLINE">Online payment link</option><option value="AUTOPAY">AutoPay</option></select>
         </div>
+        <div class="field"><label>Method</label>
+          <select id="np-method">${pay().optionsHtml("Check")}<option>Virtual Credit Card</option></select>
+        </div>
+        <div class="field"><label>Amount</label><input id="np-amt" type="number" step="0.01" value="${esc(invoiceBalance(selInv))}"></div>
         <div class="field"><label>Reference / check # / last 4</label><input id="np-check" placeholder="optional"></div>
-        <div class="field"><label>Memo</label><textarea id="np-memo" rows="2">On register — awaiting Christy to mark invoice paid</textarea></div>
+        <div class="field"><label>Memo</label><textarea id="np-memo" rows="2">Direct payment posted to invoice</textarea></div>
         <div class="actions">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
-          <button class="btn btn-primary" data-act="save-new-pay">Add to payment register</button>
+          <button class="btn btn-primary" data-act="save-new-pay">Save payment</button>
         </div>
       `,
     };
@@ -5369,21 +6296,25 @@
   function saveNewPay() {
     if (!can("payment.post")) return;
     const inv = state.data.invoices.find((i) => i.id === val("np-inv"));
-    if (!inv || inv.status === "paid") {
+    if (!inv || invoiceFinStatus(inv) === "PAID") {
       toast("Pick an open invoice.");
       return;
     }
     const method = val("np-method") || "Check";
     const checkNo = val("np-check") || "";
-    const src = pay().sourceOf(method);
-    state.data.payments.push({
-      id: nid("P"), invoiceId: inv.id, customerId: inv.customerId, locationId: inv.locationId || null, amount: inv.amount,
+    const amt = Number(val("np-amt"));
+    const src = val("np-source") || "EXTERNAL";
+    const p = {
+      id: nid("P"), invoiceId: inv.id, customerId: inv.customerId, locationId: inv.locationId || null,
+      amount: Number.isFinite(amt) && amt > 0 ? amt : invoiceBalance(inv),
       method, date: TODAY, checkNo, last4: String(checkNo || "").slice(-4),
-      source: src, linkPay: pay().isAuto(method), invoiceMarked: false, posted: true,
-      memo: val("np-memo") || `On register · ${method} · ${inv.id}`,
-    });
+      source: src, linkPay: src === "ONLINE" || src === "AUTOPAY", invoiceMarked: false, posted: true, status: "POSTED",
+      memo: val("np-memo") || `Posted · ${method} · ${inv.id}`,
+    };
+    state.data.payments.push(p);
+    allocatePaymentToInvoice(p, inv, p.amount);
     state.modal = null;
-    toast(`${inv.id} is on the payment register. Open it and mark the invoice paid.`);
+    toast(`${inv.id} · ${invoiceFinStatus(inv)} · balance ${money(invoiceBalance(inv))}`);
     render();
   }
 

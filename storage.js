@@ -1,8 +1,14 @@
 (() => {
   "use strict";
 
-  const DATA_KEY = "iguana-crm-data-v5";
+  const DATA_KEY = "iguana-crm-data-v7";
   const SESSION_KEY = "iguana-crm-session-v2";
+
+  const ARRAY_KEYS = [
+    "customers", "quotes", "invoices", "payments", "stops", "comms", "mtos", "mail",
+    "documents", "users", "holidays", "commissions", "traps", "inbound", "services",
+    "contracts", "billingPlans", "billingPeriods", "paymentAllocations", "autopayAuthorizations", "renewals",
+  ];
 
   function load(seedFn) {
     const base = seedFn();
@@ -10,14 +16,18 @@
       const raw = localStorage.getItem(DATA_KEY);
       if (!raw) return base;
       const saved = JSON.parse(raw);
-      return {
+      const out = {
         ...base,
         ...saved,
         settings: { ...base.settings, ...(saved.settings || {}) },
         templates: { ...base.templates, ...(saved.templates || {}) },
         integrations: { ...base.integrations, ...(saved.integrations || {}) },
-        inbound: Array.isArray(saved.inbound) ? saved.inbound : (base.inbound || []),
       };
+      ARRAY_KEYS.forEach((k) => {
+        if (!Array.isArray(out[k])) out[k] = Array.isArray(base[k]) ? base[k] : [];
+      });
+      if (!Array.isArray(saved.inbound)) out.inbound = base.inbound || [];
+      return out;
     } catch {
       return base;
     }
