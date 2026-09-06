@@ -7,7 +7,8 @@
   const ARRAY_KEYS = [
     "customers", "quotes", "invoices", "payments", "stops", "comms", "mtos", "mail",
     "documents", "users", "holidays", "commissions", "traps", "inbound", "services",
-    "contracts", "billingPlans", "billingPeriods", "paymentAllocations", "autopayAuthorizations", "renewals",
+    "contracts", "billingPlans", "billingPeriods", "paymentAllocations", "autopayAuthorizations",
+    "renewals", "notifications", "tasks",
   ];
 
   function load(seedFn) {

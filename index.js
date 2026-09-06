@@ -125,6 +125,7 @@
     { id: "documents", label: "Documents", group: "Administration", icon: "file", roles: ["owner", "ops", "admin"] },
     { id: "comms", label: "Communication log", group: "Administration", icon: "chat", roles: ["owner", "ops", "admin"] },
     { id: "mtos", label: "Memo to Office", group: "Internal", icon: "memo", roles: ["owner", "ops", "admin"] },
+    { id: "tasks", label: "Tasks", group: "Internal", icon: "list", roles: ["owner", "ops", "admin"] },
     { id: "reports", label: "Reports", group: "Reporting", icon: "chart", roles: ["owner", "ops", "admin"] },
     { id: "users", label: "Users", group: "System", icon: "users", roles: ["sysadmin", "owner"] },
     { id: "lists", label: "Configurable lists", group: "System", icon: "list", roles: ["sysadmin", "owner"] },
@@ -148,6 +149,7 @@
     "schedule.reassign": ["ops"],
     "schedule.generate": ["ops"],
     "service.create": ["ops"],
+    "service.edit": ["ops", "owner"],
     "trap.update": ["ops"],
     "location.add": ["admin", "sales", "ops"],
     "location.request": ["admin", "ops"],
@@ -156,6 +158,8 @@
     "blackout.edit": ["ops", "sysadmin"],
     "docs.upload": ["admin", "ops"],
     "mto.reply": ["ops", "admin"],
+    "task.create": ["owner", "ops", "admin"],
+    "task.complete": ["owner", "ops", "admin"],
     "users.manage": ["sysadmin", "owner"],
     "lists.edit": ["sysadmin", "owner"],
     "settings.edit": ["sysadmin", "owner"],
@@ -172,14 +176,15 @@
   ];
 
   const SERVICE_TYPES = [
-    { id: "1mon-res", code: "1 - 1 MON RES", label: "1-month residential", type: "res", duration: 10, months: 1 },
-    { id: "3mon-res", code: "3 - 3 MON RES", label: "3-month residential", type: "res", duration: 15, months: 3 },
-    { id: "6mon-res", code: "6 - 6 MON RES", label: "6-month residential", type: "res", duration: 20, months: 6 },
-    { id: "12mon-res", code: "12 - 12 MON RES", label: "12-month residential", type: "res", duration: 20, months: 12 },
-    { id: "1mon-com", code: "1 - 1 MON COM", label: "Commercial", type: "com", duration: 20, months: 1 },
-    { id: "hoa-2wk", code: "HOA 2 WK", label: "HOA / community", type: "hoa", duration: 45, months: 0.5 },
-    { id: "muni", code: "MUNI PARK", label: "Municipal / park", type: "muni", duration: 180, months: 12 },
-    { id: "callback", code: "CALLBACK", label: "Callback", type: "callback", duration: 10, months: 0 },
+    { id: "1mon-res", code: "1 - 1 MON RES", label: "1-month residential", desc: "Monitoring — 1 month — Residential (<½ acre)", type: "res", duration: 10, months: 1, price: 300, freq: "WEEKLY" },
+    { id: "3mon-res", code: "3 - 3 MON RES", label: "3-month residential", desc: "Monitoring — 3 months — Residential", type: "res", duration: 15, months: 3, price: 800, freq: "WEEKLY" },
+    { id: "6mon-res", code: "6 - 6 MON RES", label: "6-month residential", desc: "Monitoring — 6 months — Residential", type: "res", duration: 20, months: 6, price: 1200, freq: "BI-WEEKLY" },
+    { id: "12mon-res", code: "12 - 12 MON RES", label: "12-month residential", desc: "Monitoring — 1 year — Residential", type: "res", duration: 20, months: 12, price: 2000, freq: "BI-WEEKLY" },
+    { id: "1mon-com", code: "1 - 1 MON COM", label: "1-month commercial", desc: "Monitoring — 1 month — Commercial", type: "com", duration: 20, months: 1, price: 450, freq: "WEEKLY" },
+    { id: "12mon-com", code: "12 - 1YR COM", label: "12-month commercial", desc: "Monitoring — 1 year — Commercial", type: "com", duration: 30, months: 12, price: 3600, freq: "BI-WEEKLY" },
+    { id: "hoa-2wk", code: "HOA 2 WK", label: "HOA / 2-week (4 visits)", desc: "HOA / community — every 2 weeks · 4 visits", type: "hoa", duration: 45, months: 0.5, price: 180, freq: "EVERY 2 WEEKS" },
+    { id: "muni", code: "MUNI PARK", label: "Municipal / park", desc: "Municipal / park monitoring", type: "muni", duration: 180, months: 12, price: 0, freq: "WEEKLY" },
+    { id: "callback", code: "CALLBACK", label: "Callback / one-off", desc: "One-off callback visit", type: "callback", duration: 10, months: 0, price: 0, freq: "ONE-TIME" },
   ];
   const SERVICE_SCHEDULES = [
     { id: "WK-MOWE", label: "WK - MO WE", days: "Mon/Wed" },
@@ -192,10 +197,14 @@
   const TARGETS = ["IGUANA", "TEGU", "IGUANA / TEGU"];
   const CHARGE_MODES = ["Production", "Flat", "Recurring"];
   const TASK_TYPES = [
-    { id: "garage", label: "Animal in garage / live call" },
-    { id: "inspect", label: "Inspection" },
-    { id: "meeting", label: "Client meeting" },
-    { id: "other", label: "Other one-off" },
+    { id: "toilet", label: "Iguana in toilet / bathroom", duration: 25 },
+    { id: "garage", label: "Animal in garage", duration: 25 },
+    { id: "closet", label: "In closet / inside house", duration: 30 },
+    { id: "office", label: "Office / commercial call-in", duration: 35 },
+    { id: "yard", label: "Yard / pool cage", duration: 20 },
+    { id: "inspect", label: "Inspection", duration: 20 },
+    { id: "meeting", label: "Client meeting", duration: 30 },
+    { id: "other", label: "Other live call", duration: 25 },
   ];
 
   const PROGRAMS = [
@@ -663,6 +672,13 @@
       notifications: [
         { id: "N-1", type: "AUTOPAY_FAILED", severity: "alert", title: "AutoPay declined", text: "Harbor Oaks · Campus · CARD_DECLINED ····3301. Contact customer — post external payment, then generate the next billing period manually.", customerId: "C-1066", locationId: "L-1066a", invoiceId: "INV-4488", date: "2026-08-26", read: false },
       ],
+      tasks: [
+        { id: "TSK-1", customerId: "C-1066", locationId: "L-1066a", title: "Call Harbor Oaks about declined AutoPay", notes: "Card ····3301 declined. Ask for Zelle/check, then allocate and generate next period.", createdBy: "admin", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
+        { id: "TSK-2", customerId: "C-1188", locationId: "L-1188a", title: "Allocate Nina residence payment", notes: "Portal payment is on the register — allocate so Rick can create service on that property only.", createdBy: "owner", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-27" },
+        { id: "TSK-3", customerId: "C-1188", locationId: "L-1188a", title: "Create service after Nina Residence is paid", notes: "Wait for Christy to allocate. Then create service and assign on the map.", createdBy: "admin", assignee: "ops", due: "2026-08-28", priority: "normal", status: "open", createdAt: "2026-08-27" },
+        { id: "TSK-4", customerId: "C-1091", locationId: "L-1091a", title: "Review Sarah Chen renewal amount", notes: "Odd / confirm prepaid vs monthly before send.", createdBy: "admin", assignee: "owner", due: "2026-08-28", priority: "normal", status: "open", createdAt: "2026-08-20" },
+        { id: "TSK-5", customerId: "C-1042", locationId: "L-1042b", title: "Confirm Labor Day skip for Diane rental", notes: "Ops note on account — confirm with Diane and update schedule if needed.", createdBy: "ops", assignee: "ops", due: "2026-08-29", priority: "normal", status: "done", createdAt: "2026-08-18", completedAt: "2026-08-19" },
+      ],
       mail: [],
       services: [
         { id: "SVC-1042a", customerId: "C-1042", locationId: "L-1042a", type: "12mon-res", status: "live", techId: "johnny", days: "Mon/Wed", durationMin: 20, generated: true, schedule: "WK-MOWE", target: "IGUANA", charge: "Production", start: "2026-03-01", expires: "2027-03-01", renewal: "2027-03-01" },
@@ -774,6 +790,12 @@
     mapDay: null,
     mapClient: null,
     mapLoc: null,
+    mapCompare: [],
+    mapPin: null,
+    mapColorBy: "tech",
+    mapSched: null,
+    oneoffDraft: null,
+    oneoffDay: null,
     inboundId: session.inboundId || null,
     locCount: 1,
     renewPick: [],
@@ -792,7 +814,7 @@
     return NAV.some((n) => n.id === id && (n.roles || []).includes(state.role));
   }
   function isRecordPage(id) {
-    return id === "customer" || id === "add-customer";
+    return id === "customer" || id === "add-customer" || id === "create-service" || id === "create-oneoff";
   }
   function resolveWho(id) {
     if (ROLES[id]) return id;
@@ -823,7 +845,7 @@
   function ensureData() {
     if (!state.data) state.data = seed();
     const d = state.data;
-    ["customers", "quotes", "invoices", "payments", "stops", "comms", "mtos", "mail", "documents", "users", "holidays", "commissions", "traps", "inbound", "services", "contracts", "billingPlans", "billingPeriods", "paymentAllocations", "autopayAuthorizations", "renewals", "notifications"].forEach((k) => {
+    ["customers", "quotes", "invoices", "payments", "stops", "comms", "mtos", "mail", "documents", "users", "holidays", "commissions", "traps", "inbound", "services", "contracts", "billingPlans", "billingPeriods", "paymentAllocations", "autopayAuthorizations", "renewals", "notifications", "tasks"].forEach((k) => {
       if (!Array.isArray(d[k])) d[k] = [];
     });
     if (!d.settings) d.settings = { commissionPct: 2, renewalWindow: 60, reminder: "email", extraReasons: [] };
@@ -1112,6 +1134,179 @@
 
   function unreadNotifications() {
     return (state.data.notifications || []).filter((n) => !n.read);
+  }
+
+  const TASK_ASSIGNEES = [
+    { id: "owner", label: "Tom (Owner)" },
+    { id: "ops", label: "Rick (Operations)" },
+    { id: "admin", label: "Christy (Administration)" },
+  ];
+
+  function taskAssigneeLabel(id) {
+    return TASK_ASSIGNEES.find((a) => a.id === id)?.label || id || "—";
+  }
+
+  function taskPriorityBadge(p) {
+    if (p === "urgent") return `<span class="badge badge-bad">Urgent</span>`;
+    if (p === "high") return `<span class="badge badge-warn">High</span>`;
+    return `<span class="badge badge-mute">Normal</span>`;
+  }
+
+  function tasksForCustomer(cid) {
+    return (state.data.tasks || [])
+      .filter((t) => t.customerId === cid)
+      .slice()
+      .sort((a, b) => {
+        if (a.status !== b.status) return a.status === "open" ? -1 : 1;
+        return String(a.due || "").localeCompare(String(b.due || ""));
+      });
+  }
+
+  function myOpenTasks() {
+    const me = state.role;
+    return (state.data.tasks || [])
+      .filter((t) => t.status === "open" && t.assignee === me)
+      .slice()
+      .sort((a, b) => String(a.due || "").localeCompare(String(b.due || "")));
+  }
+
+  function openCreateTask(customerId, locationId) {
+    if (!can("task.create")) {
+      toast("Only Tom, Rick, or Christy can create tasks.");
+      return;
+    }
+    const customers = (state.data.customers || []).filter((c) => c.status !== "lapsed");
+    const selected = customerId || state.selectedCustomer || customers[0]?.id || "";
+    const c = custBy(selected);
+    const locs = c?.locations || [];
+    const defaultAssignee = state.role === "admin" ? "ops" : state.role === "ops" ? "admin" : "admin";
+    state.modal = {
+      html: `
+        <h3>Create task</h3>
+        <p>Assign work about a customer to Tom, Rick, or Christy. The task stays on that Bill-To.</p>
+        <div class="field"><label>Customer (Bill-To)</label>
+          <select id="tk-cust" data-act="task-cust-change">${customers.map((x) => `<option value="${x.id}" ${x.id === selected ? "selected" : ""}>${esc(x.billTo || x.name)} · ${esc(x.id)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Property (optional)</label>
+          <select id="tk-loc"><option value="">Whole Bill-To</option>${locs.map((l) => `<option value="${l.id}" ${l.id === locationId ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Assign to</label>
+          <select id="tk-assignee">${TASK_ASSIGNEES.map((a) => `<option value="${a.id}" ${a.id === defaultAssignee ? "selected" : ""}>${esc(a.label)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Title</label><input id="tk-title" placeholder="e.g. Call about declined AutoPay"></div>
+        <div class="field"><label>Notes</label><textarea id="tk-notes" rows="3" placeholder="What they need to do"></textarea></div>
+        <div class="field"><label>Due</label><input id="tk-due" type="date" value="${TODAY}"></div>
+        <div class="field"><label>Priority</label>
+          <select id="tk-priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select>
+        </div>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="save-task">Create task</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function refreshTaskLocOptions() {
+    const cid = val("tk-cust");
+    const c = custBy(cid);
+    const sel = document.getElementById("tk-loc");
+    if (!sel) return;
+    const locs = c?.locations || [];
+    sel.innerHTML = `<option value="">Whole Bill-To</option>${locs.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}`;
+  }
+
+  function saveTask() {
+    if (!can("task.create")) return;
+    const customerId = val("tk-cust");
+    const title = (val("tk-title") || "").trim();
+    if (!customerId || !title) {
+      toast("Pick a customer and enter a title.");
+      return;
+    }
+    const assignee = val("tk-assignee") || "admin";
+    const task = {
+      id: nid("TSK"),
+      customerId,
+      locationId: val("tk-loc") || null,
+      title,
+      notes: (val("tk-notes") || "").trim(),
+      createdBy: state.role,
+      assignee,
+      due: val("tk-due") || TODAY,
+      priority: val("tk-priority") || "normal",
+      status: "open",
+      createdAt: TODAY,
+      completedAt: null,
+    };
+    if (!Array.isArray(state.data.tasks)) state.data.tasks = [];
+    state.data.tasks.unshift(task);
+    pushNotify({
+      type: "TASK",
+      severity: "info",
+      title: `Task for ${taskAssigneeLabel(assignee)}`,
+      text: `${title} · ${custBy(customerId)?.billTo || customerId} · due ${task.due}`,
+      customerId,
+      locationId: task.locationId,
+    });
+    state.modal = null;
+    toast(`Task created for ${taskAssigneeLabel(assignee)}.`);
+    render();
+  }
+
+  function completeTask(id) {
+    if (!can("task.complete")) return;
+    const t = (state.data.tasks || []).find((x) => x.id === id);
+    if (!t) return;
+    t.status = "done";
+    t.completedAt = TODAY;
+    toast("Task marked done.");
+    render();
+  }
+
+  function reopenTask(id) {
+    if (!can("task.complete")) return;
+    const t = (state.data.tasks || []).find((x) => x.id === id);
+    if (!t) return;
+    t.status = "open";
+    t.completedAt = null;
+    toast("Task reopened.");
+    render();
+  }
+
+  function taskRowActions(t) {
+    if (!can("task.complete")) return "—";
+    if (t.status === "open") {
+      return `<button class="btn btn-sun" data-act="complete-task" data-id="${t.id}">Done</button>`;
+    }
+    return `<button class="btn btn-ghost" data-act="reopen-task" data-id="${t.id}">Reopen</button>`;
+  }
+
+  function taskListHtml(list, emptyMsg) {
+    if (!list.length) return `<p class="muted">${esc(emptyMsg || "No tasks.")}</p>`;
+    return list.map((t) => {
+      const c = custBy(t.customerId);
+      const loc = t.locationId ? locBy(t.customerId, t.locationId) : null;
+      const doneBadge = t.status === "done" ? `<span class="badge badge-ok">Done</span>` : `<span class="badge badge-sea">Open</span>`;
+      return `<div class="fit-row ${t.status === "open" && (t.priority === "high" || t.priority === "urgent") ? "queue-new" : ""}">
+        <div>
+          ${doneBadge}
+          ${taskPriorityBadge(t.priority)}
+          <strong>${esc(t.title)}</strong>
+          <div class="tiny">
+            ${c ? `<button class="btn btn-ghost linkish" data-act="open-customer" data-id="${c.id}">${esc(c.billTo || c.name)}</button>` : "—"}
+            ${loc ? ` · ${esc(loc.name)}` : ""}
+            · Due ${esc(t.due || "—")} · To ${esc(taskAssigneeLabel(t.assignee))} · From ${esc(taskAssigneeLabel(t.createdBy))}
+          </div>
+          ${t.notes ? `<div class="tiny">${esc(t.notes)}</div>` : ""}
+        </div>
+        <div class="actions">
+          ${c ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Customer</button>` : ""}
+          ${taskRowActions(t)}
+        </div>
+      </div>`;
+    }).join("");
   }
 
   function clearAutopayException(customerId, locationId, invoiceId) {
@@ -1460,7 +1655,7 @@
   function miniMapHtml({ existing = [], preview = [], caption, drag = false, mapId = "mini-map", title = "Map preview" } = {}) {
     const homes = TECHS.map((t) => `<div class="pin home-pin mini" style="left:${t.x};top:${t.y}" title="${esc(t.name)} home"><div class="pin-dot" style="background:${t.color}"></div></div>`);
     const old = existing.map((p) => `<div class="pin mini" style="left:${p.x};top:${p.y}"><div class="pin-dot" style="background:${p.color || "#8a8680"}"></div><span>${esc(p.label || "")}</span></div>`);
-    const next = preview.map((p) => `<div class="pin mini client ${p.elId || "preview"} ${p.elId === "mini-preview2" ? "ghost" : ""}" id="${p.elId || "mini-preview"}" ${drag ? `data-drag-mini="1" data-x="${p.xId || "al-x"}" data-y="${p.yId || "al-y"}" data-fill-city="${p.fillCity || ""}" data-fill-street="${p.fillStreet || ""}" data-fill-zip="${p.fillZip || ""}" data-fill-lat="${p.fillLat || ""}" data-fill-lng="${p.fillLng || ""}" data-cap="${p.capId || "mini-cap"}"` : ""} style="left:${p.x};top:${p.y}"><div class="pin-dot"></div><span>${esc(p.label || "New location")}</span></div>`);
+    const next = preview.map((p) => `<div class="pin mini client ${p.elId || "preview"} ${p.elId === "mini-preview2" ? "ghost" : ""}" id="${p.elId || "mini-preview"}" ${drag ? `data-drag-mini="1" data-x="${p.xId || "al-x"}" data-y="${p.yId || "al-y"}" data-fill-city="${p.fillCity || ""}" data-fill-street="${p.fillStreet || ""}" data-fill-zip="${p.fillZip || ""}" data-fill-lat="${p.fillLat || ""}" data-fill-lng="${p.fillLng || ""}" data-cap="${p.capId || "mini-cap"}"${p.keepLabel ? ' data-keep-label="1"' : ""}` : ""} style="left:${p.x};top:${p.y}"><div class="pin-dot"></div><span>${esc(p.label || "New location")}</span></div>`);
     const capId = preview[0]?.capId || "mini-cap";
     return `
       <div class="mini-map-box">
@@ -1492,6 +1687,32 @@
   }
   function svcsFor(cid, lid) {
     return (state.data.services || []).filter((s) => s.customerId === cid && s.locationId === lid && s.status !== "cancelled");
+  }
+  function servicesForCustomer(cid) {
+    return (state.data.services || [])
+      .filter((s) => s.customerId === cid)
+      .slice()
+      .sort((a, b) => {
+        const aLive = svcIsContinuing(a) ? 0 : 1;
+        const bLive = svcIsContinuing(b) ? 0 : 1;
+        if (aLive !== bLive) return aLive - bLive;
+        return String(b.start || "").localeCompare(String(a.start || ""));
+      });
+  }
+  function svcIsContinuing(s) {
+    if (!s || s.status === "cancelled" || s.status === "ended" || s.cancelDate) return false;
+    return ["live", "new", "active"].includes(s.status) || (!s.status && !s.cancelDate);
+  }
+  function svcStatusBadge(s) {
+    if (!s) return "";
+    if (s.status === "cancelled" || s.cancelDate) return `<span class="badge badge-bad">Cancelled</span>`;
+    if (s.status === "ended") return `<span class="badge badge-mute">Ended</span>`;
+    if (!s.techId) return `<span class="badge badge-warn">Needs trapper</span>`;
+    if (s.status === "new") return `<span class="badge badge-sea">New</span>`;
+    return `<span class="badge badge-ok">Continuing</span>`;
+  }
+  function canEditService() {
+    return can("service.edit") || can("service.create") || can("schedule.reassign") || can("schedule.assign");
   }
   function svcTypeLabel(id) {
     const t = SERVICE_TYPES.find((x) => x.id === id);
@@ -1608,6 +1829,76 @@
     const mm = tot % 60;
     return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
   }
+  function timeToMin(t) {
+    const [h, m] = String(t || "08:00").split(":").map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+  function minToTime(n) {
+    const hh = Math.min(17, Math.max(7, Math.floor(n / 60)));
+    const mm = Math.max(0, n % 60);
+    return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  }
+  function stopCoords(s) {
+    if (s.x != null && s.y != null) return { x: s.x, y: s.y };
+    const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+    if (loc) return { x: loc.x, y: loc.y };
+    const t = techBy(s.techId);
+    return { x: t?.x || "50%", y: t?.y || "50%" };
+  }
+  function findInsertSlot(techId, day, durationMin) {
+    const need = (Number(durationMin) || 25) + 15;
+    const ss = state.data.stops
+      .filter((s) => s.techId === techId && s.day === day && !s.pending)
+      .slice()
+      .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    if (!ss.length) return { time: "09:00", gap: true, after: null, before: null, loadMin: 0 };
+    for (let i = 0; i < ss.length - 1; i++) {
+      const end = timeToMin(ss[i].time) + (ss[i].durationMin || 20);
+      const next = timeToMin(ss[i + 1].time);
+      if (next - end >= need) {
+        return { time: minToTime(end + 5), gap: true, after: ss[i], before: ss[i + 1], loadMin: ss.reduce((a, s) => a + (s.durationMin || 0), 0) };
+      }
+    }
+    const last = ss[ss.length - 1];
+    const t = timeToMin(last.time) + (last.durationMin || 20) + 18;
+    return {
+      time: minToTime(t),
+      gap: t <= 16 * 60,
+      after: last,
+      before: null,
+      loadMin: ss.reduce((a, s) => a + (s.durationMin || 0), 0),
+      late: t > 16 * 60,
+    };
+  }
+  function oneoffRankTechs(x, y, day, durationMin) {
+    return TECHS.map((t) => {
+      const homeMiles = distMiles(x, y, t.x, t.y);
+      const stops = state.data.stops
+        .filter((s) => s.techId === t.id && s.day === day && !s.pending)
+        .slice()
+        .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+      let routeMiles = homeMiles;
+      let nearStop = null;
+      stops.forEach((s) => {
+        const c = stopCoords(s);
+        const m = distMiles(x, y, c.x, c.y);
+        if (m < routeMiles) {
+          routeMiles = m;
+          nearStop = s;
+        }
+      });
+      const slot = findInsertSlot(t.id, day, durationMin);
+      const driveMin = Math.max(0, Math.round(routeMiles * 2.3));
+      const loadMin = stops.reduce((a, s) => a + (s.durationMin || 0), 0);
+      const heavy = loadMin >= 360;
+      const conflict = slot.late || (loadMin + (Number(durationMin) || 25) > 420);
+      return {
+        t, homeMiles, routeMiles, driveMin, nearStop, stops, slot,
+        loadMin, stopCount: stops.length, heavy, conflict,
+        score: routeMiles + (conflict ? 20 : 0) + (heavy ? 8 : 0),
+      };
+    }).sort((a, b) => a.score - b.score || a.homeMiles - b.homeMiles);
+  }
   function expiryFrom(start, typeId) {
     const t = SERVICE_TYPES.find((x) => x.id === typeId);
     if (!start || t == null || !t.months) return start || "";
@@ -1643,10 +1934,11 @@
       return { t, miles: extraMiles, homeMiles, mins: extraMin, already, route };
     }).sort((a, b) => a.miles - b.miles || a.homeMiles - b.homeMiles);
   }
-  function fitCardsHtml(ranked, picked) {
+  function fitCardsHtml(ranked, picked, target) {
     const pick = picked || ranked[0]?.t.id;
+    const tgt = target ? ` data-target="${esc(target)}"` : "";
     return ranked.map((r, i) => `
-      <button class="bestfit-card ${r.t.id === pick ? "pick" : ""}" type="button" data-act="sv-pick-fit" data-tech="${r.t.id}">
+      <button class="bestfit-card ${r.t.id === pick ? "pick" : ""}" type="button" data-act="sv-pick-fit" data-tech="${r.t.id}"${tgt}>
         <strong>${i === 0 ? "Suggested · " : ""}${esc(r.t.name)}</strong> · ${esc(r.t.home)}
         <div class="tiny">${r.already ? "Already in this pocket · 0 extra min" : `${r.miles} mi extra · ~${r.mins} min drive from nearest stop`} · ${r.homeMiles} mi from home</div>
         ${r.route.length ? `<div class="tiny">${r.route.map((s) => `${s.day} ${s.time} ${s.name}`).join(" → ")}</div>` : `<div class="tiny">Open day on this pattern.</div>`}
@@ -1654,14 +1946,25 @@
     `).join("");
   }
   function fillSetupDates() {
-    const start = val("sv-start");
+    const start = val("sv-start") || val("sv-idate");
     const exp = expiryFrom(start, val("sv-type"));
     const el = document.getElementById("sv-expires");
     const hid = document.getElementById("sv-renewal");
-    const next = document.getElementById("sv-nextgen");
     if (el) el.value = exp;
     if (hid) hid.value = exp;
-    if (next && start) next.value = start;
+  }
+  function applyServiceTypeDefaults() {
+    const t = SERVICE_TYPES.find((x) => x.id === val("sv-type"));
+    if (!t) return;
+    setInput("sv-dur", fmtDur(t.duration));
+    setInput("sv-idur", fmtDur(t.duration));
+    setInput("sv-price", Number(t.price || 0).toFixed(2));
+    setInput("sv-iprice", Number(t.price || 0).toFixed(2));
+    const desc = document.getElementById("sv-desc");
+    if (desc) desc.value = t.desc || t.label;
+    const freq = document.getElementById("sv-freq");
+    if (freq) freq.value = t.freq || "WEEKLY";
+    fillSetupDates();
   }
   function refreshSetupFit() {
     const c = custBy(state.setupId);
@@ -1672,28 +1975,107 @@
     state.setupLocId = loc.id;
     const ranked = bestFitFor(c, loc, sched.days);
     const box = document.getElementById("sv-fit");
-    if (box) box.innerHTML = fitCardsHtml(ranked, val("sv-trapper") || ranked[0]?.t.id);
-    const pin = document.getElementById("mini-preview");
+    if (box) box.innerHTML = fitCardsHtml(ranked, val("sv-trapper") || val("sv-initial") || ranked[0]?.t.id);
+    const pin = document.getElementById("sv-pin");
     if (pin && loc) {
       pin.style.left = loc.x;
       pin.style.top = loc.y;
       const span = pin.querySelector("span");
       if (span) span.textContent = loc.name;
     }
-    const cap = document.getElementById("mini-cap");
-    if (cap && loc) cap.textContent = loc.address;
+    setInput("sv-x", String(loc.x || "").replace("%", "") || "50");
+    setInput("sv-y", String(loc.y || "").replace("%", "") || "50");
+    if (loc.lat != null) setInput("sv-lat", loc.lat);
+    if (loc.lng != null) setInput("sv-lng", loc.lng);
+    const cap = document.getElementById("sv-map-cap");
+    if (cap && loc) {
+      const gps = loc.lat != null ? `${Number(loc.lat).toFixed(4)}, ${Number(loc.lng).toFixed(4)}` : (loc.gps || "");
+      cap.textContent = `${loc.address}${gps ? " · " + gps : ""} · drag the pin to adjust`;
+    }
   }
-  function pickSetupTrapper(techId) {
+  function captureCreateServiceDraft() {
+    if (state.page !== "create-service") return state.setupDraft || null;
+    if (!document.getElementById("sv-type") && !document.getElementById("sv-loc")) return state.setupDraft || null;
+    state.setupDraft = {
+      loc: val("sv-loc") || state.setupLocId,
+      type: val("sv-type"),
+      desc: val("sv-desc"),
+      qty: val("sv-qty"),
+      price: val("sv-price"),
+      tax: checked("sv-tax"),
+      createInitial: document.getElementById("sv-create-initial") ? checked("sv-create-initial") : true,
+      idate: val("sv-idate"),
+      freq: val("sv-freq"),
+      itime: val("sv-itime"),
+      ampm: val("sv-ampm"),
+      idur: val("sv-idur"),
+      iprice: val("sv-iprice"),
+      initial: val("sv-initial"),
+      sched: val("sv-sched"),
+      dur: val("sv-dur"),
+      start: val("sv-start"),
+      expires: val("sv-expires"),
+      target: val("sv-target"),
+      trapper: val("sv-trapper"),
+      notes: val("sv-notes"),
+      notifyEmail: document.getElementById("sv-notify-email") ? checked("sv-notify-email") : true,
+      notifyText: document.getElementById("sv-notify-text") ? checked("sv-notify-text") : true,
+    };
+    return state.setupDraft;
+  }
+  function pickSetupTrapper(techId, target) {
+    captureCreateServiceDraft();
+    if (!state.setupDraft) state.setupDraft = {};
+    const which = target || state.bestFitTarget || "";
+    if (which === "initial") state.setupDraft.initial = techId;
+    else if (which === "standing") state.setupDraft.trapper = techId;
+    else {
+      state.setupDraft.initial = techId;
+      state.setupDraft.trapper = techId;
+    }
+    state.modal = null;
+    state.bestFitTarget = null;
     const t = techBy(techId);
-    const trapper = document.getElementById("sv-trapper");
-    const initial = document.getElementById("sv-initial");
-    const route = document.getElementById("sv-route");
-    const color = document.getElementById("sv-color");
-    if (trapper) trapper.value = techId;
-    if (initial) initial.value = techId;
-    if (route) route.value = techId;
-    if (color && t) color.value = t.color;
-    document.querySelectorAll("#sv-fit .bestfit-card").forEach((b) => b.classList.toggle("pick", b.dataset.tech === techId));
+    const label = which === "initial" ? "initial trapper" : which === "standing" ? "standing trapper" : "trapper";
+    const msg = t ? `${t.name} · ${label}` : "Trapper selected";
+    state.toast = msg;
+    render();
+    setTimeout(() => {
+      if (state.toast === msg) {
+        state.toast = null;
+        render();
+      }
+    }, 2800);
+  }
+  function openSetupBestFit(target) {
+    captureCreateServiceDraft();
+    state.bestFitTarget = target || "standing";
+    const c = custBy(state.setupId || state.selectedCustomer);
+    const locId = state.setupDraft?.loc || val("sv-loc") || state.setupLocId;
+    const loc = c?.locations.find((l) => l.id === locId) || locBy(state.setupId, state.setupLocId);
+    if (!c || !loc) {
+      toast("Pick a property first.");
+      return;
+    }
+    const schedId = state.setupDraft?.sched || val("sv-sched");
+    const sched = SERVICE_SCHEDULES.find((s) => s.id === schedId) || SERVICE_SCHEDULES[0];
+    state.assignDays = sched?.days || state.assignDays;
+    const ranked = bestFitFor(c, loc, sched?.days || state.assignDays);
+    const current = state.bestFitTarget === "initial"
+      ? (state.setupDraft?.initial || "")
+      : (state.setupDraft?.trapper || "");
+    const label = state.bestFitTarget === "initial" ? "Initial trapper" : "Standing trapper";
+    state.modal = {
+      html: `
+        <h3>Best fit · ${esc(label)}</h3>
+        <p>${esc(loc.name)} · ${esc(sched?.label || loc.days || "")}. Closest by extra miles and drive time — pick one.</p>
+        <div class="bestfit" id="sv-fit">${fitCardsHtml(ranked, current || ranked[0]?.t.id, state.bestFitTarget)}</div>
+        <div class="actions" style="margin-top:12px">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+        </div>
+      `,
+    };
+    render();
   }
   function pushLiveStops(svc, c, loc) {
     const days = patternDays(svc.days);
@@ -1722,6 +2104,11 @@
     return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
   }
   function toast(msg) {
+    // Don't re-read the form while a modal is open — that would wipe draft picks.
+    if (!state.modal) {
+      captureCreateServiceDraft();
+      captureOneoffDraft();
+    }
     state.toast = msg;
     render();
     setTimeout(() => {
@@ -2100,6 +2487,8 @@
 
   function pageTitle() {
     if (state.page === "add-customer") return "Add customer";
+    if (state.page === "create-service") return "Service setup";
+    if (state.page === "create-oneoff") return "Live call-in";
     if (state.page === "customer" && state.selectedCustomer) return custBy(state.selectedCustomer)?.name || "Customer";
     if (state.page === "assign" && state.assignId) return "Assign · " + (custBy(state.assignId)?.name || "technician");
     return NAV.find((n) => n.id === state.page)?.label || "Dashboard";
@@ -2116,6 +2505,8 @@
 
   function pageBody() {
     if (state.page === "add-customer") return viewAddCustomer();
+    if (state.page === "create-service") return viewCreateService();
+    if (state.page === "create-oneoff") return viewCreateOneoff();
     if (state.page === "customer") return viewCustomer();
     if (!role()) return renderLogin();
     if (!canPage(state.page) && !isRecordPage(state.page)) {
@@ -2140,6 +2531,7 @@
       documents: viewDocuments,
       comms: viewComms,
       mtos: viewMtos,
+      tasks: viewTasks,
       traps: viewTraps,
       reports: viewReports,
       users: viewUsers,
@@ -2185,13 +2577,24 @@
     const paidToday = state.data.payments.filter((p) => p.date === TODAY && !p.failed && p.posted);
     const lapsed = state.data.customers.filter((c) => c.status === "lapsed");
     const outliers = durationRows().filter((r) => r.delta < -8);
+    const mine = myOpenTasks();
     return `
       ${head("Owner overview", "Contracts, money, and duration outliers — assembled from reports the system already produces (BRD §8).")}
+      ${mine.length ? `
+        <div class="card" style="margin-bottom:16px">
+          <h3>My tasks <span class="muted">${mine.length} open</span></h3>
+          ${taskListHtml(mine.slice(0, 5))}
+          <div class="actions" style="margin-top:10px">
+            <button class="btn btn-ghost" data-act="nav" data-page="tasks">All tasks</button>
+            ${btn("task.create", "Create task", "new-task")}
+          </div>
+        </div>
+      ` : `<div class="actions" style="margin-bottom:12px">${btn("task.create", "Create task", "new-task", "", "btn-ghost")}<button class="btn btn-ghost" data-act="nav" data-page="tasks">Tasks</button></div>`}
       <div class="grid-4">
         ${stat("Expiring in 60 days", expiring.length, "RPT-05 / NOT-03")}
         ${stat("Failed payments", failed.length, "NOT-02", "alert")}
         ${stat("Posted today", money(paidToday.reduce((s, p) => s + p.amount, 0)), "NOT-01", "good")}
-        ${stat("Non-renewals", lapsed.length, "RPT-06 · by technician")}
+        ${stat("My open tasks", mine.length, "Assigned to Tom", mine.length ? "alert" : "")}
       </div>
       <div class="split section-gap">
         <div class="card">
@@ -2215,8 +2618,19 @@
     const needTech = opsAssignQueue();
     const paid = state.data.payments.filter((p) => p.posted && !p.failed);
     const retrieve = (state.data.traps || []).filter((t) => t.status === "out" || t.status === "missing");
+    const mine = myOpenTasks();
     return `
       ${head("Dispatch board", "Payment register → create the service → assign on the map. Click a technician’s home to see every property on their book, then drop the new client there.")}
+      ${mine.length ? `
+        <div class="card" style="margin-bottom:16px">
+          <h3>My tasks <span class="muted">${mine.length} open · from Tom / Christy</span></h3>
+          ${taskListHtml(mine.slice(0, 5))}
+          <div class="actions" style="margin-top:10px">
+            <button class="btn btn-ghost" data-act="nav" data-page="tasks">All tasks</button>
+            ${btn("task.create", "Create task", "new-task")}
+          </div>
+        </div>
+      ` : ""}
       <div class="card" style="margin-bottom:16px">
         <h3>1 · Payment register <span class="muted">who paid · MOP · invoice · bill-to</span></h3>
         <p class="tiny">This is how the day starts. You do not post money — you use the paid invoice to open the location and create the service. Technician assignment happens on the map next.</p>
@@ -2320,8 +2734,19 @@
     const failedAuth = (state.data.autopayAuthorizations || []).filter((a) => a.status === "FAILED");
     const notes = unreadNotifications();
     const autopayPlans = (state.data.billingPlans || []).filter((bp) => bp.autopay).length;
+    const mine = myOpenTasks();
     return `
       ${head("Administration", "AutoPay pays + allocates + creates the next period automatically. You only work exceptions (declines) and non-AutoPay register lines.")}
+      ${mine.length ? `
+        <div class="card" style="margin-bottom:16px">
+          <h3>My tasks <span class="muted">${mine.length} open · from Tom / Rick</span></h3>
+          ${taskListHtml(mine.slice(0, 5))}
+          <div class="actions" style="margin-top:10px">
+            <button class="btn btn-ghost" data-act="nav" data-page="tasks">All tasks</button>
+            ${btn("task.create", "Create task", "new-task")}
+          </div>
+        </div>
+      ` : ""}
       ${notes.length ? `
         <div class="card" style="margin-bottom:16px">
           <h3>Notifications <span class="muted">${notes.length} unread</span></h3>
@@ -2547,6 +2972,140 @@
     return html;
   }
 
+  function viewCreateService() {
+    if (!can("service.create")) {
+      return `<div class="forbidden"><h2>Not on this role’s routes</h2><p>This role cannot create services.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
+    }
+    const c = custBy(state.setupId || state.selectedCustomer);
+    if (!c) return `<p>Customer not found.</p><button class="btn btn-ghost" data-act="nav" data-page="customers">← Customers</button>`;
+    const locs = c.locations.filter((l) => l.covered !== false);
+    const d = state.setupDraft || {};
+    const selected = d.loc || state.setupLocId || locs.find((l) => locNeedsService(c, l))?.id || locs[0]?.id;
+    const loc = locs.find((l) => l.id === selected) || locs[0];
+    const code = d.type || defaultServiceCode(c, loc);
+    const st = SERVICE_TYPES.find((t) => t.id === code) || SERVICE_TYPES[0];
+    const plan = locPlan(c, loc);
+    const start = d.start || plan.start || TODAY;
+    const expires = d.expires || expiryFrom(start, code) || plan.expires || "";
+    const sched = SERVICE_SCHEDULES.find((s) => s.id === (d.sched || ""))
+      || SERVICE_SCHEDULES.find((s) => s.days === (loc?.days || c.days || "Tue/Thu"))
+      || SERVICE_SCHEDULES.find((s) => s.id === "WK-TUTH")
+      || SERVICE_SCHEDULES[0];
+    state.assignDays = sched.days;
+    state.setupId = c.id;
+    state.setupLocId = loc?.id;
+    const price = d.price != null && d.price !== "" ? d.price : Number(st.price || 0).toFixed(2);
+    const iprice = d.iprice != null && d.iprice !== "" ? d.iprice : price;
+    const createInitial = d.createInitial !== false;
+    const techOpts = (sel) => `<option value="">— select or use Best fit —</option>${TECHS.map((t) => `<option value="${t.id}" ${sel === t.id ? "selected" : ""}>${esc(t.name.toUpperCase())} · ${esc(t.home)}</option>`).join("")}`;
+    return `
+      <div class="create-svc">
+        <button class="btn btn-ghost" data-act="cancel-create-service">← ${esc(c.name)}</button>
+        <div class="create-svc-head">
+          <div>
+            <h2>Service setup</h2>
+            <p class="muted">${esc(loc?.name || "Property")} · Bill-To ${esc(c.billTo || c.name)} · map opens after you save</p>
+          </div>
+        </div>
+        <div class="create-svc-form">
+          <div class="create-svc-section">
+            <div class="create-svc-kicker">Property</div>
+            <div class="field req"><label>Location</label>
+              <select id="sv-loc" data-act="sv-loc">${locs.map((l) => `<option value="${l.id}" ${l.id === selected ? "selected" : ""}>${esc(l.name)} · ${esc(l.address)}</option>`).join("")}</select>
+            </div>
+          </div>
+
+          <div class="create-svc-section">
+            <div class="create-svc-kicker">Service</div>
+            <div class="create-svc-line">
+              <div class="field req"><label>Service</label>
+                <select id="sv-type" data-act="sv-code">${SERVICE_TYPES.map((t) => `<option value="${t.id}" ${t.id === code ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
+              </div>
+              <div class="field"><label>Description</label><input id="sv-desc" value="${esc(d.desc || st.desc || st.label)}" readonly></div>
+              <div class="field narrow"><label>Qty</label><input id="sv-qty" type="number" min="1" step="1" value="${esc(d.qty || "1")}"></div>
+              <div class="field narrow"><label>Price</label><input id="sv-price" type="number" step="0.01" value="${esc(price)}"></div>
+              <div class="field chk-field"><label class="chk"><input type="checkbox" id="sv-tax" ${d.tax ? "checked" : ""}> Tax</label></div>
+            </div>
+          </div>
+
+          <div class="create-svc-section">
+            <label class="chk create-svc-toggle"><input type="checkbox" id="sv-create-initial" data-act="sv-toggle-initial" ${createInitial ? "checked" : ""}> Create initial service</label>
+            <div id="sv-initial-block" class="create-svc-initial" ${createInitial ? "" : "hidden"}>
+              <div class="create-svc-2">
+                <div class="field"><label>Initial service date</label><input id="sv-idate" type="date" value="${esc(d.idate || start)}" data-act="sv-start"></div>
+                <div class="field"><label>Frequency</label><input id="sv-freq" value="${esc(d.freq || st.freq || "WEEKLY")}" readonly></div>
+              </div>
+              <div class="create-svc-3">
+                <div class="field"><label>Initial time</label><input id="sv-itime" type="time" value="${esc(d.itime || "12:30")}"></div>
+                <div class="field"><label>AM / PM</label>
+                  <select id="sv-ampm"><option ${(d.ampm || "PM") === "AM" ? "selected" : ""}>AM</option><option ${(d.ampm || "PM") === "PM" ? "selected" : ""}>PM</option></select>
+                </div>
+                <div class="field"><label>Initial duration</label><input id="sv-idur" value="${esc(d.idur || fmtDur(st.duration))}" placeholder="00:10"></div>
+              </div>
+              <div class="create-svc-2">
+                <div class="field"><label>Initial service price</label><input id="sv-iprice" type="number" step="0.01" value="${esc(iprice)}"></div>
+                <div class="field">
+                  <label>Initial trapper</label>
+                  <div class="create-svc-trapper">
+                    <select id="sv-initial">${techOpts(d.initial || "")}</select>
+                    <button type="button" class="btn btn-ghost" data-act="sv-best-fit" data-target="initial">Best fit</button>
+                  </div>
+                  <div class="tiny">First visit — can differ from standing trapper</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="create-svc-section">
+            <div class="create-svc-kicker">Standing schedule</div>
+            <div class="create-svc-2">
+              <div class="field req"><label>Schedule</label>
+                <select id="sv-sched" data-act="sv-sched">${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}" ${s.id === sched.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
+              </div>
+              <div class="field req"><label>Duration</label><input id="sv-dur" value="${esc(d.dur || fmtDur(st.duration))}" placeholder="00:10"></div>
+            </div>
+            <div class="create-svc-3">
+              <div class="field"><label>Charge</label><input value="Production" readonly><div class="tiny">Always production</div></div>
+              <div class="field req"><label>Start date</label><input id="sv-start" type="date" value="${esc(start)}" data-act="sv-start"></div>
+              <div class="field req"><label>Renewal date</label><input id="sv-expires" type="date" value="${esc(expires)}"><div class="tiny">Auto from program + start</div></div>
+            </div>
+            <input type="hidden" id="sv-renewal" value="${esc(expires)}">
+            <div class="create-svc-2">
+              <div class="field"><label>Targets</label>
+                <select id="sv-target">${TARGETS.map((t) => `<option ${t === (d.target || "IGUANA") ? "selected" : ""}>${t}</option>`).join("")}</select>
+              </div>
+              <div class="field">
+                <label>Standing trapper</label>
+                <div class="create-svc-trapper">
+                  <select id="sv-trapper">${techOpts(d.trapper || "")}</select>
+                  <button type="button" class="btn btn-ghost" data-act="sv-best-fit" data-target="standing">Best fit</button>
+                </div>
+                <div class="tiny">Continual route tech — confirm on map after save</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="create-svc-section">
+            <div class="field"><label>Service instructions</label><textarea id="sv-notes" rows="3" placeholder="Gate codes, dogs, access notes…">${esc(d.notes != null ? d.notes : (loc?.notes || c.notes || ""))}</textarea></div>
+            <div class="create-svc-notify">
+              <div class="create-svc-kicker">Notify customer</div>
+              <div class="chk-row">
+                <label class="chk"><input type="checkbox" id="sv-notify-email" ${d.notifyEmail !== false ? "checked" : ""}> Email</label>
+                <label class="chk"><input type="checkbox" id="sv-notify-text" ${d.notifyText !== false ? "checked" : ""}> Text</label>
+                <span class="tiny">2 days before · system generated · no-reply</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions create-svc-actions">
+            <button class="btn btn-ghost" data-act="cancel-create-service">Cancel</button>
+            ${btn("service.create", "Save — then assign on map", "save-service", `data-id="${c.id}"`)}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function viewCustomers() {
     const rows = visibleCustomers().map((c) => [
       custBtn(c.id, c.id),
@@ -2625,6 +3184,7 @@
           ${c.locations.some((l) => locNeedsService(c, l)) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}"`) : ""}
           ${c.locations.some((l) => locNeedsTech(c, l)) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}"`) : ""}
           ${c.techId && ["ops", "owner"].includes(state.role) ? btn("schedule.reassign", "Reassign on map", "open-assign", `data-id="${c.id}"`, "btn-ghost") : ""}
+          ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Create task", "new-task", `data-id="${c.id}"`, "btn-ghost") : ""}
         </div>
       </div>
       ${needsQuote ? `<div class="notice">One quote to the Bill-To lists the programs and every property.</div>` : ""}
@@ -2701,10 +3261,27 @@
                   const st = invoiceFinStatus(i);
                   return `${esc(i.id)} ${st} · paid ${money(allocated(i.id))} · bal ${money(invoiceBalance(i))}`;
                 }).join("; ") : "None"}</div>
+                ${(() => {
+                  const locPays = (state.data.payments || []).filter((p) => p.customerId === c.id && p.locationId === l.id)
+                    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+                  if (!locPays.length || !showMoney) return "";
+                  return `<div class="tiny" style="margin-top:6px"><strong>Payment history</strong></div>
+                    <table class="mini-table"><thead><tr><th>Date</th><th>Amt</th><th>Alloc</th><th>Method</th><th>Status</th></tr></thead><tbody>
+                    ${locPays.slice(0, 5).map((p) => {
+                      const st = p.failed ? "Failed" : payNeedsMark(p) ? "Awaiting" : "Allocated";
+                      return `<tr><td>${esc(p.date)}</td><td>${money(p.amount)}</td><td>${money(paymentAllocatedAmount(p.id))}</td><td>${esc(p.method || "—")}</td><td>${esc(st)}</td></tr>`;
+                    }).join("")}
+                    </tbody></table>
+                    ${locPays.length > 5 ? `<div class="tiny">+${locPays.length - 5} more on Bill-To payment history below</div>` : ""}`;
+                })()}
                 <div class="tiny">Quote: ${q?.sent ? `Sent ${esc(q.date || "")}` : "Not yet"} · Plan dates: ${plan.programId ? `${esc(prog?.name || plan.programId)}${showProgramPrice ? ` · ${money(plan.amount)}` : ""}${plan.start ? ` · ${esc(plan.start)} → ${esc(plan.expires || "—")}` : ""}` : (q?.sent ? "On quote" : "No plan yet")}</div>
                 <div class="tiny">${svcs.length ? svcs.map((s) => {
                   const sch = SERVICE_SCHEDULES.find((x) => x.id === s.schedule)?.label || s.days || "—";
-                  return s.techId ? `${esc(techName(s.techId))} · ${esc(sch)}` : `Setup · ${esc(sch)}`;
+                  const label = s.techId ? `${techName(s.techId)} · ${sch}` : `Setup · ${sch}`;
+                  if (["ops", "owner"].includes(state.role) && canEditService() && svcIsContinuing(s)) {
+                    return `<button class="btn btn-ghost linkish" data-act="edit-service" data-id="${s.id}">${esc(label)} · edit</button>`;
+                  }
+                  return esc(label);
                 }).join(" · ") : "No service yet"}</div>
                 <div class="actions" style="margin-top:8px">
                   ${(() => {
@@ -2749,6 +3326,89 @@
           ${state.role === "sales" ? "" : commCard(c)}
         </div>
       </div>
+      ${showMoney ? paymentHistoryCard(c) : ""}
+      ${["ops", "owner"].includes(state.role) ? serviceHistoryCard(c) : ""}
+      ${["owner", "ops", "admin"].includes(state.role) ? customerTasksCard(c) : ""}
+    `;
+  }
+
+  function serviceHistoryCard(c) {
+    const list = servicesForCustomer(c.id);
+    const continuing = list.filter(svcIsContinuing);
+    const stops = (state.data.stops || [])
+      .filter((s) => s.customerId === c.id && s.type !== "oneoff")
+      .slice()
+      .sort((a, b) => String(b.day || "").localeCompare(String(a.day || "")) || String(a.time || "").localeCompare(String(b.time || "")));
+    const canEdit = canEditService();
+    return `
+      <div class="card section-gap">
+        <h3>Service history <span class="muted">${continuing.length} continuing</span></h3>
+        <p class="tiny">All services under Bill-To ${esc(c.billTo || c.name)}. Click a continuing service to edit it or reassign the trapper.</p>
+        ${list.length ? `
+          <table class="mini-table" style="width:100%;font-size:13px">
+            <thead><tr><th>Property</th><th>Program</th><th>Trapper</th><th>Schedule</th><th>Dates</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              ${list.map((s) => {
+                const loc = locBy(c.id, s.locationId);
+                const sch = SERVICE_SCHEDULES.find((x) => x.id === s.schedule)?.label || s.days || "—";
+                const live = svcIsContinuing(s);
+                const rowClick = live && canEdit
+                  ? `class="svc-row clickable" data-act="edit-service" data-id="${s.id}" style="cursor:pointer"`
+                  : "";
+                return `<tr ${rowClick}>
+                  <td><strong>${esc(loc?.name || "—")}</strong><div class="tiny">${esc(loc?.address || "")}</div></td>
+                  <td>${esc(svcTypeLabel(s.type))}</td>
+                  <td>${esc(s.techId ? techName(s.techId) : "Unassigned")}</td>
+                  <td>${esc(sch)} · ${s.durationMin || "—"}m</td>
+                  <td class="tiny">${esc(s.start || "—")} → ${esc(s.expires || "—")}</td>
+                  <td>${svcStatusBadge(s)}</td>
+                  <td>${live && canEdit
+                    ? `<button class="btn btn-sun" data-act="edit-service" data-id="${s.id}">Edit / reassign</button>`
+                    : (live ? `<span class="tiny">Active</span>` : `<span class="tiny">History</span>`)}</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        ` : `<p class="muted">No services on this Bill-To yet.</p>`}
+        ${stops.length ? `
+          <h3 style="margin-top:18px;font-size:15px">Recent visits</h3>
+          <table class="mini-table" style="width:100%">
+            <thead><tr><th>Day</th><th>Time</th><th>Property</th><th>Trapper</th><th>Min</th><th>Status</th></tr></thead>
+            <tbody>
+              ${stops.slice(0, 12).map((s) => {
+                const loc = locBy(c.id, s.locationId);
+                return `<tr>
+                  <td>${esc(s.day || "—")}</td>
+                  <td>${esc(s.time || "—")}</td>
+                  <td>${esc(loc?.name || "—")}</td>
+                  <td>${esc(techName(s.techId))}</td>
+                  <td>${s.actualMin != null ? s.actualMin : s.durationMin || "—"}</td>
+                  <td>${statusBadge(s.status)}</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        ` : ""}
+        ${c.locations.some((l) => locNeedsService(c, l)) && can("service.create")
+          ? `<div class="actions" style="margin-top:12px">${btn("service.create", "Create service", "open-service", `data-id="${c.id}"`)}</div>`
+          : ""}
+      </div>
+    `;
+  }
+
+  function customerTasksCard(c) {
+    const list = tasksForCustomer(c.id);
+    const openN = list.filter((t) => t.status === "open").length;
+    return `
+      <div class="card section-gap">
+        <h3>Tasks <span class="muted">${openN} open</span></h3>
+        <p class="tiny">Tom, Rick, and Christy assign work to each other about this Bill-To.</p>
+        ${taskListHtml(list, "No tasks on this customer yet.")}
+        <div class="actions" style="margin-top:12px">
+          ${btn("task.create", "Create task", "new-task", `data-id="${c.id}"`)}
+          <button class="btn btn-ghost" data-act="nav" data-page="tasks">All tasks</button>
+        </div>
+      </div>
     `;
   }
 
@@ -2759,6 +3419,60 @@
       preview: locs[0] ? [{ x: locs[0].x, y: locs[0].y, label: locs[0].name, elId: "cust-pin-0" }] : [],
       caption: locs.map((l) => `${l.name} · ${l.address}`).join(" · ") || "No pin yet",
     });
+  }
+
+  function paymentHistoryCard(c) {
+    const pays = (state.data.payments || [])
+      .filter((p) => p.customerId === c.id)
+      .slice()
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)));
+    const totalIn = pays.filter((p) => !p.failed).reduce((s, p) => s + Number(p.amount || 0), 0);
+    const totalAlloc = pays.filter((p) => !p.failed).reduce((s, p) => s + paymentAllocatedAmount(p.id), 0);
+    const rows = pays.map((p) => {
+      const loc = p.locationId ? locBy(c.id, p.locationId) : null;
+      const alloc = paymentAllocatedAmount(p.id);
+      const src = String(p.source || "").toUpperCase() || (payIsLink(p) ? "ONLINE" : "EXTERNAL");
+      const ref = p.last4 ? (String(p.last4).length <= 4 ? "····" + p.last4 : p.last4) : (p.checkNo || "—");
+      let status;
+      if (p.failed) status = statusBadge("failed");
+      else if (payNeedsMark(p)) status = `<span class="badge badge-warn">Awaiting allocation</span>`;
+      else status = `<span class="badge badge-ok">Allocated</span>`;
+      const acts = [];
+      if (can("payment.post") && payNeedsMark(p) && p.invoiceId) {
+        acts.push(btn("payment.post", "Allocate", "open-record-pay", `data-id="${p.invoiceId}" data-pay="${p.id}"`, "btn-sun"));
+      }
+      if (can("payment.post")) {
+        acts.push(`<button class="btn btn-ghost" data-act="edit-memo" data-id="${p.id}">Memo</button>`);
+      }
+      return [
+        esc(p.date),
+        esc(loc?.name || "—"),
+        esc(p.invoiceId || "—"),
+        money(p.amount),
+        money(alloc),
+        esc(p.method || "—"),
+        esc(ref),
+        esc(src),
+        status,
+        `<span class="tiny">${esc(p.memo || "—")}</span>`,
+        acts.join(" ") || "—",
+      ];
+    });
+    return `
+      <div class="card section-gap">
+        <h3>Payment history</h3>
+        <p class="tiny">All payments for Bill-To ${esc(c.billTo || c.name)}. Posted amounts stay on the register; allocation shows how much hit each invoice.</p>
+        <div class="grid-3" style="margin-bottom:12px">
+          ${stat("Payments", pays.length, "On this Bill-To")}
+          ${stat("Posted", money(totalIn), "Excludes declined")}
+          ${stat("Allocated", money(totalAlloc), "Applied to invoices")}
+        </div>
+        ${pays.length
+          ? table(["Date", "Property", "Invoice", "Amount", "Allocated", "Method", "Ref", "Source", "Status", "Memo", ""], rows)
+          : `<p class="muted">No payments on this account yet.</p>`}
+        ${can("payment.post") ? `<div class="actions" style="margin-top:12px">${btn("payment.post", "Record payment", "new-pay", `data-id="${c.id}"`, "btn-ghost")}</div>` : ""}
+      </div>
+    `;
   }
 
   function billingCard(c) {
@@ -2895,101 +3609,304 @@
     return `<div class="stop ${cls}"><div class="t">${esc(s.time)} · ${esc(stopLabel(s))}</div><div class="m">${s.durationMin}m · ${esc(s.status)}</div></div>`;
   }
 
+  function mapRoadsSvg() {
+    return `<svg class="map-roads" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 22 H100 M0 38 H100 M0 55 H100 M0 72 H100" stroke="#fff" stroke-width="1.8" opacity="0.95"/>
+      <path d="M0 22 H100 M0 38 H100 M0 55 H100 M0 72 H100" stroke="#d4d0c8" stroke-width="1.1"/>
+      <path d="M18 0 V100 M35 0 V100 M52 0 V100 M68 0 V100 M82 0 V100" stroke="#fff" stroke-width="1.4" opacity="0.9"/>
+      <path d="M18 0 V100 M35 0 V100 M52 0 V100 M68 0 V100 M82 0 V100" stroke="#d8d4cc" stroke-width="0.85"/>
+      <path d="M8 8 C22 18, 28 40, 22 62 C18 78, 12 90, 6 100" fill="none" stroke="#f5d76e" stroke-width="1.3"/>
+      <path d="M42 0 C48 20, 55 35, 60 55 C66 78, 70 92, 74 100" fill="none" stroke="#f5d76e" stroke-width="1.1"/>
+    </svg>`;
+  }
+  const SCHED_COLORS = {
+    "Mon/Wed": "#7b5ea7",
+    "Tue/Thu": "#8b3a3a",
+    "Mon/Thu": "#2c5f8a",
+    "Wed/Fri": "#1a8a8a",
+    "Fri": "#c97b9b",
+  };
+  function locTechs(c, l) {
+    return [...new Set(svcsFor(c.id, l.id).map((s) => s.techId).filter(Boolean).concat(l.techId ? [l.techId] : []))];
+  }
+  function locIsShared(c, l) {
+    return !!(l.shared || locTechs(c, l).length > 1);
+  }
+  function locScheduleKey(c, l) {
+    const svc = svcsFor(c.id, l.id)[0];
+    return svc?.days || l.days || c.days || "Mon/Wed";
+  }
+  function fmtClock(min) {
+    const n = Math.max(0, Number(min) || 0);
+    return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+  }
+  function techBookLocations(techId) {
+    const rows = [];
+    state.data.customers.forEach((c) => {
+      (c.locations || []).forEach((l) => {
+        if (l.covered === false) return;
+        const techs = locTechs(c, l);
+        if (!techs.includes(techId) && l.techId !== techId) return;
+        const dur = svcsFor(c.id, l.id)[0]?.durationMin || l.durationMin || c.durationMin || 20;
+        rows.push({ c, l, shared: locIsShared(c, l), techs, days: locScheduleKey(c, l), durationMin: dur });
+      });
+    });
+    return rows;
+  }
+  function techScheduleBreakdown(techId) {
+    const rows = techBookLocations(techId);
+    const by = {};
+    rows.forEach((r) => {
+      const k = r.days;
+      if (!by[k]) by[k] = { days: k, count: 0, durationMin: 0 };
+      by[k].count += 1;
+      by[k].durationMin += r.durationMin;
+    });
+    return Object.values(by).sort((a, b) => b.count - a.count);
+  }
+  function mapPinColor(c, l, { filterTech, colorBy }) {
+    if (locNeedsTech(c, l) || locNeedsService(c, l)) return "#c4a24a";
+    if (locIsShared(c, l)) return "#8a8680";
+    if (colorBy === "schedule" || filterTech) {
+      return SCHED_COLORS[locScheduleKey(c, l)] || "#888";
+    }
+    return locPinColor(c, l);
+  }
+
   function viewMap() {
     const filterTech = state.mapTech;
     const filterDay = state.mapDay;
+    const colorBy = filterTech ? (state.mapColorBy || "schedule") : "tech";
     const waiting = opsAssignQueue();
     const focusCid = state.mapClient;
     const focusLid = state.mapLoc;
-    const pins = [];
-    TECHS.forEach((t) => {
-      const on = filterTech === t.id;
-      pins.push(`<button type="button" class="pin home-pin ${on ? "on" : ""}" data-act="map-tech" data-tech="${t.id}" style="left:${t.x};top:${t.y}"><div class="pin-dot" style="background:${t.color}"></div><span>${esc(t.name)} home</span></button>`);
+    const assignMode = !!(focusCid && focusLid);
+    const compareIds = state.mapCompare || [];
+    const focusCust = focusCid ? custBy(focusCid) : null;
+    const focusLoc = focusCust?.locations.find((l) => l.id === focusLid) || null;
+    const ranked = (focusCust && focusLoc) ? bestFitFor(focusCust, focusLoc, state.assignDays) : [];
+    const showBestFit = !!(focusCust && focusLoc && (svcFor(focusCust.id, focusLoc.id) || locNeedsTech(focusCust, focusLoc)));
+    const selectedTech = filterTech ? techBy(filterTech) : null;
+    const genQ = opsGenerateQueue();
+
+    const techStats = TECHS.map((t) => {
+      const book = techBookLocations(t.id);
+      const durationMin = book.reduce((a, r) => a + r.durationMin, 0);
+      return { t, count: book.length, durationMin, book };
     });
+    const totals = techStats.reduce((a, r) => ({ count: a.count + r.count, durationMin: a.durationMin + r.durationMin }), { count: 0, durationMin: 0 });
+
+    const pins = [];
     const book = [];
-    state.data.customers.filter((c) => c.status === "active" || c.status === "renewal" || c.status === "past_due" || c.locations.some((l) => locNeedsTech(c, l) || locNeedsService(c, l))).forEach((c) => {
-      c.locations.forEach((l) => {
-        const svcs = svcsFor(c.id, l.id);
-        const techsHere = [...new Set(svcs.map((s) => s.techId).filter(Boolean).concat(l.techId || []))];
+    const stopList = [];
+
+    // Property pins — scale for many stops: dots only, no name labels
+    state.data.customers.forEach((c) => {
+      if (!(c.status === "active" || c.status === "renewal" || c.status === "past_due" || c.locations.some((l) => locNeedsTech(c, l) || locNeedsService(c, l)))) return;
+      (c.locations || []).forEach((l) => {
+        if (l.covered === false) return;
+        const techsHere = locTechs(c, l);
         const assignedHere = techsHere.includes(filterTech) || l.techId === filterTech;
         const needs = locNeedsTech(c, l) || locNeedsService(c, l);
-        const isFocus = focusCid === c.id && (!focusLid || focusLid === l.id);
-        const onBook = !filterTech || assignedHere;
-        if (!onBook && !needs && !isFocus) return;
+        const isFocus = focusCid === c.id && focusLid === l.id;
+        const shared = locIsShared(c, l);
+
+        // Assign mode: only the one stop Rick is working on from the waiting set
+        if (assignMode && needs && !isFocus) return;
+        // Without assign mode, still show waiting golds; with assign mode hide other waitings
+
+        if (filterTech) {
+          if (!assignedHere && !isFocus) return;
+        } else if (needs && !isFocus && assignMode) {
+          return;
+        }
+
         if (!locOnDay(c, l, filterDay)) return;
+        // When filtering a day and this is only the focus assign pin with no schedule yet, keep it
+        if (filterDay && isFocus && needs) { /* keep */ }
+
         const key = `${c.id}:${l.id}`;
         const on = state.mapSelect.includes(key);
-        const shared = !!(l.shared || techsHere.length > 1);
-        const color = locPinColor(c, l);
-        const row = { c, l, shared, techsHere, needs, isFocus };
-        if ((!filterTech || assignedHere) && !needs) book.push(row);
-        pins.push(`<div class="pin ${shared ? "shared" : ""} ${on ? "picked" : ""} ${l.manualPin ? "manual" : ""} ${needs ? "need" : ""} ${isFocus ? "client" : ""}" data-drag="1" data-cid="${c.id}" data-lid="${l.id}" style="left:${l.x};top:${l.y}"><div class="pin-dot" style="background:${color}"></div><span>${esc(c.name)}${c.locations.length > 1 ? ` · ${esc(l.name)}` : ""}${needs ? (locNeedsTech(c, l) ? " · waiting" : " · setup") : shared ? " · shared" : ""}</span></div>`);
+        const color = isFocus ? "#c4a24a" : mapPinColor(c, l, { filterTech, colorBy });
+        const row = { c, l, shared, techsHere, needs, isFocus, days: locScheduleKey(c, l), durationMin: svcsFor(c.id, l.id)[0]?.durationMin || l.durationMin || 20 };
+        if (filterTech && assignedHere && !needs) {
+          book.push(row);
+          stopList.push(row);
+        }
+        const shape = shared ? "diamond" : "dot";
+        const selectedPin = state.mapPin && state.mapPin.cid === c.id && state.mapPin.lid === l.id;
+        if (state.mapSched && locScheduleKey(c, l) !== state.mapSched && !isFocus) return;
+        pins.push(`<button type="button" class="pin prop-pin ${shape} ${shared ? "shared" : ""} ${on ? "picked" : ""} ${needs || isFocus ? "need" : ""} ${isFocus ? "client assign-focus" : ""} ${selectedPin ? "pin-open" : ""}" data-act="map-pin" data-cid="${c.id}" data-lid="${l.id}" data-drag="1" style="left:${l.x};top:${l.y};--pin-color:${color}" title="${esc(c.name)} · ${esc(l.name)}"></button>`);
       });
     });
-    const genQ = opsGenerateQueue();
-    const waitRow = waiting.find((r) => r.c.id === focusCid && (!focusLid || r.l.id === focusLid)) || waiting[0];
-    const focusCust = focusCid ? custBy(focusCid) : waitRow?.c;
-    const focusLoc = focusCust && (focusCust.locations.find((l) => l.id === (focusLid || waitRow?.l.id)) || focusCust.locations[0]);
-    const canAssign = !!(filterTech && focusCust && focusLoc && svcFor(focusCust.id, focusLoc.id));
+
+    // Home dots — always visible (small)
+    TECHS.forEach((t) => {
+      if (filterTech && filterTech !== t.id) return; // when drilled in, only that home
+      const on = filterTech === t.id;
+      pins.push(`<button type="button" class="pin home-pin ${on ? "on" : ""}" data-act="map-tech" data-tech="${t.id}" style="left:${t.x};top:${t.y}" title="${esc(t.name)} · ${esc(t.home)}"><div class="pin-dot" style="background:${t.color}"></div></button>`);
+    });
+    // In master view show all homes
+    if (!filterTech) {
+      // already added all in loop above when !filterTech — wait, when !filterTech the condition `if (filterTech && filterTech !== t.id) return` doesn't return, so all homes added. Good.
+    }
+
+    const compareRows = compareIds.map((id) => ranked.find((r) => r.t.id === id) || { t: techBy(id), miles: focusLoc ? distMiles(focusLoc.x, focusLoc.y, techBy(id)?.x, techBy(id)?.y) : 0, mins: 0, route: [] }).filter((r) => r.t);
+    const routeLines = [];
+    if (focusLoc && (compareIds.length || (filterTech && showBestFit))) {
+      const drawIds = compareIds.length ? compareIds : (filterTech ? [filterTech] : []);
+      drawIds.forEach((id) => {
+        const t = techBy(id);
+        if (!t) return;
+        const r = ranked.find((x) => x.t.id === id);
+        const pts = [`${pct(t.x)},${pct(t.y)}`, ...((r?.route || []).map((s) => `${pct(s.x)},${pct(s.y)}`)), `${pct(focusLoc.x)},${pct(focusLoc.y)}`];
+        routeLines.push(`<polyline fill="none" stroke="${t.color}" stroke-width="1.05" stroke-linecap="round" opacity="0.9" points="${pts.join(" ")}" />`);
+      });
+    }
+
+    let pinCard = "";
+    if (state.mapPin) {
+      const pc = custBy(state.mapPin.cid);
+      const pl = pc?.locations.find((x) => x.id === state.mapPin.lid);
+      if (pc && pl) {
+        const techs = locTechs(pc, pl);
+        const svc = svcFor(pc.id, pl.id);
+        pinCard = `
+          <div class="map-float-card map-pin-card" style="left:${pl.x};top:${pl.y}">
+            <button type="button" class="map-float-close" data-act="clear-map-pin">×</button>
+            <strong>${esc(pc.name)}</strong>
+            <div class="tiny">${esc(pl.name)} · ${esc(pl.address)}</div>
+            <div class="tiny">${locIsShared(pc, pl) ? `Shared · ${techs.map(techName).join(" / ")}` : `Tech · ${esc(techName(pl.techId || svc?.techId) || "unassigned")}`} · ${esc(locScheduleKey(pc, pl))}</div>
+            <div class="tiny">${fmtClock(svc?.durationMin || pl.durationMin || 20)} · ${svc ? esc(svcTypeLabel(svc.type)) : "No service yet"}</div>
+            <div class="actions" style="margin-top:8px">
+              <button class="btn btn-ghost" data-act="open-customer" data-id="${pc.id}">Customer</button>
+              ${locNeedsTech(pc, pl) && filterTech ? btn("schedule.assign", "Assign " + techName(filterTech), "map-assign", `data-id="${pc.id}" data-loc="${pl.id}" data-tech="${filterTech}"`) : ""}
+            </div>
+          </div>`;
+      }
+    }
+
+    const schedBreak = filterTech ? techScheduleBreakdown(filterTech) : [];
+    const sideList = filterTech
+      ? stopList.filter((r) => !filterDay || patternDays(r.days).includes(filterDay) || locOnDay(r.c, r.l, filterDay))
+      : [];
+
     return `
-      ${head("Geo routing", "Create the service first. Then click a technician’s home to see every property on their book — customer pins stay on the map so you can compare locations before you assign.")}
+      ${head("Visual Route Manager", "Master map shows every trapper. Click a trapper to drill into their book and day schedules. Shared properties are gray diamonds. Assign mode shows only the stop you are placing.")}
       ${writeBar("schedule.assign", "Assign")}
-      <div class="legend">
-        ${TECHS.map((t) => `<button class="legend-btn ${filterTech === t.id ? "on" : ""}" data-act="map-tech" data-tech="${t.id}"><i class="dot" style="background:${t.color}"></i> ${esc(t.name)}</button>`).join("")}
-        <button class="legend-btn ${!filterTech ? "on" : ""}" data-act="map-tech" data-tech=""><i class="dot" style="background:#8a8680"></i> All / gray = shared</button>
-      </div>
-      <div class="legend" style="margin-top:6px">
-        <button class="legend-btn ${!filterDay ? "on" : ""}" data-act="map-day" data-day="">All days</button>
-        <button class="legend-btn ${filterDay === todayDay() ? "on" : ""}" data-act="map-day" data-day="${todayDay()}">Today (${todayDay()})</button>
-        ${DAYS.filter((d) => d !== todayDay()).map((d) => `<button class="legend-btn ${filterDay === d ? "on" : ""}" data-act="map-day" data-day="${d}">${d}</button>`).join("")}
-      </div>
+      ${assignMode ? `<div class="notice">Assigning <strong>${esc(focusCust.name)} · ${esc(focusLoc.name)}</strong> only — other waiting stops are hidden until you finish this one.</div>` : ""}
       <div class="map-toolbar">
-        <span class="tiny">${filterTech ? `${esc(techName(filterTech))} selected · ${book.length} properties on this trapper` : "Click a technician home to inspect their book"} · gold pin = waiting to assign${filterDay ? ` · ${filterDay} only` : ""}. Homes stay clickable.</span>
-        ${btn("schedule.reassign", state.mapLasso ? "Lasso on — click pins, then move" : "Lasso / bulk move", "toggle-lasso", "", state.mapLasso ? "btn-sun" : "btn-ghost")}
+        <div class="actions">
+          <span class="tiny">Color by</span>
+          <button class="legend-btn ${colorBy === "tech" && !filterTech ? "on" : ""} ${!filterTech ? "" : ""}" data-act="map-color" data-mode="tech" ${filterTech ? "disabled" : ""}>Technician</button>
+          <button class="legend-btn ${filterTech && colorBy === "schedule" ? "on" : ""}" data-act="map-color" data-mode="schedule" ${filterTech ? "" : "disabled"}>Schedule</button>
+        </div>
+        <div class="actions">
+          <button class="legend-btn ${filterDay === todayDay() ? "on" : ""}" data-act="map-day" data-day="${todayDay()}">Today (${todayDay()})</button>
+          ${DAYS.filter((d) => d !== todayDay()).map((d) => `<button class="legend-btn ${filterDay === d ? "on" : ""}" data-act="map-day" data-day="${d}">${d}</button>`).join("")}
+          <button class="legend-btn ${!filterDay ? "on" : ""}" data-act="map-day" data-day="">All days</button>
+          ${btn("schedule.reassign", state.mapLasso ? "Lasso on" : "Lasso", "toggle-lasso", "", state.mapLasso ? "btn-sun" : "btn-ghost")}
+        </div>
       </div>
       ${state.mapLasso && state.mapSelect.length ? `
-        <div class="notice">Selected ${state.mapSelect.length} properties. Changing trapper or days transfers the work — it does not copy onto the old trapper or the old days.
+        <div class="notice">Selected ${state.mapSelect.length} properties.
           <div class="actions" style="margin-top:8px">${TECHS.map((t) => btn("schedule.reassign", "Move to " + t.name, "bulk-move", `data-tech="${t.id}"`, "btn-ghost")).join("")}</div>
-          <div class="actions" style="margin-top:8px">${DAY_PATTERNS.map((p) => btn("schedule.reassign", "Days → " + p.id, "bulk-days", `data-days="${p.id}"`, "btn-ghost")).join("")}</div>
         </div>` : ""}
-      <div class="map-stage">
-        <div class="map-canvas" id="map-canvas">
-          <div class="map-bg"></div>
-          <div class="map-label" style="left:8%;top:18%">Gulf</div>
-          <div class="map-label" style="left:70%;top:20%">East coast</div>
-          ${pins.join("")}
-        </div>
-        <div class="card assign-panel">
-          <h3>${filterTech ? esc(techName(filterTech)) + " · properties on this trapper" : "Click a technician’s home"}</h3>
-          <p class="tiny">${filterTech ? "Every property already assigned to " + esc(techName(filterTech)) + ". Gold pins on the map are still waiting — they stay visible so you can compare drive from this home." : "Homes are the clickable pins. Open a trapper to inspect their book, then assign the new customer."}</p>
-          ${waiting.length ? `
-            <div class="notice" style="margin-bottom:10px">
-              ${waiting.map((row) => `
-                <div class="fit-row ${focusCid === row.c.id && (!focusLid || focusLid === row.l.id) ? "queue-new" : ""}">
-                  <div><strong>${esc(row.c.name)}</strong><div class="tiny">${esc(row.l.name)} · ${esc(row.l.address)}</div></div>
-                  ${filterTech
-                    ? btn("schedule.assign", "Assign to " + techName(filterTech), "map-assign", `data-id="${row.c.id}" data-loc="${row.l.id}" data-tech="${filterTech}"`)
-                    : `<button class="btn btn-ghost" data-act="focus-client" data-id="${row.c.id}" data-loc="${row.l.id}">Highlight pin</button>`}
-                </div>
+
+      <div class="map-vrm">
+        <aside class="map-vrm-side card">
+          ${!filterTech ? `
+            <div class="vrm-side-head">
+              <h3>Trappers</h3>
+              <p class="tiny">Click a name to see only that trapper’s stops</p>
+            </div>
+            <div class="vrm-table">
+              <div class="vrm-row vrm-head"><span></span><span>Technician</span><span>Count</span><span>Duration</span></div>
+              ${techStats.map(({ t, count, durationMin }) => `
+                <button type="button" class="vrm-row" data-act="map-tech" data-tech="${t.id}">
+                  <i class="dot" style="background:${t.color}"></i>
+                  <span class="vrm-name">${esc(t.name.toUpperCase())}</span>
+                  <span>${count}</span>
+                  <span>${fmtClock(durationMin)}</span>
+                </button>
               `).join("")}
-              ${canAssign && focusCust ? `<p class="tiny" style="margin-top:8px">${esc(focusCust.name)} · ${esc(focusLoc.name)} vs ${esc(techName(filterTech))}’s home at ${esc(techBy(filterTech)?.home || "")}.</p>` : ""}
+              <div class="vrm-row vrm-total"><span></span><span>Total</span><span>${totals.count}</span><span>${fmtClock(totals.durationMin)}</span></div>
+            </div>
+            <p class="tiny section-gap"><i class="map-legend-diamond"></i> Gray diamond = shared by 2+ trappers</p>
+          ` : `
+            <div class="vrm-side-head">
+              <button class="btn btn-ghost" data-act="map-tech" data-tech="">← All trappers</button>
+              <h3>${esc(selectedTech.name)}</h3>
+              <p class="tiny">${esc(selectedTech.home)} · color by schedule day pattern</p>
+            </div>
+            <div class="vrm-table">
+              <div class="vrm-row vrm-head"><span></span><span>Schedule</span><span>Count</span><span>Duration</span></div>
+              ${schedBreak.map((s) => `
+                <button type="button" class="vrm-row ${state.mapSched === s.days ? "on" : ""}" data-act="map-sched-filter" data-days="${esc(s.days)}">
+                  <i class="dot" style="background:${SCHED_COLORS[s.days] || "#888"}"></i>
+                  <span class="vrm-name">WK · ${esc(s.days)}</span>
+                  <span>${s.count}</span>
+                  <span>${fmtClock(s.durationMin)}</span>
+                </button>
+              `).join("") || `<p class="muted">No stops on this trapper yet.</p>`}
+              <div class="vrm-row vrm-total"><span></span><span>Total</span><span>${sideList.length || techBookLocations(filterTech).length}</span><span>${fmtClock((sideList.length ? sideList : techBookLocations(filterTech)).reduce((a, r) => a + r.durationMin, 0))}</span></div>
+            </div>
+            <h3 class="section-gap">Stops ${filterDay ? "· " + esc(filterDay) : ""}</h3>
+            <div class="vrm-stops">
+              ${(sideList.length ? sideList : techBookLocations(filterTech).filter((r) => !filterDay || patternDays(r.days).includes(filterDay))).map((r, i) => `
+                <button type="button" class="vrm-stop ${state.mapPin?.cid === r.c.id && state.mapPin?.lid === r.l.id ? "on" : ""}" data-act="map-pin" data-cid="${r.c.id}" data-lid="${r.l.id}">
+                  <span class="vrm-stop-n" style="background:${SCHED_COLORS[r.days] || selectedTech.color}">${i + 1}</span>
+                  <div>
+                    <strong>${esc(r.c.name)}</strong>
+                    <div class="tiny">${esc(r.l.name)} · ${fmtClock(r.durationMin)}${r.shared ? " · shared" : ""}</div>
+                  </div>
+                </button>
+              `).join("") || `<p class="muted">No stops for this filter.</p>`}
+            </div>
+          `}
+
+          ${showBestFit ? `
+            <div class="map-bestfit-block section-gap">
+              <h3>Best fit · ${esc(focusLoc.name)}</h3>
+              <p class="tiny">Only this property is on the map for assigning</p>
+              <div class="bestfit">
+                ${ranked.map((r, i) => `
+                  <div class="bestfit-card ${filterTech === r.t.id ? "pick" : ""} ${compareIds.includes(r.t.id) ? "compare-on" : ""}">
+                    <button type="button" class="bestfit-main" data-act="map-tech" data-tech="${r.t.id}">
+                      <strong>${i === 0 ? "Suggested · " : ""}${esc(r.t.name)}</strong> · ${esc(r.t.home)}
+                      <div class="tiny">${r.miles} mi · ~${r.mins} min · ${r.route.length} nearby stops</div>
+                    </button>
+                    <div class="bestfit-actions">
+                      <button type="button" class="btn btn-ghost" data-act="map-compare-tech" data-tech="${r.t.id}">${compareIds.includes(r.t.id) ? "In compare" : "Compare drive"}</button>
+                      ${btn("schedule.assign", "Assign", "map-assign", `data-id="${focusCust.id}" data-loc="${focusLoc.id}" data-tech="${r.t.id}"`, "btn-sun")}
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+              ${compareRows.length ? `
+                <div class="map-compare-box">
+                  ${compareRows.map((r) => `<div class="map-compare-row"><i class="dot" style="background:${r.t.color}"></i><div><strong>${esc(r.t.name)}</strong><div class="tiny">${r.miles} mi · ~${r.mins} min</div></div></div>`).join("")}
+                  <button class="btn btn-ghost" data-act="clear-map-compare">Clear compare</button>
+                </div>` : ""}
             </div>
           ` : ""}
-          ${filterTech ? `
-            <div class="tiny" style="margin-bottom:8px">${book.length} ${book.length === 1 ? "property" : "properties"} · scroll the list</div>
-            ${book.map((r) => `
-              <div class="fit-row ${state.mapSelect.includes(r.c.id + ":" + r.l.id) ? "queue-new" : ""}">
-                <div>
-                  <strong>${esc(r.c.name)}</strong> · ${esc(r.l.name)}
-                  <div class="tiny">${r.shared ? "Shared · " : ""}${esc(r.techsHere.map(techName).join(" / ") || techName(filterTech))} · ${esc(r.l.address)}</div>
-                </div>
-                ${state.mapLasso ? `<button class="btn btn-ghost" data-act="toggle-pin" data-cid="${r.c.id}" data-lid="${r.l.id}">${state.mapSelect.includes(r.c.id + ":" + r.l.id) ? "Selected" : "Select"}</button>` : ""}
-              </div>
-            `).join("") || `<p class="muted">No properties on this trapper yet.</p>`}
-            ${focusCust && focusLoc ? `<div class="actions" style="margin-top:12px"><button class="btn btn-ghost" data-act="compare-routes" data-id="${focusCust.id}" data-loc="${focusLoc.id}">Compare drive times</button></div>` : ""}
-          ` : `<p class="muted">${waiting.length ? "Click a technician’s home pin (or the name above) to see every property on their book." : opsServiceQueue().length ? "Create the service first — then come back here to assign." : "No unassigned properties."}</p>`}
           ${genQ.length ? `<div class="notice" style="margin-top:10px">${genQ.length} assigned, not live. ${btn("schedule.generate", "Generate", "generate-schedule")}</div>` : ""}
-          <p class="tiny section-gap">Harbor Oaks is held — unpaid. Cypress Commons is the gray shared pin. Coastal Parks is a draggable GPS pin. Vehicle GPS and trapper GPS stay outside this app.</p>
+        </aside>
+
+        <div class="map-canvas gmap map-vrm-canvas" id="map-canvas">
+          <div class="map-bg gmap"></div>
+          ${mapRoadsSvg()}
+          <div class="map-water" aria-hidden="true"></div>
+          <div class="map-label gmap-label" style="left:4%;top:12%">Gulf of Mexico</div>
+          <div class="map-label gmap-label" style="left:58%;top:8%">Atlantic</div>
+          <div class="map-label gmap-label city" style="left:30%;top:48%">Fort Lauderdale</div>
+          <div class="map-label gmap-label city" style="left:26%;top:36%">Boca Raton</div>
+          <div class="map-label gmap-label city" style="left:12%;top:32%">Tampa</div>
+          <div class="map-label gmap-label city" style="left:36%;top:22%">West Palm</div>
+          <div class="map-label gmap-label city" style="left:16%;top:68%">Naples</div>
+          ${routeLines.length ? `<svg class="route-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${routeLines.join("")}</svg>` : ""}
+          ${pins.join("")}
+          ${pinCard}
         </div>
       </div>
     `;
@@ -3017,12 +3934,12 @@
       return `<polyline fill="none" stroke="${r.t.color}" stroke-width="${on ? 0.9 : 0.28}" stroke-dasharray="${on ? "0" : "1.2 0.8"}" opacity="${on ? 0.95 : 0.35}" points="${pts.join(" ")}" />`;
     }).join("");
     const pins = [
-      ...TECHS.map((t) => `<button type="button" class="pin home-pin ${t.id === focus?.t.id ? "on focus" : ""}" data-act="focus-tech" data-tech="${t.id}" style="left:${t.x};top:${t.y}"><div class="pin-dot" style="background:${t.color}"></div><span>${esc(t.name)} home</span></button>`),
+      ...TECHS.map((t) => `<button type="button" class="pin home-pin ${t.id === focus?.t.id ? "on focus" : ""}" data-act="focus-tech" data-tech="${t.id}" style="left:${t.x};top:${t.y}" title="${esc(t.name)} · ${esc(t.home)}"><div class="pin-dot" style="background:${t.color}"></div></button>`),
       ...c.locations.filter((l) => l.covered !== false).map((l) =>
-        `<div class="pin client ${l.id === loc?.id ? "" : "other"}" style="left:${l.x};top:${l.y}"><div class="pin-dot" style="background:${l.id === loc?.id ? "#c4a24a" : "#8a7a55"}"></div><span>${l.id === loc?.id ? "This property" : "Also owns"} · ${esc(l.name)}</span></div>`
+        `<div class="pin prop-pin client ${l.id === loc?.id ? "" : "other"}" style="left:${l.x};top:${l.y}" title="${esc(l.name)}"><div class="pin-dot" style="background:${l.id === loc?.id ? "#c4a24a" : "#8a7a55"}"></div>${l.id === loc?.id ? `<span>This property</span>` : ""}</div>`
       ),
       ...ranked.flatMap((r) => r.route.map((s) =>
-        `<div class="pin stop-pin" style="left:${s.x};top:${s.y}"><div class="pin-dot" style="background:${r.t.color}"></div><span>${esc(s.day)} ${esc(s.time)} · ${esc(s.name)}</span></div>`
+        `<div class="pin prop-pin stop-pin" style="left:${s.x};top:${s.y}" title="${esc(s.name)}"><div class="pin-dot" style="background:${r.t.color}"></div></div>`
       )),
     ].join("");
     const covered = c.locations.filter((l) => l.covered !== false);
@@ -3081,20 +3998,155 @@
   }
 
   function viewOneoffs() {
-    const pending = state.data.stops.filter((s) => s.pending);
-    const live = state.data.stops.filter((s) => s.type === "oneoff" && !s.pending);
+    const day = state.oneoffDay || todayDay();
+    const pending = state.data.stops.filter((s) => s.pending || (s.type === "oneoff" && s.status === "waiting"));
+    const live = state.data.stops.filter((s) => s.type === "oneoff" && !s.pending && s.status === "scheduled");
+    const todayLive = live.filter((s) => s.day === day);
     return `
-      ${head("One-off / live task", "Drop an ad-hoc job — garage animal, inspection, client meeting — onto the nearest technician’s live route. No full account setup. The change hits the schedule immediately.")}
-      ${writeBar("oneoff.insert", "Insert into route")}
-      <div class="actions" style="margin-bottom:14px">${btn("oneoff.insert", "New live task", "new-oneoff")} ${btn("oneoff.insert", "Drop waiting job", "insert-oneoff")}</div>
+      ${head("One-off / live call-in", "Customer calls — iguana in the toilet, garage, office. No full account. Rick finds the nearest trapper who has room on today’s route and drops the stop in.")}
+      ${writeBar("oneoff.insert", "Create live job")}
+      <div class="actions" style="margin-bottom:14px">
+        ${btn("oneoff.insert", "New call-in job", "new-oneoff")}
+        <div class="actions">${DAYS.map((d) => `<button class="legend-btn ${day === d ? "on" : ""}" data-act="oneoff-day" data-day="${d}">${d === todayDay() ? "Today · " : ""}${d}</button>`).join("")}</div>
+      </div>
+      <div class="grid-3" style="margin-bottom:14px">
+        ${stat("Waiting", pending.length, "Need a trapper now")}
+        ${stat("On " + day, todayLive.length, "Live call-ins scheduled")}
+        ${stat("This week", live.length, "All one-off stops")}
+      </div>
       <div class="split">
         <div class="card">
-          <h3>Waiting</h3>
-          ${pending.map((s) => `<div class="fit-row"><div><strong>${esc(s.label)}</strong><div class="tiny">${esc(s.address)} · suggested ${esc(techBy(s.techId)?.name || "")} · ${esc(s.taskType || "live call")}</div></div>${btn("oneoff.insert", "Drop on nearest", "insert-oneoff", `data-id="${s.id}"`)}</div>`).join("") || `<p class="muted">Nothing waiting.</p>`}
+          <h3>Waiting / just called in</h3>
+          <p class="tiny">Not on a route yet — open and assign nearest with schedule check</p>
+          ${pending.map((s) => `
+            <div class="fit-row">
+              <div>
+                <strong>${esc(s.label)}</strong>
+                <div class="tiny">${esc(s.address)} · ${esc((TASK_TYPES.find((t) => t.id === s.taskType) || {}).label || s.taskType || "live call")} · suggested ${esc(techBy(s.techId)?.name || "—")}</div>
+              </div>
+              <div class="actions">
+                ${btn("oneoff.insert", "Place on route", "insert-oneoff", `data-id="${s.id}"`)}
+              </div>
+            </div>
+          `).join("") || `<p class="muted">No waiting call-ins. Click <strong>New call-in job</strong>.</p>`}
         </div>
         <div class="card">
-          <h3>On a live route</h3>
-          ${live.map((s) => `<div class="fit-row"><div>${esc(s.label || "One-off")} · ${esc(s.day)} ${esc(s.time)}<div class="tiny">${esc(s.notify || "")}</div></div><span class="badge badge-ok">${esc(techName(s.techId))}</span></div>`).join("") || `<p class="muted">None yet this week.</p>`}
+          <h3>On route · ${esc(day)}</h3>
+          <p class="tiny">Already inserted into a trapper’s day — shows on Schedule / mobile</p>
+          ${todayLive.length ? table(
+            ["Time", "Job", "Trapper", "Min", ""],
+            todayLive.slice().sort((a, b) => String(a.time).localeCompare(String(b.time))).map((s) => [
+              esc(s.time),
+              `${esc(s.label)}<div class="tiny">${esc(s.address)}</div>`,
+              esc(techName(s.techId)),
+              String(s.durationMin || 25),
+              `<span class="badge badge-ok">Live</span>`,
+            ])
+          ) : `<p class="muted">Nothing on ${esc(day)} yet.</p>`}
+        </div>
+      </div>
+      ${live.filter((s) => s.day !== day).length ? `
+        <div class="card section-gap">
+          <h3>Other days this week</h3>
+          ${table(["Day", "Time", "Job", "Trapper"], live.filter((s) => s.day !== day).map((s) => [s.day, s.time, s.label, techName(s.techId)]))}
+        </div>` : ""}
+    `;
+  }
+
+  function viewCreateOneoff() {
+    if (!can("oneoff.insert")) {
+      return `<div class="forbidden"><h2>Not on this role’s routes</h2><p>Only Operations drops live call-ins.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
+    }
+    const d = state.oneoffDraft || {};
+    const day = d.day || todayDay();
+    const type = TASK_TYPES.find((t) => t.id === (d.type || "toilet")) || TASK_TYPES[0];
+    const duration = Number(d.duration || type.duration || 25);
+    const pos = pinFromAddress(d.addr || "", { x: "31%", y: "48%", place: "Florida" });
+    const x = d.x || pos.x;
+    const y = d.y || pos.y;
+    const ranked = oneoffRankTechs(x, y, day, duration);
+    const picked = d.techId || ranked[0]?.t.id;
+    const focus = ranked.find((r) => r.t.id === picked) || ranked[0];
+    return `
+      <div class="create-svc create-oneoff">
+        <button class="btn btn-ghost" data-act="cancel-create-oneoff">← One-off jobs</button>
+        <div class="create-svc-head">
+          <div>
+            <h2>Live call-in</h2>
+            <p class="muted">Toilet, garage, office — find who is down the street and has room on the day, then drop it on their route.</p>
+          </div>
+        </div>
+        <div class="oneoff-layout">
+          <div class="create-svc-form">
+            <div class="create-svc-section">
+              <div class="create-svc-kicker">Call details</div>
+              <div class="create-svc-2">
+                <div class="field"><label>Caller name</label><input id="oo-caller" value="${esc(d.caller || "")}" placeholder="Who called"></div>
+                <div class="field"><label>Phone</label><input id="oo-phone" value="${esc(d.phone || "")}" placeholder="Mobile"></div>
+              </div>
+              <div class="field req"><label>What happened</label>
+                <select id="oo-type" data-act="oo-type">${TASK_TYPES.map((t) => `<option value="${t.id}" ${t.id === type.id ? "selected" : ""}>${esc(t.label)}</option>`).join("")}</select>
+              </div>
+              <div class="field req"><label>Job note</label><input id="oo-label" value="${esc(d.label || "")}" placeholder="Iguana in toilet — Boca office park"></div>
+              <div class="field req"><label>Where</label><input id="oo-addr" value="${esc(d.addr || "")}" data-act="oo-addr" data-preview-pin="oo-pin" placeholder="Street, city, or park"></div>
+              <div class="create-svc-3">
+                <div class="field req"><label>Day</label>
+                  <select id="oo-day" data-act="oo-refresh">${DAYS.map((x) => `<option value="${x}" ${x === day ? "selected" : ""}>${x === todayDay() ? "Today · " : ""}${x}</option>`).join("")}</select>
+                </div>
+                <div class="field req"><label>Duration (min)</label><input id="oo-dur" type="number" min="10" step="5" value="${duration}" data-act="oo-refresh"></div>
+                <div class="field"><label>Urgency</label>
+                  <select id="oo-urgent"><option value="now" ${d.urgent !== "later" ? "selected" : ""}>ASAP / today</option><option value="later" ${d.urgent === "later" ? "selected" : ""}>Can wait a window</option></select>
+                </div>
+              </div>
+              <div class="field"><label>Notify</label>
+                <select id="oo-notify">
+                  <option value="">No extra ping</option>
+                  <option value="ops" ${d.notify === "ops" ? "selected" : ""}>Ping Operations</option>
+                  <option value="admin" ${d.notify === "admin" ? "selected" : ""}>Ping Administration</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="create-svc-section">
+              <div class="create-svc-kicker">Assign trapper</div>
+              <p class="tiny">Ranked by distance to the job / their nearby stops that day, then whether their route still has a gap.</p>
+              <div class="bestfit" id="oo-fit">
+                ${ranked.map((r, i) => `
+                  <button type="button" class="bestfit-card ${r.t.id === picked ? "pick" : ""} ${r.conflict ? "oo-conflict" : ""}" data-act="oo-pick-tech" data-tech="${r.t.id}">
+                    <strong>${i === 0 ? "Nearest · " : ""}${esc(r.t.name)}</strong> · ${esc(r.t.home)}
+                    <div class="tiny">${r.routeMiles} mi from nearest stop · ~${r.driveMin} min drive · ${r.stopCount} stop${r.stopCount === 1 ? "" : "s"} · ${r.loadMin} min already on ${esc(day)}</div>
+                    <div class="tiny">Insert ~${esc(r.slot.time)}${r.slot.gap ? " (gap found)" : ""}${r.nearStop ? ` · near ${esc(stopLabel(r.nearStop))}` : " · from home"}</div>
+                    ${r.conflict ? `<div class="tiny" style="color:var(--clay)"><strong>Tight / late day</strong> — still assignable if Rick accepts</div>` : r.heavy ? `<div class="tiny">Heavy day already — check before stacking</div>` : `<div class="tiny">Looks workable</div>`}
+                  </button>
+                `).join("")}
+              </div>
+              <input type="hidden" id="oo-tech" value="${esc(picked || "")}">
+              <input type="hidden" id="oo-x" value="${esc(String(x).replace("%", ""))}">
+              <input type="hidden" id="oo-y" value="${esc(String(y).replace("%", ""))}">
+              <div class="field" style="margin-top:10px"><label>Insert time</label><input id="oo-time" type="time" value="${esc(d.time || focus?.slot.time || "09:00")}"></div>
+              ${focus ? `
+                <div class="notice" style="margin-top:10px">
+                  <strong>${esc(focus.t.name)}</strong> on ${esc(day)}: ${focus.stopCount} stops · ${focus.loadMin} min booked.
+                  ${focus.stops.length ? `<div class="tiny" style="margin-top:6px">${focus.stops.map((s) => `${s.time} ${stopLabel(s)} (${s.durationMin || 20}m)`).join(" → ")}</div>` : `<div class="tiny">Open day — first live call-in.</div>`}
+                </div>` : ""}
+            </div>
+
+            <div class="actions create-svc-actions">
+              <button class="btn btn-ghost" data-act="cancel-create-oneoff">Cancel</button>
+              ${btn("oneoff.insert", "Drop on route now", "save-oneoff")}
+            </div>
+          </div>
+          <div class="create-svc-map">
+            ${miniMapHtml({
+              drag: true,
+              mapId: "oo-map",
+              title: "Call-in location",
+              existing: [],
+              preview: [{ x, y, label: d.label || "Call-in", elId: "oo-pin", xId: "oo-x", yId: "oo-y", capId: "oo-cap", keepLabel: true }],
+              caption: `${pos.place || "Pin the job"} · drag to adjust · nearest homes shown`,
+            })}
+            <div class="tiny" style="margin-top:8px">Homes: ${TECHS.map((t) => `<span style="margin-right:8px"><i class="dot" style="background:${t.color}"></i> ${esc(t.name)}</span>`).join("")}</div>
+          </div>
         </div>
       </div>
     `;
@@ -3578,6 +4630,40 @@
     `;
   }
 
+  function viewTasks() {
+    const filter = state.taskFilter || "mine";
+    const all = (state.data.tasks || []).slice().sort((a, b) => {
+      if (a.status !== b.status) return a.status === "open" ? -1 : 1;
+      return String(a.due || "").localeCompare(String(b.due || ""));
+    });
+    const list = all.filter((t) => {
+      if (filter === "mine") return t.assignee === state.role && t.status === "open";
+      if (filter === "open") return t.status === "open";
+      if (filter === "done") return t.status === "done";
+      if (filter === "created") return t.createdBy === state.role;
+      return true;
+    });
+    const filters = [
+      ["mine", "Assigned to me"],
+      ["open", "All open"],
+      ["created", "I created"],
+      ["done", "Done"],
+      ["all", "Everything"],
+    ];
+    return `
+      ${head("Tasks", "Tom, Rick, and Christy create tasks for each other about a customer. Open a Bill-To from the task, or create one from the customer page.")}
+      ${writeBar("task.create", "Create task")}
+      <div class="seg" style="margin-bottom:12px">
+        ${filters.map(([id, lab]) => `<button class="${filter === id ? "on" : ""}" data-act="task-filter" data-filter="${id}">${lab}</button>`).join("")}
+      </div>
+      <div class="actions" style="margin-bottom:12px">${btn("task.create", "Create task", "new-task")}</div>
+      <div class="card">
+        <h3>${esc(filters.find((f) => f[0] === filter)?.[1] || "Tasks")} <span class="muted">${list.length}</span></h3>
+        ${taskListHtml(list, "Nothing in this filter.")}
+      </div>
+    `;
+  }
+
   function mtoCard(m) {
     const c = custBy(m.customerId);
     return `<div class="mto-card ${m.read ? "" : "unread"}">
@@ -3968,20 +5054,35 @@
         const box = document.getElementById("io-preview");
         if (box) box.innerHTML = convertPreviewInner(el.value);
       }
+      if (el.dataset.act === "task-cust-change") refreshTaskLocOptions();
       if (el.dataset.act === "sv-code") {
-        const t = SERVICE_TYPES.find((x) => x.id === el.value);
-        if (t) {
-          const dur = document.getElementById("sv-dur");
-          const idur = document.getElementById("sv-idur");
-          if (dur) dur.value = fmtDur(t.duration);
-          if (idur) idur.value = fmtDur(t.duration);
-        }
-        fillSetupDates();
+        applyServiceTypeDefaults();
         refreshSetupFit();
+      }
+      if (el.dataset.act === "oo-type") {
+        const t = TASK_TYPES.find((x) => x.id === el.value);
+        captureOneoffDraft();
+        if (state.oneoffDraft && t) {
+          state.oneoffDraft.type = t.id;
+          state.oneoffDraft.duration = t.duration || 25;
+        }
+        refreshOneoffFit();
+      }
+      if (el.dataset.act === "oo-refresh" || el.dataset.act === "oo-addr") refreshOneoffFit();
+      if (el.dataset.act === "sv-toggle-initial") {
+        const block = document.getElementById("sv-initial-block");
+        if (block) block.hidden = !el.checked;
+        if (state.setupDraft) state.setupDraft.createInitial = el.checked;
       }
       if (el.dataset.act === "sv-start") fillSetupDates();
       if (el.dataset.act === "sv-sched") refreshSetupFit();
-      if (el.dataset.act === "sv-loc") refreshSetupFit();
+      if (el.dataset.act === "sv-loc") {
+        captureCreateServiceDraft();
+        state.setupLocId = el.value;
+        if (state.setupDraft) state.setupDraft.loc = el.value;
+        if (state.page === "create-service") render();
+        else refreshSetupFit();
+      }
     };
     $app.oninput = (e) => {
       if (e.target.dataset.previewPin && !e.target.dataset.coord) updateMiniPreview(e.target);
@@ -4111,9 +5212,9 @@
     if (latEl) latEl.value = coords.lat;
     if (lngEl) lngEl.value = coords.lng;
     const span = pin.querySelector("span");
-    if (span) span.textContent = place.place;
+    if (span && !pin.dataset.keepLabel) span.textContent = place.place;
     const cap = document.getElementById(pin.dataset.cap || "mini-cap");
-    if (cap) cap.textContent = `${place.place} · ${coords.lat}, ${coords.lng}`;
+    if (cap) cap.textContent = `${place.place} · ${coords.lat}, ${coords.lng}${pin.dataset.keepLabel ? " · drag to adjust" : ""}`;
   }
 
   function syncPinFromLatLng(input) {
@@ -4268,12 +5369,21 @@
       "save-manual-invoice": () => saveManualInvoice(),
       "open-record-pay": () => { if (ds.pay) state.payFocusId = ds.pay; openRecordPay(ds.id); },
       bestfit: () => openAssign(ds.id),
-      "open-assign": () => openAssign(ds.id, ds.loc),
+      "open-assign": () => { state.modal = null; openAssign(ds.id, ds.loc); },
       "compare-routes": () => openCompareRoutes(ds.id, ds.loc),
       "map-assign": () => mapAssign(ds.id, ds.tech, ds.loc),
       "focus-client": () => { state.mapClient = ds.id; state.mapLoc = ds.loc || null; render(); },
       "open-service": () => openCreateService(ds.id, ds.loc),
-      "save-service": () => saveCreateService(ds.id),
+      "save-service": () => saveCreateService(ds.id || state.setupId),
+      "cancel-create-service": () => {
+        state.setupDraft = null;
+        state.page = "customer";
+        state.selectedCustomer = state.setupId || state.selectedCustomer;
+        state.modal = null;
+        render();
+      },
+      "edit-service": () => openEditService(ds.id),
+      "save-edit-service": () => saveEditService(ds.id),
       "sched-view": () => { state.schedView = ds.view; render(); },
       "focus-tech": () => { state.assignFocus = ds.tech; render(); },
       "confirm-assign": () => confirmAssign(ds.id, ds.tech, ds.loc),
@@ -4291,14 +5401,58 @@
       "insert-oneoff": () => insertOneoff(ds.id),
       "new-oneoff": () => openNewOneoff(),
       "save-oneoff": () => saveNewOneoff(),
+      "cancel-create-oneoff": () => { state.oneoffDraft = null; state.page = "oneoffs"; state.modal = null; render(); },
+      "oo-pick-tech": () => pickOneoffTech(ds.tech),
+      "oneoff-day": () => { state.oneoffDay = ds.day || todayDay(); render(); },
       "generate-schedule": () => generateSchedule(),
       "map-tech": () => {
         const next = ds.tech || null;
-        state.mapTech = next && state.mapTech === next ? null : next;
+        state.mapTech = next && state.mapTech !== next ? next : null;
+        if (!state.mapTech) {
+          state.mapColorBy = "tech";
+          state.mapSched = null;
+        } else {
+          state.mapColorBy = "schedule";
+        }
+        state.mapPin = null;
         render();
       },
-      "map-day": () => { state.mapDay = ds.day || null; render(); },
-      "sv-pick-fit": () => pickSetupTrapper(ds.tech),
+      "map-color": () => {
+        if (ds.mode === "schedule" && !state.mapTech) return;
+        state.mapColorBy = ds.mode || "tech";
+        render();
+      },
+      "map-sched-filter": () => {
+        const days = ds.days || null;
+        state.mapSched = state.mapSched === days ? null : days;
+        state.mapDay = null;
+        render();
+      },
+      "map-pin": () => {
+        if (!ds.cid || !ds.lid) return;
+        if (state.mapPin && state.mapPin.cid === ds.cid && state.mapPin.lid === ds.lid) state.mapPin = null;
+        else state.mapPin = { cid: ds.cid, lid: ds.lid };
+        render();
+      },
+      "clear-map-pin": () => { state.mapPin = null; render(); },
+      "map-compare-tech": () => {
+        const id = ds.tech;
+        if (!id) return;
+        let list = (state.mapCompare || []).slice();
+        if (list.includes(id)) list = list.filter((x) => x !== id);
+        else {
+          list.push(id);
+          if (list.length > 2) list = list.slice(-2);
+        }
+        state.mapCompare = list;
+        state.mapTech = id;
+        state.mapColorBy = "schedule";
+        render();
+      },
+      "clear-map-compare": () => { state.mapCompare = []; render(); },
+      "map-day": () => { state.mapDay = ds.day || null; state.mapSched = null; render(); },
+      "sv-pick-fit": () => pickSetupTrapper(ds.tech, ds.target),
+      "sv-best-fit": () => openSetupBestFit(ds.target || "standing"),
       "toggle-lasso": () => { state.mapLasso = !state.mapLasso; if (!state.mapLasso) state.mapSelect = []; render(); },
       "toggle-pin": () => toggleMapSelect(ds.cid, ds.lid),
       "bulk-move": () => bulkMove(ds.tech),
@@ -4313,7 +5467,12 @@
       "noshow-customer": () => noshowCustomer(),
       "post-pay": () => postPayCustomer(ds.id),
       "match-pay": () => matchPay(ds.id),
-      "new-pay": () => openNewPay(),
+      "new-pay": () => openNewPay(ds.id),
+      "new-task": () => openCreateTask(ds.id, ds.loc),
+      "save-task": () => saveTask(),
+      "complete-task": () => completeTask(ds.id),
+      "reopen-task": () => reopenTask(ds.id),
+      "task-filter": () => { state.taskFilter = ds.filter || "mine"; render(); },
       "save-new-pay": () => saveNewPay(),
       "open-mail": () => openMail(ds.id),
       "apply-mail": () => applyMail(ds.id),
@@ -4329,7 +5488,7 @@
       "add-reason": () => addReason(),
       "save-settings": () => saveSettings(),
       "preview-tpl": () => previewTpl(ds.name),
-      "close-modal": () => { state.modal = null; render(); },
+      "close-modal": () => { captureCreateServiceDraft(); captureOneoffDraft(); state.modal = null; render(); },
       "open-stop": () => { state.mobileStop = ds.id; render(); },
       "close-stop": () => { state.mobileStop = null; render(); },
       "start-stop": () => startStop(ds.id),
@@ -5286,143 +6445,19 @@
     if (!c) return;
     const locs = c.locations.filter((l) => l.covered !== false);
     const selected = locId || locs.find((l) => locNeedsService(c, l))?.id || locs[0]?.id;
-    const loc = locs.find((l) => l.id === selected) || locs[0];
-    const code = defaultServiceCode(c, loc);
-    const st = SERVICE_TYPES.find((t) => t.id === code) || SERVICE_TYPES[0];
-    const plan = locPlan(c, loc);
-    const start = plan.start || TODAY;
-    const expires = expiryFrom(start, code) || plan.expires || "";
-    const sched = SERVICE_SCHEDULES.find((s) => s.days === (loc?.days || c.days || "Mon/Wed")) || SERVICE_SCHEDULES[0];
-    state.assignDays = sched.days;
-    const ranked = bestFitFor(c, loc, sched.days);
-    const suggested = ranked[0]?.t;
-    const color = suggested?.color || "#5ec8d8";
     state.setupId = c.id;
-    state.setupLocId = loc?.id;
-    state.modal = {
-      wide: true,
-      setup: true,
-      html: `
-        <h3>Service setup · ${esc(c.name)} · ${esc(loc?.name || "property")}</h3>
-        <p>This service is for this property only. ${esc(c.billTo || c.name)} is still the Bill-To. Dates follow this property’s plan.</p>
-        <div class="setup-bar setup-bar-map">
-          <div class="field"><label>Property</label>
-            <select id="sv-loc" data-act="sv-loc">${locs.map((l) => `<option value="${l.id}" ${l.id === selected ? "selected" : ""}>${esc(l.name)} · ${esc(l.address)}</option>`).join("")}</select>
-            <p class="tiny" style="margin-top:8px">This is the pin you are putting on a trapper next. Confirm it is the right lot before you save.</p>
-          </div>
-          ${miniMapHtml({
-            existing: locs.filter((l) => l.id !== loc?.id).map((l) => ({ x: l.x, y: l.y, label: l.name, color: locPinColor(c, l) })),
-            preview: loc ? [{ x: loc.x, y: loc.y, label: loc.name, elId: "mini-preview" }] : [],
-            caption: loc ? loc.address : "Pick a property",
-          })}
-        </div>
-        <div class="setup-grid">
-          <div class="field"><label>Initial service time</label><input id="sv-itime" type="time" value="12:30"></div>
-          <div class="field"><label>Initial duration</label><input id="sv-idur" value="${fmtDur(st.duration)}" placeholder="00:10"></div>
-          <div class="field"><label>Initial service</label>
-            <select id="sv-type" data-act="sv-code">${SERVICE_TYPES.map((t) => `<option value="${t.id}" ${t.id === code ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
-          </div>
-          <div class="field"><label>Initial service price</label><input id="sv-price" type="number" step="0.01" value="0.00"></div>
-          <div class="field chk-field"><label class="chk"><input type="checkbox" id="sv-tax"> Tax</label></div>
-          <div class="field"><label>Initial trapper 1 <span class="tiny">optional preview — assign on the map</span></label>
-            <select id="sv-initial"><option value="">Assign on the map</option>${TECHS.map((t) => `<option value="${t.id}">${esc(t.name.toUpperCase())} · ${esc(t.home)}</option>`).join("")}</select>
-          </div>
-        </div>
-        <div class="setup-grid">
-          <div>
-            <div class="field"><label>Schedule</label>
-              <select id="sv-sched" data-act="sv-sched">${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}" ${s.id === sched.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
-            </div>
-            <div class="chk-row">
-              <label class="chk"><input type="checkbox" id="sv-locked"> Locked</label>
-              <label class="chk"><input type="checkbox" id="sv-unsked"> Unscheduled</label>
-            </div>
-            <div class="setup-2">
-              <div class="field"><label>Time</label>
-                <select id="sv-when"><option>Anytime</option><option>Window</option><option>Exact</option></select>
-              </div>
-              <div class="field"><label>AM / PM</label>
-                <select id="sv-ampm"><option>AM</option><option>PM</option></select>
-              </div>
-            </div>
-            <div class="field"><label>Time range</label><input id="sv-range" placeholder="e.g. 8:00–10:00"></div>
-            <div class="field req"><label>Duration</label><input id="sv-dur" value="${fmtDur(st.duration)}" placeholder="00:10"></div>
-            <div class="field"><label>Sch. color</label><input id="sv-color" type="color" value="${color}"></div>
-          </div>
-          <div>
-            <div class="chk-row" style="margin-bottom:10px"><label class="chk"><input type="checkbox" id="sv-active" checked> Active</label></div>
-            <div class="field"><label>Charge</label>
-              <select id="sv-charge">${CHARGE_MODES.map((m) => `<option ${m === "Production" ? "selected" : ""}>${m}</option>`).join("")}</select>
-            </div>
-            <div class="field req"><label>Start date</label><input id="sv-start" type="date" value="${esc(start)}" data-act="sv-start"></div>
-            <div class="field"><label>Standing trapper <span class="tiny">assign on the map after save</span></label>
-              <select id="sv-trapper"><option value="">Assign on the map</option>${TECHS.map((t) => `<option value="${t.id}">${esc(t.name.toUpperCase())} · ${esc(t.home)}</option>`).join("")}</select>
-            </div>
-            <div class="field"><label>Route</label>
-              <select id="sv-route"><option value="">—</option>${TECHS.map((t) => `<option value="${t.id}">${esc(t.home)} · ${esc(t.name)}</option>`).join("")}</select>
-            </div>
-            <div class="field"><label>Targets</label>
-              <select id="sv-target">${TARGETS.map((t) => `<option ${t === "IGUANA" ? "selected" : ""}>${t}</option>`).join("")}</select>
-            </div>
-            <div class="field"><label>Measurement</label><input id="sv-meas" type="number" step="0.01" value="0.00"></div>
-          </div>
-          <div>
-            <div class="field"><label>PO#</label><input id="sv-po" value="${esc(c.po || "")}" placeholder="Municipal only"></div>
-            <div class="field"><label>PO expiration</label><input id="sv-poexp" type="date"></div>
-            <div class="field"><label>Division</label><input id="sv-div" placeholder="—"></div>
-            <div class="field"><label>Source</label><input id="sv-src" placeholder="—"></div>
-          </div>
-        </div>
-        <div class="field">
-          <label>Skip months</label>
-          <div class="skip-months">${MONTHS.map((m, i) => `<label class="chk"><input type="checkbox" id="sv-skip-${i}"> ${m}</label>`).join("")}</div>
-        </div>
-        <div class="setup-grid">
-          <div>
-            <div class="field"><label>Next gen</label><input id="sv-nextgen" type="date" value="${esc(start)}"></div>
-            <div class="field"><label>Last gen</label><input id="sv-lastgen" type="date"></div>
-            <div class="field"><label>Next service</label><input id="sv-nextsvc" type="date"></div>
-            <div class="field"><label>Last service</label><input id="sv-lastsvc" type="date"></div>
-          </div>
-          <div>
-            <div class="field"><label>Increase date</label><input id="sv-incdate" type="date"></div>
-            <div class="chk-row" style="margin-bottom:10px"><label class="chk"><input type="checkbox" id="sv-incprice" checked> Increase price</label></div>
-            <div class="field req"><label>Expiration / renewal</label><input id="sv-expires" type="date" value="${esc(expires)}"><div class="tiny">Filled from the program + start. Both dates are the same.</div></div>
-            <input type="hidden" id="sv-renewal" value="${esc(expires)}">
-          </div>
-          <div>
-            <div class="field"><label>Cancel date</label><input id="sv-cancel" type="date"></div>
-            <div class="field"><label>Cancel reason</label><input id="sv-cancelr" placeholder="—"></div>
-            <div class="field"><label>Comm. start / end</label><input id="sv-comms" type="date"><div class="tiny">Optional — Christy can also enter this later.</div></div>
-            <input type="hidden" id="sv-comme" value="">
-          </div>
-        </div>
-        <div class="setup-3">
-          <div class="field"><label>Dispatched</label><input id="sv-disp" placeholder="—"></div>
-          <div class="field"><label>Bagged</label><input id="sv-bag" placeholder="—"></div>
-          <div class="field"><label>Weight</label><input id="sv-wt" placeholder="—"></div>
-        </div>
-        <div class="card" style="margin:12px 0">
-          <h3>Nearest homes <span class="muted">preview only — you assign on the map next</span></h3>
-          <p class="tiny">Who is closest from home and from their other stops that day. Saving does not put this client on a trapper. Click a home pin on the map after you save.</p>
-          <div class="bestfit" id="sv-fit">${fitCardsHtml(ranked, suggested?.id)}</div>
-        </div>
-        <div class="chk-row">
-          <label class="chk"><input type="checkbox" id="sv-notify" checked> Text / email 2 days before (no-reply, system generated)</label>
-        </div>
-        <div class="actions">
-          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
-          ${btn("service.create", "Save service — assign on map", "save-service", `data-id="${c.id}"`)}
-        </div>
-      `,
-    };
+    state.setupLocId = selected || null;
+    state.selectedCustomer = c.id;
+    state.setupDraft = null;
+    state.page = "create-service";
+    state.modal = null;
     render();
   }
 
   function saveCreateService(id) {
     if (!can("service.create")) return;
-    const c = custBy(id);
-    const locId = val("sv-loc");
+    const c = custBy(id || state.setupId);
+    const locId = val("sv-loc") || state.setupLocId;
     const loc = c?.locations.find((l) => l.id === locId);
     if (!c || !loc) return;
     if (svcFor(c.id, loc.id)) {
@@ -5431,59 +6466,66 @@
       return;
     }
     const durationMin = parseDur(val("sv-dur"));
-    const start = val("sv-start");
-    const expires = val("sv-expires") || expiryFrom(start, val("sv-type"));
-    const renewal = val("sv-renewal") || expires;
+    const start = val("sv-start") || val("sv-idate");
+    const type = val("sv-type") || defaultServiceCode(c, loc);
+    const expires = val("sv-expires") || expiryFrom(start, type);
+    const renewal = expires;
     if (!durationMin || !start || !expires) {
-      toast("Duration, start date, and expiration are required.");
+      toast("Duration, start date, and renewal date are required.");
       return;
     }
-    const type = val("sv-type") || defaultServiceCode(c, loc);
     const sched = SERVICE_SCHEDULES.find((s) => s.id === val("sv-sched")) || SERVICE_SCHEDULES[0];
-    const trapper = val("sv-trapper") || null;
-    const initial = val("sv-initial") || trapper || null;
-    const skip = MONTHS.map((_, i) => checked("sv-skip-" + i) ? MONTHS[i] : null).filter(Boolean);
+    const createInitial = checked("sv-create-initial");
+    const standing = val("sv-trapper") || null;
+    const initial = createInitial ? (val("sv-initial") || standing || null) : standing;
+    const notes = val("sv-notes");
+    if (notes) loc.notes = notes;
+    const notifyEmail = checked("sv-notify-email");
+    const notifyText = checked("sv-notify-text");
     const svc = {
       id: nid("SVC"), customerId: c.id, locationId: loc.id,
       type, status: "new",
-      techId: null, initialTechId: initial, days: sched.days,
+      techId: null, initialTechId: initial, standingTechId: standing, days: sched.days,
       durationMin, generated: false,
-      notify: checked("sv-notify"),
+      notify: notifyEmail || notifyText,
+      notifyEmail, notifyText, notifyDays: 2,
       schedule: sched.id,
-      initialTime: val("sv-itime"),
-      initialDuration: parseDur(val("sv-idur") || val("sv-dur")),
+      createInitial,
+      initialDate: createInitial ? (val("sv-idate") || start) : "",
+      initialTime: createInitial ? val("sv-itime") : "",
+      ampm: createInitial ? (val("sv-ampm") || "PM") : "AM",
+      initialDuration: createInitial ? parseDur(val("sv-idur") || val("sv-dur")) : durationMin,
+      description: val("sv-desc") || "",
+      qty: Number(val("sv-qty") || 1),
       price: Number(val("sv-price") || 0),
+      initialPrice: createInitial ? Number(val("sv-iprice") || val("sv-price") || 0) : 0,
       tax: checked("sv-tax"),
-      locked: checked("sv-locked"),
-      unscheduled: checked("sv-unsked"),
-      active: checked("sv-active"),
-      timeWhen: val("sv-when") || "Anytime",
-      ampm: val("sv-ampm") || "AM",
-      timeRange: val("sv-range"),
-      color: val("sv-color") || "#5ec8d8",
-      charge: val("sv-charge") || "Production",
+      locked: false,
+      unscheduled: false,
+      active: true,
+      timeWhen: "Anytime",
+      timeRange: "",
+      color: techBy(standing || initial)?.color || "#5ec8d8",
+      charge: "Production",
       start, expires, renewal,
-      route: val("sv-route"),
+      route: "",
       target: val("sv-target") || "IGUANA",
-      measurement: Number(val("sv-meas") || 0),
-      po: val("sv-po"),
-      poExp: val("sv-poexp"),
-      division: val("sv-div"),
-      source: val("sv-src"),
-      skipMonths: skip,
-      nextGen: val("sv-nextgen") || start,
-      lastGen: val("sv-lastgen"),
-      nextService: val("sv-nextsvc"),
-      lastService: val("sv-lastsvc"),
-      increaseDate: val("sv-incdate"),
-      increasePrice: checked("sv-incprice"),
-      cancelDate: val("sv-cancel"),
-      cancelReason: val("sv-cancelr"),
-      commStart: val("sv-comms"),
-      commEnd: val("sv-comme"),
-      dispatched: val("sv-disp"),
-      bagged: val("sv-bag"),
-      weight: val("sv-wt"),
+      measurement: 0,
+      po: c.po || "",
+      poExp: "",
+      division: "",
+      source: "",
+      skipMonths: [],
+      nextGen: start,
+      lastGen: "",
+      nextService: "",
+      lastService: "",
+      increaseDate: "",
+      increasePrice: true,
+      cancelDate: "",
+      cancelReason: "",
+      instructions: notes,
+      freq: val("sv-freq") || "",
     };
     if (!state.data.services) state.data.services = [];
     state.data.services.push(svc);
@@ -5495,7 +6537,149 @@
     c.durationMin = durationMin;
     if (c.status === "inquiry" && (c.paid || c.municipal)) c.status = "active";
     state.modal = null;
-    goToAssignMap(c.id, loc.id, `${c.name} · ${loc.name} is saved. Click a technician’s home to see their properties, then assign this pin.`);
+    state.setupDraft = null;
+    const who = standing || initial;
+    goToAssignMap(
+      c.id,
+      loc.id,
+      who
+        ? `${c.name} · ${loc.name} saved · ${techBy(who)?.name || "trapper"} suggested. Confirm on the map.`
+        : `${c.name} · ${loc.name} is saved. Click a technician’s home to assign this pin.`
+    );
+  }
+
+  function openEditService(svcId) {
+    if (!canEditService()) {
+      toast("Only Operations or Owner can edit services.");
+      return;
+    }
+    const svc = (state.data.services || []).find((s) => s.id === svcId);
+    if (!svc) return;
+    const c = custBy(svc.customerId);
+    const loc = locBy(svc.customerId, svc.locationId);
+    if (!c || !loc) return;
+    const sched = SERVICE_SCHEDULES.find((s) => s.id === svc.schedule || s.days === svc.days) || SERVICE_SCHEDULES[0];
+    const continuing = svcIsContinuing(svc);
+    state.modal = {
+      wide: true,
+      html: `
+        <h3>${continuing ? "Edit continuing service" : "Service detail"} · ${esc(loc.name)}</h3>
+        <p>Bill-To ${esc(c.billTo || c.name)}. ${continuing ? "Change trapper, schedule, or dates here — or reassign on the map." : "This service is no longer continuing."}</p>
+        <div class="preview">
+          <strong>${esc(svc.id)}</strong> · ${svcStatusBadge(svc)}
+          <div class="tiny">${esc(loc.address)}</div>
+        </div>
+        <div class="setup-grid">
+          <div class="field"><label>Service type</label>
+            <select id="es-type" ${continuing ? "" : "disabled"}>${SERVICE_TYPES.map((t) => `<option value="${t.id}" ${t.id === svc.type ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
+          </div>
+          <div class="field"><label>Standing trapper</label>
+            <select id="es-trapper" ${continuing ? "" : "disabled"}>
+              <option value="">Unassigned</option>
+              ${TECHS.map((t) => `<option value="${t.id}" ${t.id === svc.techId ? "selected" : ""}>${esc(t.name.toUpperCase())} · ${esc(t.home)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field"><label>Schedule</label>
+            <select id="es-sched" ${continuing ? "" : "disabled"}>${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}" ${s.id === sched.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
+          </div>
+          <div class="field"><label>Duration (min)</label><input id="es-dur" type="number" value="${esc(svc.durationMin || 20)}" ${continuing ? "" : "disabled"}></div>
+          <div class="field"><label>Start</label><input id="es-start" type="date" value="${esc(svc.start || "")}" ${continuing ? "" : "disabled"}></div>
+          <div class="field"><label>Expires / renewal</label><input id="es-expires" type="date" value="${esc(svc.expires || svc.renewal || "")}" ${continuing ? "" : "disabled"}></div>
+          <div class="field"><label>Charge</label>
+            <select id="es-charge" ${continuing ? "" : "disabled"}>${CHARGE_MODES.map((m) => `<option ${m === (svc.charge || "Production") ? "selected" : ""}>${m}</option>`).join("")}</select>
+          </div>
+          <div class="field"><label>Target</label>
+            <select id="es-target" ${continuing ? "" : "disabled"}>${TARGETS.map((t) => `<option ${t === (svc.target || "IGUANA") ? "selected" : ""}>${t}</option>`).join("")}</select>
+          </div>
+          <div class="field chk-field"><label class="chk"><input type="checkbox" id="es-active" ${svc.active !== false && continuing ? "checked" : ""} ${continuing ? "" : "disabled"}> Active / continuing</label></div>
+          <div class="field"><label>Cancel date</label><input id="es-cancel" type="date" value="${esc(svc.cancelDate || "")}" ${continuing ? "" : "disabled"}></div>
+          <div class="field"><label>Cancel reason</label><input id="es-cancelr" value="${esc(svc.cancelReason || "")}" ${continuing ? "" : "disabled"} placeholder="optional"></div>
+          <div class="field"><label>Ops note</label><textarea id="es-note" rows="2" ${continuing ? "" : "disabled"} placeholder="Internal note on this service">${esc(svc.opsNote || "")}</textarea></div>
+        </div>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="close-modal">Close</button>
+          ${continuing && canEditService() ? `
+            <button class="btn btn-ghost" data-act="open-assign" data-id="${c.id}" data-loc="${loc.id}">Reassign on map</button>
+            ${btn("service.edit", "Save changes", "save-edit-service", `data-id="${svc.id}"`)}
+          ` : ""}
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function saveEditService(svcId) {
+    if (!canEditService()) return;
+    const svc = (state.data.services || []).find((s) => s.id === svcId);
+    if (!svc) return;
+    const c = custBy(svc.customerId);
+    const loc = locBy(svc.customerId, svc.locationId);
+    const prevTech = svc.techId;
+    const sched = SERVICE_SCHEDULES.find((s) => s.id === val("es-sched")) || SERVICE_SCHEDULES[0];
+    const techId = val("es-trapper") || null;
+    const durationMin = Number(val("es-dur")) || svc.durationMin || 20;
+    const start = val("es-start") || svc.start;
+    const expires = val("es-expires") || svc.expires;
+    const cancelDate = val("es-cancel") || null;
+
+    svc.type = val("es-type") || svc.type;
+    svc.techId = techId;
+    svc.schedule = sched.id;
+    svc.days = sched.days;
+    svc.durationMin = durationMin;
+    svc.start = start;
+    svc.expires = expires;
+    svc.renewal = expires;
+    svc.charge = val("es-charge") || svc.charge;
+    svc.target = val("es-target") || svc.target;
+    svc.opsNote = val("es-note") || "";
+    svc.cancelDate = cancelDate;
+    svc.cancelReason = val("es-cancelr") || "";
+    if (cancelDate) {
+      svc.status = "cancelled";
+      svc.active = false;
+    } else if (checked("es-active")) {
+      svc.status = techId ? "live" : "new";
+      svc.active = true;
+    } else {
+      svc.status = "ended";
+      svc.active = false;
+    }
+
+    if (loc) {
+      loc.days = sched.days;
+      loc.techId = techId || loc.techId;
+      loc.durationMin = durationMin;
+    }
+    if (c) {
+      c.days = sched.days;
+      if (techId) c.techId = techId;
+      c.durationMin = durationMin;
+    }
+
+    // Sync open stops when trapper or days change
+    (state.data.stops || []).forEach((st) => {
+      if (st.customerId !== svc.customerId || st.locationId !== svc.locationId) return;
+      if (st.status === "complete" || st.status === "noshow" || st.pending) return;
+      if (techId && techId !== prevTech) st.techId = techId;
+      if (sched.days && patternDays(sched.days).length === 1) {
+        // leave multi-day patterns alone; single-day schedule updates day
+        st.day = patternDays(sched.days)[0] || st.day;
+      }
+      st.durationMin = durationMin;
+    });
+
+    state.modal = null;
+    if (techId && techId !== prevTech) {
+      toast(`Service updated · trapper ${techName(techId)}. Open stops moved with the reassignment.`);
+    } else if (cancelDate) {
+      toast("Service cancelled on this property.");
+    } else {
+      toast("Service updated.");
+    }
+    state.page = "customer";
+    state.selectedCustomer = svc.customerId;
+    render();
   }
 
   function goToAssignMap(id, locId, message) {
@@ -5504,10 +6688,16 @@
     state.mapClient = id;
     state.mapLoc = loc?.id || null;
     state.mapTech = null;
+    state.mapCompare = [];
+    state.mapPin = null;
+    state.mapSched = null;
+    state.mapColorBy = "tech";
     state.assignId = id;
     state.assignLocId = loc?.id || null;
     const svc = loc ? svcFor(c.id, loc.id) : null;
     state.assignDays = DAY_PATTERNS.some((p) => p.id === (svc?.days || loc?.days || c?.days)) ? (svc?.days || loc?.days || c.days) : "Mon/Wed";
+    const ranked = loc ? bestFitFor(c, loc, state.assignDays) : [];
+    state.assignFocus = ranked[0]?.t.id || null;
     state.page = "map";
     state.modal = null;
     if (message) toast(message);
@@ -5999,6 +7189,60 @@
     render();
   }
 
+  function captureOneoffDraft() {
+    if (state.page !== "create-oneoff") return state.oneoffDraft || null;
+    if (!document.getElementById("oo-type") && !document.getElementById("oo-addr")) return state.oneoffDraft || null;
+    const type = TASK_TYPES.find((t) => t.id === val("oo-type")) || TASK_TYPES[0];
+    state.oneoffDraft = {
+      caller: val("oo-caller"),
+      phone: val("oo-phone"),
+      type: val("oo-type") || type.id,
+      label: val("oo-label"),
+      addr: val("oo-addr"),
+      day: val("oo-day") || todayDay(),
+      duration: Number(val("oo-dur") || type.duration || 25),
+      urgent: val("oo-urgent") || "now",
+      notify: val("oo-notify"),
+      techId: val("oo-tech") || state.oneoffDraft?.techId || null,
+      time: val("oo-time"),
+      x: val("oo-x") ? val("oo-x") + "%" : state.oneoffDraft?.x,
+      y: val("oo-y") ? val("oo-y") + "%" : state.oneoffDraft?.y,
+    };
+    return state.oneoffDraft;
+  }
+  function refreshOneoffFit() {
+    captureOneoffDraft();
+    const d = state.oneoffDraft || {};
+    if (d.addr) {
+      const pos = pinFromAddress(d.addr, { x: d.x || "31%", y: d.y || "48%" });
+      if (!d.x || document.getElementById("oo-addr")?.dataset.fromMap !== "1") {
+        d.x = pos.x;
+        d.y = pos.y;
+      }
+    }
+    const type = TASK_TYPES.find((t) => t.id === d.type) || TASK_TYPES[0];
+    if (document.getElementById("oo-dur") && !document.getElementById("oo-dur").dataset.touched) {
+      setInput("oo-dur", type.duration || 25);
+      d.duration = type.duration || 25;
+    }
+    state.oneoffDraft = d;
+    render();
+  }
+  function pickOneoffTech(techId) {
+    captureOneoffDraft();
+    if (!state.oneoffDraft) state.oneoffDraft = {};
+    state.oneoffDraft.techId = techId;
+    const day = state.oneoffDraft.day || todayDay();
+    const dur = state.oneoffDraft.duration || 25;
+    const x = state.oneoffDraft.x || "31%";
+    const y = state.oneoffDraft.y || "48%";
+    const ranked = oneoffRankTechs(x, y, day, dur);
+    const hit = ranked.find((r) => r.t.id === techId);
+    if (hit) state.oneoffDraft.time = hit.slot.time;
+    state.toast = `${techBy(techId)?.name || "Trapper"} selected`;
+    render();
+    setTimeout(() => { if (state.toast && state.toast.endsWith("selected")) { state.toast = null; render(); } }, 1800);
+  }
   function insertOneoff(id) {
     if (!can("oneoff.insert")) return;
     const s = id ? state.data.stops.find((x) => x.id === id) : state.data.stops.find((x) => x.pending);
@@ -6006,62 +7250,88 @@
       toast("No pending one-off.");
       return;
     }
-    const nearest = TECHS.slice().sort((a, b) => distMiles(s.x || a.x, s.y || a.y, a.x, a.y) - distMiles(s.x || b.x, s.y || b.y, b.x, b.y))[0];
-    s.pending = false;
-    s.type = "oneoff";
-    s.status = "scheduled";
-    s.techId = nearest.id;
-    s.day = "Thu";
-    s.time = nextSlot(nearest.id, "Thu");
-    s.notify = s.taskType === "inspect" || s.taskType === "meeting" ? "Office notified" : "";
-    toast(`Live task dropped onto ${nearest.name}’s Thursday route (nearest home). It is on the schedule now.`);
+    state.oneoffDraft = {
+      label: s.label,
+      addr: s.address,
+      type: s.taskType || "garage",
+      day: todayDay(),
+      duration: s.durationMin || 25,
+      techId: null,
+      x: s.x,
+      y: s.y,
+      caller: s.caller || "",
+      phone: s.phone || "",
+      pendingId: s.id,
+    };
+    state.page = "create-oneoff";
+    state.modal = null;
     render();
   }
-
   function openNewOneoff() {
     if (!can("oneoff.insert")) return;
-    state.modal = {
-      html: `
-        <h3>Live task — no full account</h3>
-        <p>Animal in a garage, inspection, client meeting. Assigned to the nearest technician and on the route immediately.</p>
-        <div class="field"><label>What happened</label><input id="oo-label" placeholder="Iguana in garage, Pompano"></div>
-        <div class="field"><label>Where (address or park)</label><input id="oo-addr" placeholder="Street or GPS note"></div>
-        <div class="field"><label>Task type</label>
-          <select id="oo-type">${TASK_TYPES.map((t) => `<option value="${t.id}">${esc(t.label)}</option>`).join("")}</select>
-        </div>
-        <div class="field"><label>Notify</label>
-          <select id="oo-notify">
-            <option value="">No extra ping</option>
-            <option value="ops">Ping Operations</option>
-            <option value="admin">Ping Administration</option>
-          </select>
-        </div>
-        <div class="actions">
-          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
-          ${btn("oneoff.insert", "Drop on nearest tech", "save-oneoff")}
-        </div>
-      `,
+    state.oneoffDraft = {
+      type: "toilet",
+      day: todayDay(),
+      duration: 25,
+      urgent: "now",
+      x: "31%",
+      y: "48%",
     };
+    state.page = "create-oneoff";
+    state.modal = null;
     render();
   }
-
   function saveNewOneoff() {
     if (!can("oneoff.insert")) return;
-    const x = "31%";
-    const y = "48%";
-    const nearest = TECHS.slice().sort((a, b) => distMiles(x, y, a.x, a.y) - distMiles(x, y, b.x, b.y))[0];
-    const type = val("oo-type") || "garage";
-    const notify = val("oo-notify");
-    state.data.stops.push({
-      id: nid("S"), customerId: null, locationId: null, techId: nearest.id,
-      day: "Thu", time: nextSlot(nearest.id, "Thu"), durationMin: 25,
-      type: "oneoff", status: "scheduled", actualMin: null, removals: null,
-      label: val("oo-label") || "Live task", address: val("oo-addr") || "Florida",
-      pending: false, taskType: type, x, y,
-      notify: notify ? `Pinged ${notify}` : "",
-    });
+    captureOneoffDraft();
+    const d = state.oneoffDraft || {};
+    const label = d.label || val("oo-label");
+    const addr = d.addr || val("oo-addr");
+    if (!label || !addr) {
+      toast("Job note and address are required.");
+      return;
+    }
+    const type = d.type || val("oo-type") || "toilet";
+    const day = d.day || val("oo-day") || todayDay();
+    const durationMin = Number(d.duration || val("oo-dur") || 25);
+    const x = (d.x && String(d.x).includes("%") ? d.x : (val("oo-x") ? val("oo-x") + "%" : "31%"));
+    const y = (d.y && String(d.y).includes("%") ? d.y : (val("oo-y") ? val("oo-y") + "%" : "48%"));
+    const ranked = oneoffRankTechs(x, y, day, durationMin);
+    const techId = d.techId || val("oo-tech") || ranked[0]?.t.id;
+    if (!techId) {
+      toast("Pick a trapper.");
+      return;
+    }
+    const focus = ranked.find((r) => r.t.id === techId) || ranked[0];
+    const time = d.time || val("oo-time") || focus?.slot.time || nextSlot(techId, day);
+    const notify = d.notify || val("oo-notify");
+    const pendingId = d.pendingId;
+    let stop = pendingId ? state.data.stops.find((s) => s.id === pendingId) : null;
+    if (stop) {
+      Object.assign(stop, {
+        pending: false, type: "oneoff", status: "scheduled",
+        techId, day, time, durationMin, label, address: addr,
+        taskType: type, x, y, caller: d.caller || "", phone: d.phone || "",
+        notify: notify ? `Pinged ${notify}` : "",
+        urgent: d.urgent || "now",
+      });
+    } else {
+      state.data.stops.push({
+        id: nid("S"), customerId: null, locationId: null, techId,
+        day, time, durationMin, type: "oneoff", status: "scheduled",
+        actualMin: null, removals: null, label, address: addr,
+        pending: false, taskType: type, x, y,
+        caller: d.caller || "", phone: d.phone || "",
+        notify: notify ? `Pinged ${notify}` : "",
+        urgent: d.urgent || "now",
+      });
+    }
+    const tech = techBy(techId);
+    state.oneoffDraft = null;
     state.modal = null;
-    toast(`On ${nearest.name}’s live route now. ${notify ? "Department notified. " : ""}No customer record was created.`);
+    state.page = "oneoffs";
+    state.oneoffDay = day;
+    toast(`${label} → ${tech?.name || "trapper"} · ${day} ${time}${focus?.conflict ? " (tight day — Rick accepted)" : ""}. On the live schedule now.`);
     render();
   }
 
