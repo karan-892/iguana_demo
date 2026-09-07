@@ -54,8 +54,8 @@
       title: "Owner",
       initials: "TM",
       color: "#c4a24a",
-      access: "Every module, and records are editable. Day-to-day posting still sits with Ops and Admin.",
-      chips: ["All modules", "Can edit", "Dashboards"],
+      access: "Every module — customers, map, payments, memos, logs, reports, lists, and settings. Records are editable. Day-to-day posting still sits with Ops and Admin when you want them to run it.",
+      chips: ["All modules", "Can edit", "Reports & lists"],
     },
     ops: {
       id: "ops",
@@ -75,25 +75,26 @@
       access: "AutoPay pays & allocates overnight. You handle declines (contact → external pay → allocate → generate next period) and non-AutoPay register lines. Renewals prepare → review → send.",
       chips: ["AutoPay exceptions", "Allocate", "Renewals"],
     },
-    sales: {
-      id: "sales",
-      name: "Rocco",
-      title: "Sales / Intake",
-      initials: "RC",
-      color: "#b4532a",
-      access: "A call or message comes in. Add the customer on the location form — name, address, instructions, and whether they accept messages. Then the client exists.",
-      chips: ["Incoming call", "Add customer"],
-    },
-    tech: {
-      id: "tech",
-      name: "Johnny",
-      title: "Technician (Trapper)",
-      initials: "JN",
-      color: "#40916c",
-      techId: "johnny",
-      access: "Mobile app only. Route, check-in, removals, photos, Memo to Office. No pricing or payments.",
-      chips: ["Field app", "No pricing"],
-    },
+    // Sales (Rocco) and technician mobile (Johnny) hidden from demo login / switcher for now
+    // sales: {
+    //   id: "sales",
+    //   name: "Rocco",
+    //   title: "Sales / Intake",
+    //   initials: "RC",
+    //   color: "#b4532a",
+    //   access: "A call or message comes in. Add the customer on the location form — name, address, instructions, and whether they accept messages. Then the client exists.",
+    //   chips: ["Incoming call", "Add customer"],
+    // },
+    // tech: {
+    //   id: "tech",
+    //   name: "Johnny",
+    //   title: "Technician (Trapper)",
+    //   initials: "JN",
+    //   color: "#40916c",
+    //   techId: "johnny",
+    //   access: "Mobile app only. Route, check-in, removals, photos, Memo to Office. No pricing or payments.",
+    //   chips: ["Field app", "No pricing"],
+    // },
     sysadmin: {
       id: "sysadmin",
       name: "Avery Cole",
@@ -105,7 +106,7 @@
     },
   };
 
-  const NAV_GROUP_ORDER = ["Home", "Customers", "Operations", "Billing", "Workspace", "Reports", "System", "Field"];
+  const NAV_GROUP_ORDER = ["Home", "Customers", "Operations", "Billing", "Workspace", "Reports", "System"];
 
   const NAV = [
     { id: "dashboard", label: "Dashboard", group: "Home", icon: "home", roles: ["owner", "ops", "admin", "sales", "sysadmin"] },
@@ -140,7 +141,7 @@
     { id: "settings", label: "Company settings", group: "System", icon: "cog", roles: ["sysadmin", "owner"] },
     { id: "integrations", label: "Integrations", group: "System", icon: "cog", roles: ["sysadmin", "owner"] },
 
-    { id: "mobile", label: "Today's route", group: "Field", icon: "phone", roles: ["tech"] },
+    // { id: "mobile", label: "Today's route", group: "Field", icon: "phone", roles: ["tech"] },
   ];
 
   const WRITE = {
@@ -847,8 +848,14 @@
     return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
   function role() { return ROLES[state.role] || null; }
-  function can(action) { return (WRITE[action] || []).includes(state.role); }
+  function can(action) {
+    if (state.role === "owner") return true;
+    return (WRITE[action] || []).includes(state.role);
+  }
   function canPage(id) {
+    if (state.role === "owner") {
+      return NAV.some((n) => n.id === id) || isRecordPage(id) || id === "assign";
+    }
     return NAV.some((n) => n.id === id && (n.roles || []).includes(state.role));
   }
   function isRecordPage(id) {
@@ -858,16 +865,16 @@
     if (ROLES[id]) return id;
     const raw = String(id || "").trim().toLowerCase();
     if (raw.includes("christy") || raw === "admin") return "admin";
-    if (raw.includes("rocco") || raw.includes("sales")) return "sales";
+    // if (raw.includes("rocco") || raw.includes("sales")) return "sales";
     if (raw.includes("rick") || raw === "ops") return "ops";
-    if (raw.includes("johnny") || raw === "tech") return "tech";
+    // if (raw.includes("johnny") || raw === "tech") return "tech";
     if (raw.includes("avery") || raw.includes("sys")) return "sysadmin";
     if (raw.includes("tom") || raw.includes("owner")) return "owner";
     return null;
   }
   function enterAs(id) {
     const who = resolveWho(id);
-    if (!who) return;
+    if (!who || !ROLES[who]) return;
     state.role = who;
     state.payView = false;
     state.modal = null;
@@ -875,7 +882,7 @@
     state.inboundId = null;
     state.selectedCustomer = null;
     state.locCount = 1;
-    state.page = who === "tech" ? "mobile" : who === "admin" ? "payments" : "dashboard";
+    state.page = who === "admin" ? "payments" : "dashboard";
     state.payFilter = "month";
     state.payFocusId = null;
     render();
@@ -2589,10 +2596,10 @@
               <div class="mark-badge">IC</div>
               <span>Iguana Control</span>
             </div>
-            <h1>Operations CRM</h1>
-            <p>Florida’s largest iguana remediation company — one recurring service, sold as 1 / 3 / 6 / 12-month programs. Rick’s day starts on the payment register. Christy’s work is a monthly cycle: failed auto-pay, a register that never disappears (portal, website, ACH, bank transfer, check, virtual card), then renewals she reviews and batch-sends.</p>
+            <h1>One company.<br>One service book.</h1>
+            <p class="login-brand-copy">Florida’s iguana remediation CRM — customers, routes, payments, and renewals in one place for the people who run the work.</p>
           </div>
-            <div class="login-meta">Demo skeleton · Ops discovery + BRD v2 · 27 Aug 2026</div>
+          <div class="login-meta">Iguana Control · Operations</div>
         </aside>
         <main class="login-main">
           <div class="demo-flag">Click a person to enter — no password</div>
@@ -2600,7 +2607,7 @@
           <div class="who-switch" style="margin:12px 0 18px">${peopleButtons()}</div>
           <p class="lede">Click <strong>Christy</strong> for Administration. You can switch people any time from the names in the top bar.</p>
           <div class="role-grid">${cards}</div>
-          <p class="login-roles-note">Technicians open a field phone. Sales is CRM-lite only. Owner can read and edit. Ops cannot post payments. Admin cannot schedule.</p>
+          <p class="login-roles-note">Owner can read and edit. Ops cannot post payments. Admin cannot schedule.</p>
           <p class="login-roles-note"><button class="btn btn-ghost" data-act="open-pay">Preview public payment page</button> (invoice link, website, or ACH — names stay on the register)</p>
           <p class="login-roles-note"><button class="btn btn-ghost" data-act="reset-demo">Reset saved demo data</button></p>
         </main>
@@ -2768,7 +2775,7 @@
   }
   function actionOwner(action) {
     const ids = WRITE[action] || [];
-    return ids.map((id) => ROLES[id].title).join(" / ") || "authorized";
+    return ids.map((id) => ROLES[id]?.title || id).filter(Boolean).join(" / ") || "authorized";
   }
   function btn(action, label, act, data = "", cls = "btn-primary") {
     const ok = can(action);
@@ -2794,11 +2801,37 @@
     const expiring = state.data.customers.filter((c) => c.status === "renewal" || (c.expires && daysUntil(c.expires) <= 60 && c.status === "active"));
     const failed = state.data.payments.filter((p) => p.failed);
     const paidToday = state.data.payments.filter((p) => p.date === TODAY && !p.failed && p.posted);
-    const lapsed = state.data.customers.filter((c) => c.status === "lapsed");
     const outliers = durationRows().filter((r) => r.delta < -8);
     const mine = myOpenTasks();
+    const mtos = (state.data.mtos || []).filter((m) => !m.read);
+    const modules = [
+      ["Customers", "customers", "Bill-Tos and properties"],
+      ["Quotes", "quotes", "Sales pipeline"],
+      ["Schedule", "schedule", "Weekly board"],
+      ["Map & routing", "map", "Trappers and stops"],
+      ["One-off jobs", "oneoffs", "Live call-ins"],
+      ["Trap assets", "traps", "Field inventory"],
+      ["No-shows", "noshows", "Missed stops"],
+      ["Route workload", "workload", "Load by trapper"],
+      ["Payment register", "payments", "Money in"],
+      ["Invoices", "invoices", "Sent and open"],
+      ["Renewal report", "renewals", "30–60 day window"],
+      ["Commission", "commission", "Renewal splits"],
+      ["Documents", "documents", "COIs and files"],
+      ["Communication log", "comms", "Shared notes"],
+      ["Memo to Office", "mtos", "Tech memos"],
+      ["Tasks", "tasks", "Cross-role work"],
+      ["Duration report", "duration", "Sched vs clocked"],
+      ["Removal report", "removals", "Counts and weight"],
+      ["Reports hub", "reports", "All report tiles"],
+      ["Users", "users", "Roles and access"],
+      ["Configurable lists", "lists", "Dropdowns"],
+      ["Templates", "templates", "Email copy"],
+      ["Company settings", "settings", "Windows and rates"],
+      ["Integrations", "integrations", "Credentials"],
+    ];
     return `
-      ${head("Owner overview", "Contracts, money, and duration outliers — assembled from reports the system already produces (BRD §8).")}
+      ${head("Owner overview", "Full company view — every module is on your routes. Edit when you need to; day-to-day posting still sits with Ops and Administration.")}
       ${mine.length ? `
         <div class="card" style="margin-bottom:16px">
           <h3>My tasks <span class="muted">${mine.length} open</span></h3>
@@ -2810,21 +2843,42 @@
         </div>
       ` : `<div class="actions" style="margin-bottom:12px">${btn("task.create", "Create task", "new-task", "", "btn-ghost")}<button class="btn btn-ghost" data-act="nav" data-page="tasks">Tasks</button></div>`}
       <div class="grid-4">
-        ${stat("Expiring in 60 days", expiring.length, "RPT-05 / NOT-03")}
-        ${stat("Failed payments", failed.length, "NOT-02", "alert")}
-        ${stat("Posted today", money(paidToday.reduce((s, p) => s + p.amount, 0)), "NOT-01", "good")}
-        ${stat("My open tasks", mine.length, "Assigned to Tom", mine.length ? "alert" : "")}
+        ${stat("Expiring in 60 days", expiring.length, "Renewals")}
+        ${stat("Failed payments", failed.length, "Register exceptions", failed.length ? "alert" : "")}
+        ${stat("Posted today", money(paidToday.reduce((s, p) => s + p.amount, 0)), "Register", "good")}
+        ${stat("Unread memos", mtos.length, "Memo to Office", mtos.length ? "alert" : "")}
+      </div>
+      <div class="card section-gap">
+        <h3>All modules</h3>
+        <p class="tiny">Open any route — customers, map, payments, memos, logs, reports, and system lists.</p>
+        <div class="owner-mod-grid">
+          ${modules.map(([label, page, hint]) => `
+            <button type="button" class="owner-mod" data-act="nav" data-page="${page}">
+              <strong>${esc(label)}</strong>
+              <span class="tiny">${esc(hint)}</span>
+            </button>
+          `).join("")}
+        </div>
       </div>
       <div class="split section-gap">
         <div class="card">
           <h3>Duration outliers <span class="muted">scheduled vs clocked</span></h3>
           ${table(["Technician", "Stop", "Sched", "Actual", "Delta"], outliers.map((r) => [r.tech, r.name, r.sched + "m", r.actual + "m", r.delta + "m"]))}
           ${outliers.length ? "" : `<p class="muted">No under-servicing flags this week.</p>`}
+          <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="nav" data-page="duration">Duration report</button></div>
         </div>
         <div class="card">
-          <h3>Non-renewal by trapper</h3>
-          ${table(["Technician", "Lapsed accounts"], [["Johnny", "1"], ["Bobby", "0"], ["Pedro", "0"], ["Miguel", "0"], ["Alejo", "0"]])}
-          <p class="tiny">Martin Ruiz lapsed on Johnny’s book. P2 report, shown here so Tom can see the tile.</p>
+          <h3>Quick ops / billing</h3>
+          <div class="actions" style="flex-wrap:wrap">
+            <button class="btn btn-ghost" data-act="nav" data-page="map">Map &amp; routing</button>
+            <button class="btn btn-ghost" data-act="nav" data-page="payments">Payment register</button>
+            <button class="btn btn-ghost" data-act="nav" data-page="renewals">Renewals</button>
+            <button class="btn btn-ghost" data-act="nav" data-page="comms">Communication log</button>
+            <button class="btn btn-ghost" data-act="nav" data-page="mtos">Memo to Office</button>
+            <button class="btn btn-ghost" data-act="nav" data-page="reports">Reports hub</button>
+            <button class="btn btn-ghost" data-act="nav" data-page="lists">Configurable lists</button>
+          </div>
+          <p class="tiny" style="margin-top:12px">Non-renewal sample: Martin Ruiz lapsed on Johnny’s book.</p>
         </div>
       </div>
     `;
