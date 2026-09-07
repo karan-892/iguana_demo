@@ -150,6 +150,7 @@
     "schedule.generate": ["ops"],
     "service.create": ["ops"],
     "service.edit": ["ops", "owner"],
+    "service.stop": ["ops", "owner"],
     "trap.update": ["ops"],
     "location.add": ["admin", "sales", "ops"],
     "location.request": ["admin", "ops"],
@@ -420,7 +421,7 @@
           billTo: "Harbor Oaks Management",
           status: "past_due",
           programId: "12mo",
-          amount: 233,
+          amount: 200,
           start: "2026-04-01",
           expires: "2027-04-01",
           paid: false,
@@ -431,9 +432,20 @@
           backupId: "alejo",
           days: "Tue/Thu",
           durationMin: 40,
-          locations: [{ id: "L-1066a", name: "Campus", address: "210 Harbor Oaks Rd, Tampa, FL", x: "14%", y: "38%", ...seedLocBilling("12mo", "2026-04-01", "INV-4488", "past_due", false) }],
-          notes: "Auto-pay declined 2026-08-26. Do not dispatch until paid (BR-01).",
-          opsNote: "Card declined — leave off tomorrow's route until Admin clears it.",
+          locations: [{
+            id: "L-1066a",
+            name: "Campus",
+            address: "210 Harbor Oaks Rd, Tampa, FL",
+            x: "14%",
+            y: "38%",
+            covered: true,
+            techId: "miguel",
+            days: "Tue/Thu",
+            gps: "27.9506, -82.4572",
+            ...seedLocBilling("12mo", "2026-04-01", "INV-4488", "past_due", false),
+          }],
+          notes: "12-month monthly AutoPay. Service set up once in April — do not recreate each month. Months 1–4 paid. August installment declined.",
+          opsNote: "Card declined Aug 26 — leave off route. Call them; stop service if they cannot pay.",
         },
         {
           id: "C-1020",
@@ -601,7 +613,11 @@
         { id: "INV-4510", customerId: "C-1091", locationId: "L-1091a", contractId: "CON-1091a", amount: 2000, status: "sent", sent: "2026-08-20", paidOn: null, kind: "renewal" },
         { id: "INV-4531", customerId: "C-1077", locationId: "L-1077a", contractId: "CON-1077a", amount: 300, status: "sent", sent: "2026-08-20", paidOn: "2026-08-26", kind: "initial" },
         { id: "INV-4601", customerId: "C-1020", locationId: "L-1020a", amount: 0, status: "draft", sent: null, paidOn: null, kind: "municipal", period: "August 2026", po: "PO-4481" },
-        { id: "INV-4488", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 233, status: "sent", sent: "2026-08-01", paidOn: null, kind: "autopay" },
+        { id: "INV-4484", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 200, status: "sent", sent: "2026-04-01", paidOn: "2026-04-02", kind: "autopay", periodN: 1, description: "12-month monthly — Billing Period 1" },
+        { id: "INV-4485", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 200, status: "sent", sent: "2026-05-01", paidOn: "2026-05-02", kind: "autopay", periodN: 2, description: "12-month monthly — Billing Period 2" },
+        { id: "INV-4486", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 200, status: "sent", sent: "2026-06-01", paidOn: "2026-06-02", kind: "autopay", periodN: 3, description: "12-month monthly — Billing Period 3" },
+        { id: "INV-4487", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 200, status: "sent", sent: "2026-07-01", paidOn: "2026-07-02", kind: "autopay", periodN: 4, description: "12-month monthly — Billing Period 4" },
+        { id: "INV-4488", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 200, status: "sent", sent: "2026-08-01", paidOn: null, kind: "autopay", periodN: 5, description: "12-month monthly — Billing Period 5" },
         { id: "INV-4301", customerId: "C-1004", locationId: "L-1004a", amount: 2000, status: "sent", sent: "2025-06-20", paidOn: "2025-06-22", kind: "initial" },
         { id: "INV-4688", customerId: "C-1188", locationId: "L-1188a", contractId: "CON-1188a", amount: 1200, status: "sent", sent: "2026-08-27", paidOn: null, kind: "initial" },
         { id: "INV-4689", customerId: "C-1188", locationId: "L-1188b", contractId: "CON-1188b", amount: 2000, status: "sent", sent: "2026-08-27", paidOn: null, kind: "initial" },
@@ -614,7 +630,11 @@
         { id: "P-9114", invoiceId: "INV-4502", customerId: "C-1108", locationId: "L-1108a", amount: 2100, method: "ACH", last4: "", source: "ach", date: "2026-07-03", memo: "Palm Cove HOA · July · team entered on register", invoiceMarked: true, linkPay: false },
         { id: "P-9115", invoiceId: "INV-4502", customerId: "C-1108", locationId: "L-1108b", amount: 2100, method: "Zelle", last4: "", source: "zelle", date: "2026-07-29", memo: "Zelle · team entered on register · Palm Cove", invoiceMarked: true, linkPay: false },
         { id: "P-9116", invoiceId: "INV-4419", customerId: "C-1042", locationId: "L-1042a", amount: 200, method: "Check", last4: "2201", source: "check", date: "2026-07-30", memo: "Check #2201 · team entered · Diane", invoiceMarked: true, linkPay: false },
-        { id: "P-9180", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 233, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-08-26", memo: "Declined — Harbor Oaks monthly", invoiceMarked: false, failed: true, linkPay: true },
+        { id: "P-9176", invoiceId: "INV-4484", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-04-02", memo: "AutoPay · Harbor Oaks · month 1 · service already live", invoiceMarked: true, linkPay: true, posted: true, appliedAuto: true },
+        { id: "P-9177", invoiceId: "INV-4485", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-05-02", memo: "AutoPay · Harbor Oaks · month 2 · no new service", invoiceMarked: true, linkPay: true, posted: true, appliedAuto: true },
+        { id: "P-9178", invoiceId: "INV-4486", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-06-02", memo: "AutoPay · Harbor Oaks · month 3 · no new service", invoiceMarked: true, linkPay: true, posted: true, appliedAuto: true },
+        { id: "P-9179", invoiceId: "INV-4487", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-07-02", memo: "AutoPay · Harbor Oaks · month 4 · no new service", invoiceMarked: true, linkPay: true, posted: true, appliedAuto: true },
+        { id: "P-9180", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-08-26", memo: "Declined — Harbor Oaks monthly installment 5", invoiceMarked: false, failed: true, linkPay: true, posted: true, status: "FAILED" },
         { id: "P-9260", invoiceId: "INV-4419", customerId: "C-1042", locationId: "L-1042a", amount: 2000, method: "Website", last4: "2291", source: "website", date: "2026-02-22", memo: "Website checkout · Diane Walsh", invoiceMarked: true, linkPay: true },
         { id: "P-9230", invoiceId: "INV-4531", customerId: "C-1077", locationId: "L-1077a", amount: 300, method: "Card", last4: "7712", source: "portal", date: "2026-08-26", memo: "Portal link · Rita Gomez — Christy marked paid", invoiceMarked: true, linkPay: true },
         { id: "P-9231", invoiceId: "INV-4510", customerId: "C-1091", locationId: "L-1091a", amount: 2000, method: "Card", last4: "1091", source: "portal", date: "2026-08-27", memo: "Portal renewal link · Sarah Chen — on register, mark invoice paid", invoiceMarked: false, linkPay: true },
@@ -622,13 +642,13 @@
         { id: "P-9289", invoiceId: "INV-4689", customerId: "C-1188", locationId: "L-1188b", amount: 2000, method: "Check", last4: "9901", source: "check", date: "2026-08-27", memo: "Check #9901 · team entered · Nina Canal house — mark invoice paid", invoiceMarked: false, linkPay: false },
         { id: "P-9310", invoiceId: "INV-4710", customerId: "C-1210", locationId: "L-1210a", amount: 2000, method: "Card", last4: "1210", source: "portal", date: "2026-08-21", memo: "Portal · Jony Morales Boca — marked paid", invoiceMarked: true, linkPay: true },
         { id: "P-9311", invoiceId: "INV-4711", customerId: "C-1210", locationId: "L-1210b", amount: 1200, method: "ACH", last4: "", source: "ach", date: "2026-08-21", memo: "ACH · Jony Morales Deerfield — marked paid", invoiceMarked: true, linkPay: true },
-        { id: "P-9340", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 233, method: "Zelle", last4: "", source: "EXTERNAL", date: "2026-08-27", memo: "Zelle replacement · Harbor Oaks — awaiting allocation", invoiceMarked: false, linkPay: false, status: "POSTED" },
+        { id: "P-9340", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Zelle", last4: "", source: "EXTERNAL", date: "2026-08-27", memo: "Zelle replacement · Harbor Oaks month 5 — awaiting allocation", invoiceMarked: false, linkPay: false, status: "POSTED" },
       ],
       contracts: [
         { id: "CON-1042a", customerId: "C-1042", locationId: "L-1042a", programId: "12pre", program: "12-month prepaid", termMonths: 12, totalValue: 2400, startDate: "2026-03-01", endDate: "2027-03-01", status: "ACTIVE" },
         { id: "CON-1042b", customerId: "C-1042", locationId: "L-1042b", programId: "6mo", program: "6-month", termMonths: 6, totalValue: 1400, startDate: "2026-08-01", endDate: "2027-02-01", status: "ACTIVE" },
         { id: "CON-1091a", customerId: "C-1091", locationId: "L-1091a", programId: "12pre", program: "12-month prepaid", termMonths: 12, totalValue: 2400, startDate: "2025-09-24", endDate: "2026-09-24", status: "PENDING PAYMENT" },
-        { id: "CON-1066a", customerId: "C-1066", locationId: "L-1066a", programId: "12mo", program: "12-month monthly", termMonths: 12, totalValue: 2400, startDate: "2026-04-01", endDate: "2027-04-01", status: "PENDING PAYMENT", paymentStatus: "AWAITING PAYMENT" },
+        { id: "CON-1066a", customerId: "C-1066", locationId: "L-1066a", programId: "12mo", program: "12-month monthly", termMonths: 12, totalValue: 2400, startDate: "2026-04-01", endDate: "2027-04-01", status: "ACTIVE", paymentStatus: "PAST DUE" },
         { id: "CON-1188a", customerId: "C-1188", locationId: "L-1188a", programId: "6mo", program: "6-month", termMonths: 6, totalValue: 1400, startDate: "2026-08-27", endDate: "2027-02-27", status: "PENDING PAYMENT", paymentStatus: "AWAITING PAYMENT" },
         { id: "CON-1188b", customerId: "C-1188", locationId: "L-1188b", programId: "12pre", program: "12-month prepaid", termMonths: 12, totalValue: 2400, startDate: "2026-08-27", endDate: "2027-08-27", status: "PENDING PAYMENT", paymentStatus: "AWAITING PAYMENT" },
         { id: "CON-1210a", customerId: "C-1210", locationId: "L-1210a", programId: "12pre", program: "12-month prepaid", termMonths: 12, totalValue: 2400, startDate: "2026-08-20", endDate: "2027-08-20", status: "ACTIVE" },
@@ -650,7 +670,11 @@
         { id: "PER-1042a-1", contractId: "CON-1042a", sequence: 1, periodStart: "2026-03-01", periodEnd: "2027-03-01", amount: 2000, status: "PAID", invoiceId: "INV-4419" },
         { id: "PER-1042b-1", contractId: "CON-1042b", sequence: 1, periodStart: "2026-08-01", periodEnd: "2027-02-01", amount: 1200, status: "PAID", invoiceId: "INV-4420" },
         { id: "PER-1091a-1", contractId: "CON-1091a", sequence: 1, periodStart: "2025-09-24", periodEnd: "2026-09-24", amount: 2000, status: "DUE", invoiceId: "INV-4510" },
-        { id: "PER-1066a-1", contractId: "CON-1066a", sequence: 1, periodStart: "2026-04-01", periodEnd: "2026-05-01", amount: 233, status: "DUE", invoiceId: "INV-4488" },
+        { id: "PER-1066a-1", contractId: "CON-1066a", sequence: 1, periodStart: "2026-04-01", periodEnd: "2026-05-01", amount: 200, status: "PAID", invoiceId: "INV-4484" },
+        { id: "PER-1066a-2", contractId: "CON-1066a", sequence: 2, periodStart: "2026-05-01", periodEnd: "2026-06-01", amount: 200, status: "PAID", invoiceId: "INV-4485" },
+        { id: "PER-1066a-3", contractId: "CON-1066a", sequence: 3, periodStart: "2026-06-01", periodEnd: "2026-07-01", amount: 200, status: "PAID", invoiceId: "INV-4486" },
+        { id: "PER-1066a-4", contractId: "CON-1066a", sequence: 4, periodStart: "2026-07-01", periodEnd: "2026-08-01", amount: 200, status: "PAID", invoiceId: "INV-4487" },
+        { id: "PER-1066a-5", contractId: "CON-1066a", sequence: 5, periodStart: "2026-08-01", periodEnd: "2026-09-01", amount: 200, status: "DUE", invoiceId: "INV-4488" },
         { id: "PER-1188a-1", contractId: "CON-1188a", sequence: 1, periodStart: "2026-08-27", periodEnd: "2027-02-27", amount: 1200, status: "DUE", invoiceId: "INV-4688" },
         { id: "PER-1188b-1", contractId: "CON-1188b", sequence: 1, periodStart: "2026-08-27", periodEnd: "2027-08-27", amount: 2000, status: "DUE", invoiceId: "INV-4689" },
         { id: "PER-1210a-1", contractId: "CON-1210a", sequence: 1, periodStart: "2026-08-20", periodEnd: "2027-08-20", amount: 2000, status: "PAID", invoiceId: "INV-4710" },
@@ -662,6 +686,10 @@
         { id: "ALLOC-9002", paymentId: "P-9002", invoiceId: "INV-4420", amount: 1200 },
         { id: "ALLOC-9114", paymentId: "P-9114", invoiceId: "INV-4502", amount: 2100 },
         { id: "ALLOC-9230", paymentId: "P-9230", invoiceId: "INV-4531", amount: 300 },
+        { id: "ALLOC-9176", paymentId: "P-9176", invoiceId: "INV-4484", amount: 200 },
+        { id: "ALLOC-9177", paymentId: "P-9177", invoiceId: "INV-4485", amount: 200 },
+        { id: "ALLOC-9178", paymentId: "P-9178", invoiceId: "INV-4486", amount: 200 },
+        { id: "ALLOC-9179", paymentId: "P-9179", invoiceId: "INV-4487", amount: 200 },
         { id: "ALLOC-9310", paymentId: "P-9310", invoiceId: "INV-4710", amount: 2000 },
         { id: "ALLOC-9311", paymentId: "P-9311", invoiceId: "INV-4711", amount: 1200 },
       ],
@@ -670,10 +698,11 @@
       ],
       renewals: [],
       notifications: [
-        { id: "N-1", type: "AUTOPAY_FAILED", severity: "alert", title: "AutoPay declined", text: "Harbor Oaks · Campus · CARD_DECLINED ····3301. Contact customer — post external payment, then generate the next billing period manually.", customerId: "C-1066", locationId: "L-1066a", invoiceId: "INV-4488", date: "2026-08-26", read: false },
+        { id: "N-1", type: "AUTOPAY_FAILED", severity: "alert", title: "AutoPay declined", text: "Harbor Oaks · Campus · CARD_DECLINED ····3301. Monthly plan — service already exists. Contact customer; Rick can stop service if they will not pay.", customerId: "C-1066", locationId: "L-1066a", invoiceId: "INV-4488", date: "2026-08-26", read: false },
       ],
       tasks: [
-        { id: "TSK-1", customerId: "C-1066", locationId: "L-1066a", title: "Call Harbor Oaks about declined AutoPay", notes: "Card ····3301 declined. Ask for Zelle/check, then allocate and generate next period.", createdBy: "admin", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
+        { id: "TSK-1", customerId: "C-1066", locationId: "L-1066a", title: "Call Harbor Oaks about declined AutoPay", notes: "Month 5 declined. Service is already live — do not recreate. Ask for Zelle/check, allocate, or have Rick stop service.", createdBy: "admin", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
+        { id: "TSK-1b", customerId: "C-1066", locationId: "L-1066a", title: "Hold / stop Harbor Oaks if unpaid", notes: "After you talk to them: if they cannot pay, stop the service on the customer record. Do not create a new service.", createdBy: "admin", assignee: "ops", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
         { id: "TSK-2", customerId: "C-1188", locationId: "L-1188a", title: "Allocate Nina residence payment", notes: "Portal payment is on the register — allocate so Rick can create service on that property only.", createdBy: "owner", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-27" },
         { id: "TSK-3", customerId: "C-1188", locationId: "L-1188a", title: "Create service after Nina Residence is paid", notes: "Wait for Christy to allocate. Then create service and assign on the map.", createdBy: "admin", assignee: "ops", due: "2026-08-28", priority: "normal", status: "open", createdAt: "2026-08-27" },
         { id: "TSK-4", customerId: "C-1091", locationId: "L-1091a", title: "Review Sarah Chen renewal amount", notes: "Odd / confirm prepaid vs monthly before send.", createdBy: "admin", assignee: "owner", due: "2026-08-28", priority: "normal", status: "open", createdAt: "2026-08-20" },
@@ -685,7 +714,7 @@
         { id: "SVC-1091a", customerId: "C-1091", locationId: "L-1091a", type: "12mon-res", status: "live", techId: "pedro", days: "Mon/Wed", durationMin: 25, generated: true, schedule: "WK-MOWE", target: "IGUANA", charge: "Production", start: "2025-09-24", expires: "2026-09-24", renewal: "2026-09-24" },
         { id: "SVC-1108a", customerId: "C-1108", locationId: "L-1108a", type: "hoa-2wk", status: "live", techId: "bobby", days: "Tue/Thu", durationMin: 45, generated: true, schedule: "WK-TUTH", target: "IGUANA", charge: "Production", start: "2026-01-15", expires: "2026-10-15", renewal: "2026-10-15" },
         { id: "SVC-1108b", customerId: "C-1108", locationId: "L-1108b", type: "hoa-2wk", status: "live", techId: "bobby", days: "Tue/Thu", durationMin: 45, generated: true, schedule: "WK-TUTH", target: "IGUANA", charge: "Production", start: "2026-01-15", expires: "2026-10-15", renewal: "2026-10-15" },
-        { id: "SVC-1066a", customerId: "C-1066", locationId: "L-1066a", type: "1mon-com", status: "live", techId: "miguel", days: "Tue/Thu", durationMin: 40, generated: true, schedule: "WK-TUTH", target: "IGUANA", charge: "Production", start: "2026-04-01", expires: "2026-10-01", renewal: "2026-10-01" },
+        { id: "SVC-1066a", customerId: "C-1066", locationId: "L-1066a", type: "12mon-com", status: "live", techId: "miguel", days: "Tue/Thu", durationMin: 40, generated: true, schedule: "WK-TUTH", target: "IGUANA", charge: "Production", start: "2026-04-01", expires: "2027-04-01", renewal: "2027-04-01", contractId: "CON-1066a" },
         { id: "SVC-1020a", customerId: "C-1020", locationId: "L-1020a", type: "muni", status: "live", techId: "alejo", days: "Fri", durationMin: 180, generated: true, schedule: "WK-FR", target: "IGUANA", charge: "Production", start: "2026-01-01", expires: "2026-12-31", renewal: "2026-12-31", po: "PO-4481" },
         { id: "SVC-1077a", customerId: "C-1077", locationId: "L-1077a", type: "6mon-res", status: "live", techId: "johnny", days: "Thu", durationMin: 25, generated: true, schedule: "WK-FR", target: "IGUANA", charge: "Production", start: "2026-05-01", expires: "2026-11-01", renewal: "2026-11-01" },
         { id: "SVC-1112a", customerId: "C-1112", locationId: "L-1112a", type: "hoa-2wk", status: "live", techId: "johnny", days: "Mon", durationMin: 180, generated: true, schedule: "WK-MOWE", target: "IGUANA", charge: "Production", start: "2026-02-01", expires: "2026-11-01", renewal: "2026-11-01" },
@@ -1376,18 +1405,33 @@
       loc.lifecycle = "past_due";
       c.failedPayment = true;
       c.status = "past_due";
+      state.data.stops.filter((s) =>
+        s.customerId === customerId && s.locationId === locationId
+        && s.status === "scheduled" && !s.pending
+      ).forEach((s) => { s.status = "blocked"; });
       pushNotify({
         type: "AUTOPAY_FAILED",
         severity: "alert",
         title: "AutoPay declined",
-        text: `${c.billTo || c.name} · ${loc.name} · ${failCode} ····${last4}. Contact the customer. When they pay externally, allocate on the register, then generate the next billing period manually.`,
+        text: `${c.billTo || c.name} · ${loc.name} · ${failCode} ····${last4}. Monthly plan — service already exists. Contact the customer. Rick can stop service if they will not pay.`,
         customerId, locationId, invoiceId: inv.id,
       });
+      const hasOpsTask = (state.data.tasks || []).some((t) =>
+        t.status === "open" && t.assignee === "ops" && t.customerId === customerId && t.locationId === locationId
+      );
+      if (!hasOpsTask) {
+        state.data.tasks.push({
+          id: nid("TSK"), customerId, locationId,
+          title: `Hold / stop ${c.billTo || c.name} if unpaid`,
+          notes: `AutoPay failed on ${inv.id}. Service is live — do not recreate. Call them, then stop service if they cannot pay.`,
+          createdBy: "admin", assignee: "ops", due: TODAY, priority: "high", status: "open", createdAt: TODAY,
+        });
+      }
       state.data.comms.push({
         id: nid("CM"), customerId, who: "AutoPay", channel: "System", date: TODAY,
-        text: `AutoPay FAILED on ${inv.id} (${failCode}). Service/billing held until Christy posts an external payment and allocates.`,
+        text: `AutoPay FAILED on ${inv.id} (${failCode}). Route held. Rick may stop service if customer will not pay.`,
       });
-      toast(`AutoPay declined on ${inv.id}. Exception + notification for Christy.`);
+      toast(`AutoPay declined on ${inv.id}. Route blocked — Rick can stop service.`);
       render();
       return;
     }
@@ -1683,7 +1727,7 @@
     return String(id || "").split("/").map((d) => d.trim()).filter((d) => DAYS.includes(d));
   }
   function svcFor(cid, lid) {
-    return svcsFor(cid, lid)[0];
+    return svcsFor(cid, lid).find(svcIsContinuing) || svcsFor(cid, lid)[0];
   }
   function svcsFor(cid, lid) {
     return (state.data.services || []).filter((s) => s.customerId === cid && s.locationId === lid && s.status !== "cancelled");
@@ -1766,13 +1810,58 @@
   }
   function locNeedsService(c, l) {
     if (!c || !l || c.status === "lapsed" || l.covered === false) return false;
-    if (svcFor(c.id, l.id)) return false;
+    // Monthly installments keep the same live service — never re-queue setup
+    if (svcsFor(c.id, l.id).some(svcIsContinuing)) return false;
     if (!(locPaid(c, l) || c.municipal)) return false;
     return !!(c.handedToOps || l.requestService);
   }
   function locNeedsTech(c, l) {
     const s = svcFor(c?.id, l?.id);
-    return !!(s && !s.techId);
+    return !!(s && !s.techId && svcIsContinuing(s));
+  }
+  function locIsMonthlyPlan(c, l) {
+    if (!c || !l) return false;
+    const plan = locPlan(c, l);
+    if (plan.programId === "12mo" || plan.autoPay) return true;
+    const ct = contractForLoc(c.id, l.id);
+    const bp = ct && planForContract(ct.id);
+    return bp?.frequency === "monthly";
+  }
+  function invoiceIsInstallment(inv) {
+    if (!inv) return false;
+    if (["autopay", "recurring", "installment"].includes(inv.kind)) return true;
+    if (inv.periodN && inv.periodN > 1) return true;
+    const ct = inv.contractId
+      ? (state.data.contracts || []).find((x) => x.id === inv.contractId)
+      : contractForLoc(inv.customerId, inv.locationId);
+    const bp = ct && planForContract(ct.id);
+    return bp?.frequency === "monthly";
+  }
+  function paymentIsMonthlyInstallment(p) {
+    if (!p) return false;
+    const inv = p.invoiceId ? (state.data.invoices || []).find((i) => i.id === p.invoiceId) : null;
+    if (invoiceIsInstallment(inv)) return true;
+    const c = p.customerId ? custBy(p.customerId) : null;
+    const loc = p.locationId ? locBy(p.customerId, p.locationId) : c?.locations?.[0];
+    return !!(c && loc && locIsMonthlyPlan(c, loc) && svcFor(c.id, loc.id));
+  }
+  function opsFailedMonthlyQueue() {
+    const rows = [];
+    const seen = new Set();
+    state.data.customers.forEach((c) => {
+      (c.locations || []).forEach((l) => {
+        const svc = svcFor(c.id, l.id);
+        if (!svc || !svcIsContinuing(svc)) return;
+        const apaFail = (state.data.autopayAuthorizations || []).some((a) => a.status === "FAILED" && a.customerId === c.id && a.locationId === l.id);
+        const payFail = (state.data.payments || []).some((p) => p.failed && p.customerId === c.id && p.locationId === l.id);
+        if (!(c.failedPayment || apaFail || payFail || l.lifecycle === "past_due")) return;
+        const key = `${c.id}:${l.id}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        rows.push({ c, l, svc });
+      });
+    });
+    return rows;
   }
   function opsServiceQueue() {
     const rows = [];
@@ -1966,6 +2055,19 @@
     if (freq) freq.value = t.freq || "WEEKLY";
     fillSetupDates();
   }
+  function syncSetupLocFromPin(x, y) {
+    const c = custBy(state.setupId);
+    const locId = val("sv-loc") || state.setupLocId;
+    const loc = c?.locations.find((l) => l.id === locId) || locBy(state.setupId, locId);
+    if (!loc || !Number.isFinite(x) || !Number.isFinite(y)) return;
+    loc.x = `${x.toFixed(1)}%`;
+    loc.y = `${y.toFixed(1)}%`;
+    const coords = latLngFromXy(x, y);
+    loc.lat = coords.lat;
+    loc.lng = coords.lng;
+    loc.gps = `${coords.lat}, ${coords.lng}`;
+  }
+
   function refreshSetupFit() {
     const c = custBy(state.setupId);
     const loc = c?.locations.find((l) => l.id === val("sv-loc")) || locBy(state.setupId, state.setupLocId);
@@ -1975,7 +2077,13 @@
     state.setupLocId = loc.id;
     const ranked = bestFitFor(c, loc, sched.days);
     const box = document.getElementById("sv-fit");
-    if (box) box.innerHTML = fitCardsHtml(ranked, val("sv-trapper") || val("sv-initial") || ranked[0]?.t.id);
+    if (box) {
+      box.innerHTML = fitCardsHtml(
+        ranked,
+        val("sv-trapper") || val("sv-initial") || ranked[0]?.t.id,
+        "standing"
+      );
+    }
     const pin = document.getElementById("sv-pin");
     if (pin && loc) {
       pin.style.left = loc.x;
@@ -2028,8 +2136,10 @@
     if (!state.setupDraft) state.setupDraft = {};
     const which = target || state.bestFitTarget || "";
     if (which === "initial") state.setupDraft.initial = techId;
-    else if (which === "standing") state.setupDraft.trapper = techId;
-    else {
+    else if (which === "standing") {
+      state.setupDraft.trapper = techId;
+      if (!state.setupDraft.initial) state.setupDraft.initial = techId;
+    } else {
       state.setupDraft.initial = techId;
       state.setupDraft.trapper = techId;
     }
@@ -2243,14 +2353,31 @@
       loc.lifecycle = "active";
       loc.contractId = ct?.id || loc.contractId;
     }
+    const existingSvc = loc ? svcFor(inv.customerId, loc.id) : null;
+    const installment = invoiceIsInstallment(inv) || (existingSvc && locIsMonthlyPlan(c, loc));
     if (c) {
       c.failedPayment = false;
       syncCustomerFromLocations(c);
       syncCustomerLifecycle(c);
-      handOffToOps(c);
+      // First payment only — monthly installments keep the same service / trapper
+      if (!existingSvc) {
+        handOffToOps(c);
+        if (loc && !loc.requestService) {
+          loc.requestService = true;
+          loc.requestedAt = Date.now();
+        }
+      } else if (loc) {
+        loc.requestService = false;
+      }
     }
-    if (ct && !(state.data.services || []).some((s) => s.contractId === ct.id || (s.customerId === inv.customerId && s.locationId === inv.locationId))) {
-      // Ops creates real service record later; flag ready via locNeedsService + handOff
+    if (installment && existingSvc) {
+      pushNotify({
+        type: "MONTHLY_PAID",
+        severity: "ok",
+        title: "Monthly installment paid",
+        text: `${c?.billTo || c?.name || ""} · ${loc?.name || ""} · ${inv.id}. Service already live — no new setup or trapper assign.`,
+        customerId: inv.customerId, locationId: inv.locationId, invoiceId: inv.id,
+      });
     }
     state.data.stops.filter((s) => s.customerId === inv.customerId && (!inv.locationId || s.locationId === inv.locationId) && s.status === "blocked").forEach((s) => { s.status = "scheduled"; });
   }
@@ -2616,11 +2743,14 @@
     const missed = state.data.stops.filter((s) => s.status === "noshow" || s.status === "missed" || s.pendingExt);
     const needSvc = opsServiceQueue();
     const needTech = opsAssignQueue();
-    const paid = state.data.payments.filter((p) => p.posted && !p.failed);
+    const failedMonthly = opsFailedMonthlyQueue();
+    const paid = state.data.payments.filter((p) => p.posted && !p.failed).slice()
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)))
+      .slice(0, 14);
     const retrieve = (state.data.traps || []).filter((t) => t.status === "out" || t.status === "missing");
     const mine = myOpenTasks();
     return `
-      ${head("Dispatch board", "Payment register → create the service → assign on the map. Click a technician’s home to see every property on their book, then drop the new client there.")}
+      ${head("Dispatch board", "New paid properties need service once. Monthly AutoPay customers already have a trapper — payments keep the same service. Failed monthly pay → talk, then stop service if needed.")}
       ${mine.length ? `
         <div class="card" style="margin-bottom:16px">
           <h3>My tasks <span class="muted">${mine.length} open · from Tom / Christy</span></h3>
@@ -2631,31 +2761,61 @@
           </div>
         </div>
       ` : ""}
+      ${failedMonthly.length ? `
+        <div class="card" style="margin-bottom:16px">
+          <h3>Failed monthly pay · stop if unpaid <span class="muted">${failedMonthly.length}</span></h3>
+          <p class="tiny">12-month monthly plans keep the same service. After you talk to them — if they will not pay — stop service here. Do not create a new service.</p>
+          ${failedMonthly.map(({ c, l, svc }) => `
+            <div class="fit-row queue-new">
+              <div>
+                <span class="badge badge-bad">Payment failed</span>
+                <strong>${esc(c.billTo || c.name)}</strong> · ${esc(l.name)}
+                <div class="tiny">${esc(l.address)} · ${esc(techName(svc.techId))} · ${esc(svc.days || "")} · monthly plan already live</div>
+              </div>
+              <div class="actions">
+                <button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Open</button>
+                ${btn("service.stop", "Stop service", "stop-service", `data-id="${svc.id}"`, "btn-sun")}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
       <div class="card" style="margin-bottom:16px">
         <h3>1 · Payment register <span class="muted">who paid · MOP · invoice · bill-to</span></h3>
-        <p class="tiny">This is how the day starts. You do not post money — you use the paid invoice to open the location and create the service. Technician assignment happens on the map next.</p>
+        <p class="tiny">First payment on a new property → create service once. Later monthly AutoPay lines → already on route (no re-assign).</p>
         ${paid.map((p) => {
           const c = p.customerId ? custBy(p.customerId) : null;
-          const loc = c?.locations.find((l) => locNeedsService(c, l)) || c?.locations.find((l) => locNeedsTech(c, l)) || c?.locations[0];
+          const loc = p.locationId && c
+            ? (c.locations.find((l) => l.id === p.locationId) || c.locations[0])
+            : (c?.locations.find((l) => locNeedsService(c, l)) || c?.locations.find((l) => locNeedsTech(c, l)) || c?.locations[0]);
           const setup = c && loc && locNeedsService(c, loc);
           const assign = c && loc && locNeedsTech(c, loc);
+          const monthly = c && loc && (paymentIsMonthlyInstallment(p) || (locIsMonthlyPlan(c, loc) && svcFor(c.id, loc.id)));
+          const live = c && loc && svcFor(c.id, loc.id) && svcIsContinuing(svcFor(c.id, loc.id));
+          let badge = `<span class="badge badge-ok">On route</span> `;
+          let action = c ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Open location</button>` : `<span class="badge badge-mute">Christy has not matched this line</span>`;
+          if (setup) {
+            badge = `<span class="badge badge-warn">Needs setup</span> `;
+            action = btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${loc.id}"`);
+          } else if (assign) {
+            badge = `<span class="badge badge-sea">Needs technician</span> `;
+            action = btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${loc.id}"`);
+          } else if (monthly && live) {
+            badge = `<span class="badge badge-sea">Monthly · service live</span> `;
+            action = `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">View (no re-setup)</button>`;
+          }
           return `<div class="fit-row ${setup || assign ? "queue-new" : ""}">
             <div>
-              ${setup ? `<span class="badge badge-warn">Needs setup</span> ` : assign ? `<span class="badge badge-sea">Needs technician</span> ` : `<span class="badge badge-ok">On route</span> `}
+              ${badge}
               <strong>${esc(c?.name || p.memo || "Unmatched")}</strong>
-              <div class="tiny">${esc(p.date)} · ${esc(p.method)} · ${esc(p.invoiceId || "—")} · ${money(p.amount)} · ${esc(loc?.address || "—")}</div>
+              <div class="tiny">${esc(p.date)} · ${esc(p.method)} · ${esc(p.invoiceId || "—")} · ${money(p.amount)} · ${esc(loc?.address || "—")}${monthly && live ? " · installment — trapper already assigned" : ""}</div>
             </div>
-            ${c ? (setup
-              ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${loc.id}"`)
-              : assign
-                ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${loc.id}"`)
-                : `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Open location</button>`)
-              : `<span class="badge badge-mute">Christy has not matched this line</span>`}
+            ${action}
           </div>`;
         }).join("")}
-        ${needSvc.filter((row) => !paid.some((p) => p.customerId === row.c.id)).map((row) => `
+        ${needSvc.filter((row) => !paid.some((p) => p.customerId === row.c.id && p.locationId === row.l.id)).map((row) => `
           <div class="fit-row queue-new">
-            <div><span class="badge badge-warn">Paid / handed over</span> <strong>${esc(row.c.name)}</strong> · ${esc(row.l.name)}<div class="tiny">${esc(row.l.address)} — create the service, then assign on the map</div></div>
+            <div><span class="badge badge-warn">Paid / handed over</span> <strong>${esc(row.c.name)}</strong> · ${esc(row.l.name)}<div class="tiny">${esc(row.l.address)} — create the service once, then assign on the map</div></div>
             ${btn("service.create", "Create service", "open-service", `data-id="${row.c.id}" data-loc="${row.l.id}"`)}
           </div>
         `).join("")}
@@ -2663,8 +2823,8 @@
       </div>
       ${needTech.length ? `
         <div class="card" style="margin-bottom:16px">
-          <h3>2 · Assign on the map <span class="muted">service is saved — pick a trapper from their home pin</span></h3>
-          <p class="tiny">Click a technician’s home to see every property already on their book. Then drop this customer onto that trapper.</p>
+          <h3>2 · Assign on the map <span class="muted">first-time service only</span></h3>
+          <p class="tiny">Only for new services that still need a trapper. Monthly renewals do not appear here.</p>
           ${needTech.map((row) => `
             <div class="fit-row queue-new">
               <div><span class="badge badge-sea">Needs technician</span> <strong>${esc(row.c.name)}</strong> · ${esc(row.l.name)}<div class="tiny">${esc(row.l.address)}</div></div>
@@ -2680,10 +2840,10 @@
         </div>
       ` : ""}
       <div class="grid-4">
-        ${stat("To set up", needSvc.length, "Paid → create service", needSvc.length ? "alert" : "")}
-        ${stat("To assign on map", needTech.length, "Click a tech home", needTech.length ? "alert" : "")}
-        ${stat("Miss / extension", missed.length, "Approve or deny", missed.length ? "alert" : "")}
-        ${stat("Traps to retrieve", retrieve.length, "$80 assets", retrieve.length ? "alert" : "")}
+        ${stat("To set up", needSvc.length, "First payment only", needSvc.length ? "alert" : "")}
+        ${stat("To assign on map", needTech.length, "New services", needTech.length ? "alert" : "")}
+        ${stat("Failed monthly", failedMonthly.length, "Talk / stop service", failedMonthly.length ? "alert" : "")}
+        ${stat("Miss / traps", missed.length + retrieve.length, "Field follow-ups", (missed.length + retrieve.length) ? "alert" : "")}
       </div>
       <div class="split section-gap">
         <div class="card">
@@ -2997,6 +3157,15 @@
     const price = d.price != null && d.price !== "" ? d.price : Number(st.price || 0).toFixed(2);
     const iprice = d.iprice != null && d.iprice !== "" ? d.iprice : price;
     const createInitial = d.createInitial !== false;
+    const ranked = loc ? bestFitFor(c, loc, sched.days) : [];
+    const pinX = loc?.x || "50%";
+    const pinY = loc?.y || "50%";
+    const otherPins = locs.filter((l) => l.id !== loc?.id).map((l) => ({
+      x: l.x, y: l.y, label: l.name, color: locPinColor(c, l),
+    }));
+    const gps = loc?.lat != null
+      ? `${Number(loc.lat).toFixed(4)}, ${Number(loc.lng).toFixed(4)}`
+      : (loc?.gps || "");
     const techOpts = (sel) => `<option value="">— select or use Best fit —</option>${TECHS.map((t) => `<option value="${t.id}" ${sel === t.id ? "selected" : ""}>${esc(t.name.toUpperCase())} · ${esc(t.home)}</option>`).join("")}`;
     return `
       <div class="create-svc">
@@ -3004,9 +3173,10 @@
         <div class="create-svc-head">
           <div>
             <h2>Service setup</h2>
-            <p class="muted">${esc(loc?.name || "Property")} · Bill-To ${esc(c.billTo || c.name)} · map opens after you save</p>
+            <p class="muted">${esc(loc?.name || "Property")} · Bill-To ${esc(c.billTo || c.name)} · pin the property, pick best fit, then save</p>
           </div>
         </div>
+        <div class="create-svc-layout">
         <div class="create-svc-form">
           <div class="create-svc-section">
             <div class="create-svc-kicker">Property</div>
@@ -3080,7 +3250,7 @@
                   <select id="sv-trapper">${techOpts(d.trapper || "")}</select>
                   <button type="button" class="btn btn-ghost" data-act="sv-best-fit" data-target="standing">Best fit</button>
                 </div>
-                <div class="tiny">Continual route tech — confirm on map after save</div>
+                <div class="tiny">Continual route tech — pick from Best fit on the map</div>
               </div>
             </div>
           </div>
@@ -3101,6 +3271,39 @@
             <button class="btn btn-ghost" data-act="cancel-create-service">Cancel</button>
             ${btn("service.create", "Save — then assign on map", "save-service", `data-id="${c.id}"`)}
           </div>
+        </div>
+        <aside class="create-svc-map">
+          ${miniMapHtml({
+            drag: true,
+            mapId: "sv-map",
+            title: "Client location",
+            existing: otherPins,
+            preview: loc ? [{
+              x: pinX,
+              y: pinY,
+              label: loc.name,
+              elId: "sv-pin",
+              xId: "sv-x",
+              yId: "sv-y",
+              fillLat: "sv-lat",
+              fillLng: "sv-lng",
+              capId: "sv-map-cap",
+              keepLabel: true,
+            }] : [],
+            caption: loc
+              ? `${loc.address}${gps ? " · " + gps : ""} · drag the pin to adjust`
+              : "Pick a property",
+          })}
+          <input type="hidden" id="sv-x" value="${esc(String(pinX).replace("%", ""))}">
+          <input type="hidden" id="sv-y" value="${esc(String(pinY).replace("%", ""))}">
+          <input type="hidden" id="sv-lat" value="${esc(loc?.lat != null ? loc.lat : "")}">
+          <input type="hidden" id="sv-lng" value="${esc(loc?.lng != null ? loc.lng : "")}">
+          <div class="create-svc-map-fit">
+            <div class="create-svc-kicker">Best fit for this pin</div>
+            <p class="tiny">Closest by extra drive on ${esc(sched.label)}. Click to set standing trapper (and initial if empty).</p>
+            <div class="bestfit" id="sv-fit">${fitCardsHtml(ranked, d.trapper || ranked[0]?.t.id, "standing")}</div>
+          </div>
+        </aside>
         </div>
       </div>
     `;
@@ -3239,7 +3442,9 @@
                   ${ct ? statusBadge(ct.status) : lifecycleBadge(life)}
                   ${onAutopay ? `<span class="badge badge-sea">AutoPay ON</span>` : ""}
                   ${apaFail ? `<span class="badge badge-bad">AutoPay failed</span>` : ""}
-                  ${paidHere ? `<span class="badge badge-ok">Ready for service</span>` : ""}
+                  ${paidHere && !(svcFor(c.id, l.id) && svcIsContinuing(svcFor(c.id, l.id))) ? `<span class="badge badge-ok">Ready for service</span>` : ""}
+                  ${paidHere && svcFor(c.id, l.id) && svcIsContinuing(svcFor(c.id, l.id)) && locIsMonthlyPlan(c, l) ? `<span class="badge badge-sea">Monthly · service live</span>` : ""}
+                  ${paidHere && svcFor(c.id, l.id) && svcIsContinuing(svcFor(c.id, l.id)) && !locIsMonthlyPlan(c, l) ? `<span class="badge badge-ok">Service live</span>` : ""}
                   ${awaitPay ? `<span class="badge badge-warn">Unallocated · ${money(awaitPay.amount)} · ${esc(awaitPay.method)}</span>` : ""}
                   ${!paidHere && !awaitPay && l.covered === false ? `<span class="badge badge-bad">Unpaid</span>` : ""}
                   ${locNeedsQuote(c, l) ? `<span class="badge badge-warn">Needs quote</span>` : ""}
@@ -3251,7 +3456,7 @@
                 <div class="tiny">GPS ${esc(gps)}${l.subdivision ? ` · ${esc(l.subdivision)}` : ""}</div>
                 <div class="tiny"><strong>Contract</strong> ${ct ? `${esc(ct.id)} · ${esc(ct.program || "")} · ${esc(ct.startDate || "")} → ${esc(ct.endDate || "")}` : "None yet"}</div>
                 <div class="tiny"><strong>Billing plan</strong> ${esc(billingPlanLabel(l))}${onAutopay ? " · AutoPay charges & allocates overnight — Christy does not mark those lines" : ""}</div>
-                ${apaFail ? `<div class="tiny" style="color:var(--bad,#b42318)">Decline recovery: contact customer → Record external payment → Allocate → Generate next period (manual).</div>` : ""}
+                ${apaFail ? `<div class="tiny" style="color:var(--bad,#b42318)">Decline recovery: contact customer → Record external payment → Allocate → Generate next period (manual). Rick can stop service if they will not pay.</div>` : ""}
                 ${billingPeriodLabel(l) ? `<div class="tiny">${esc(billingPeriodLabel(l))}</div>` : ""}
                 ${periods.length ? `<div class="tiny" style="margin-top:6px"><strong>Periods</strong></div>
                   <table class="mini-table"><thead><tr><th>#</th><th>Dates</th><th>Amt</th><th>Inv</th><th>Status</th></tr></thead><tbody>
@@ -3311,6 +3516,12 @@
                   ${(c.municipal || c.type === "municipal") && (can("invoice.create") || state.role === "owner") ? `<button class="btn btn-ghost" data-act="manual-invoice" data-id="${c.id}" data-loc="${l.id}">Manual invoice</button>` : ""}
                   ${locNeedsService(c, l) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
                   ${locNeedsTech(c, l) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
+                  ${(() => {
+                    const live = svcs.find(svcIsContinuing);
+                    if (!live || !can("service.stop")) return "";
+                    if (!(apaFail || c.failedPayment || l.lifecycle === "past_due")) return "";
+                    return btn("service.stop", "Stop service", "stop-service", `data-id="${live.id}"`, "btn-sun");
+                  })()}
                 </div>
               </div>`;
             }).join("") || `<p class="muted">No properties yet.</p>`}
@@ -3363,7 +3574,10 @@
                   <td class="tiny">${esc(s.start || "—")} → ${esc(s.expires || "—")}</td>
                   <td>${svcStatusBadge(s)}</td>
                   <td>${live && canEdit
-                    ? `<button class="btn btn-sun" data-act="edit-service" data-id="${s.id}">Edit / reassign</button>`
+                    ? `<div class="actions">
+                        <button class="btn btn-sun" data-act="edit-service" data-id="${s.id}">Edit / reassign</button>
+                        ${can("service.stop") ? `<button class="btn btn-ghost" data-act="stop-service" data-id="${s.id}">Stop</button>` : ""}
+                      </div>`
                     : (live ? `<span class="tiny">Active</span>` : `<span class="tiny">History</span>`)}</td>
                 </tr>`;
               }).join("")}
@@ -5214,7 +5428,20 @@
     const span = pin.querySelector("span");
     if (span && !pin.dataset.keepLabel) span.textContent = place.place;
     const cap = document.getElementById(pin.dataset.cap || "mini-cap");
-    if (cap) cap.textContent = `${place.place} · ${coords.lat}, ${coords.lng}${pin.dataset.keepLabel ? " · drag to adjust" : ""}`;
+    if (cap) {
+      const keep = pin.dataset.keepLabel
+        ? (document.getElementById("sv-loc")?.selectedOptions?.[0]?.text?.split(" · ")[0]
+          || pin.querySelector("span")?.textContent
+          || place.place)
+        : place.place;
+      cap.textContent = pin.dataset.keepLabel
+        ? `${keep} · ${coords.lat}, ${coords.lng} · drag to adjust`
+        : `${place.place} · ${coords.lat}, ${coords.lng}`;
+    }
+    if (state.page === "create-service" && (pin.id === "sv-pin" || pin.dataset.x === "sv-x")) {
+      syncSetupLocFromPin(x, y);
+      refreshSetupFit();
+    }
   }
 
   function syncPinFromLatLng(input) {
@@ -5384,6 +5611,8 @@
       },
       "edit-service": () => openEditService(ds.id),
       "save-edit-service": () => saveEditService(ds.id),
+      "stop-service": () => openStopService(ds.id),
+      "confirm-stop-service": () => confirmStopService(ds.id),
       "sched-view": () => { state.schedView = ds.view; render(); },
       "focus-tech": () => { state.assignFocus = ds.tech; render(); },
       "confirm-assign": () => confirmAssign(ds.id, ds.tech, ds.loc),
@@ -6480,6 +6709,16 @@
     const initial = createInitial ? (val("sv-initial") || standing || null) : standing;
     const notes = val("sv-notes");
     if (notes) loc.notes = notes;
+    const px = Number(val("sv-x"));
+    const py = Number(val("sv-y"));
+    if (Number.isFinite(px) && Number.isFinite(py)) {
+      loc.x = `${px.toFixed(1)}%`;
+      loc.y = `${py.toFixed(1)}%`;
+      const coords = latLngFromXy(px, py);
+      loc.lat = Number(val("sv-lat")) || coords.lat;
+      loc.lng = Number(val("sv-lng")) || coords.lng;
+      loc.gps = `${loc.lat}, ${loc.lng}`;
+    }
     const notifyEmail = checked("sv-notify-email");
     const notifyText = checked("sv-notify-text");
     const svc = {
@@ -6600,11 +6839,108 @@
           <button class="btn btn-ghost" data-act="close-modal">Close</button>
           ${continuing && canEditService() ? `
             <button class="btn btn-ghost" data-act="open-assign" data-id="${c.id}" data-loc="${loc.id}">Reassign on map</button>
+            ${can("service.stop") ? btn("service.stop", "Stop service", "stop-service", `data-id="${svc.id}"`) : ""}
             ${btn("service.edit", "Save changes", "save-edit-service", `data-id="${svc.id}"`)}
           ` : ""}
         </div>
       `,
     };
+    render();
+  }
+
+  function openStopService(svcId) {
+    if (!can("service.stop")) {
+      toast("Only Operations can stop a service.");
+      return;
+    }
+    const svc = (state.data.services || []).find((s) => s.id === svcId);
+    if (!svc || !svcIsContinuing(svc)) {
+      toast("That service is already stopped.");
+      return;
+    }
+    const c = custBy(svc.customerId);
+    const loc = locBy(svc.customerId, svc.locationId);
+    state.modal = {
+      html: `
+        <h3>Stop service</h3>
+        <p><strong>${esc(c?.billTo || c?.name || "")}</strong> · ${esc(loc?.name || "")}. Pulls them off the route now. Use this after a failed monthly payment when they will not pay — do not create a new service later unless they start again.</p>
+        <div class="field"><label>Reason</label>
+          <select id="stop-reason">
+            <option value="Failed monthly payment — customer will not pay">Failed monthly payment — will not pay</option>
+            <option value="Failed monthly payment — holding until they call back">Failed monthly — holding until callback</option>
+            <option value="Customer asked to cancel">Customer asked to cancel</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="field"><label>Note (optional)</label><textarea id="stop-note" rows="2" placeholder="Who you spoke with, next step…"></textarea></div>
+        <div class="actions" style="margin-top:12px">
+          <button class="btn btn-ghost" data-act="close-modal">Keep running</button>
+          ${btn("service.stop", "Stop service now", "confirm-stop-service", `data-id="${svc.id}"`, "btn-sun")}
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function confirmStopService(svcId) {
+    if (!can("service.stop")) return;
+    const svc = (state.data.services || []).find((s) => s.id === svcId);
+    if (!svc) return;
+    const c = custBy(svc.customerId);
+    const loc = locBy(svc.customerId, svc.locationId);
+    const reason = val("stop-reason") || "Stopped by Operations";
+    const note = val("stop-note") || "";
+    svc.status = "cancelled";
+    svc.active = false;
+    svc.cancelDate = TODAY;
+    svc.cancelReason = reason;
+    svc.opsNote = [svc.opsNote, note].filter(Boolean).join(" · ");
+    (state.data.stops || []).forEach((st) => {
+      if (st.customerId !== svc.customerId || st.locationId !== svc.locationId) return;
+      if (st.status === "complete" || st.status === "noshow" || st.pending) return;
+      st.status = "blocked";
+    });
+    if (loc) {
+      loc.lifecycle = "stopped";
+      loc.requestService = false;
+      loc.techId = null;
+    }
+    if (c) {
+      c.opsNote = [c.opsNote, `Service stopped ${TODAY}: ${reason}`].filter(Boolean).join(" ");
+      const stillLive = (c.locations || []).some((l) => {
+        const s = svcFor(c.id, l.id);
+        return s && svcIsContinuing(s);
+      });
+      if (!stillLive) c.status = "lapsed";
+    }
+    const ct = contractForLoc(svc.customerId, svc.locationId);
+    if (ct) {
+      ct.status = "CANCELLED";
+      ct.paymentStatus = "STOPPED";
+    }
+    const bp = ct && planForContract(ct.id);
+    if (bp) bp.status = "INACTIVE";
+    state.data.comms.push({
+      id: nid("CM"), customerId: svc.customerId, who: ROLES[state.role]?.name || "Operations",
+      channel: "System", date: TODAY,
+      text: `Service stopped on ${loc?.name || svc.locationId}. ${reason}${note ? " — " + note : ""}`,
+    });
+    pushNotify({
+      type: "SERVICE_STOPPED",
+      severity: "alert",
+      title: "Service stopped",
+      text: `${c?.billTo || c?.name || ""} · ${loc?.name || ""} stopped by Ops. ${reason}`,
+      customerId: svc.customerId, locationId: svc.locationId,
+    });
+    (state.data.tasks || []).filter((t) =>
+      t.status === "open" && t.customerId === svc.customerId && t.locationId === svc.locationId
+      && /stop|hold|unpaid|autopay/i.test(`${t.title} ${t.notes || ""}`)
+    ).forEach((t) => {
+      t.status = "done";
+      t.completedAt = TODAY;
+    });
+    state.modal = null;
+    toast(`${c?.name || "Customer"} · ${loc?.name || "property"} stopped — off the route.`);
     render();
   }
 

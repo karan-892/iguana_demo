@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const DATA_KEY = "iguana-crm-data-v7";
+  const DATA_KEY = "iguana-crm-data-v8";
   const SESSION_KEY = "iguana-crm-session-v2";
 
   const ARRAY_KEYS = [
