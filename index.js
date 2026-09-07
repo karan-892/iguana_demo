@@ -116,6 +116,7 @@
 
     { id: "schedule", label: "Schedule", group: "Operations", icon: "cal", roles: ["owner", "ops"] },
     { id: "map", label: "Map & routing", group: "Operations", icon: "map", roles: ["owner", "ops"] },
+    { id: "trappers", label: "Trappers", group: "Operations", icon: "people", roles: ["owner", "ops", "admin"] },
     { id: "oneoffs", label: "One-off jobs", group: "Operations", icon: "bolt", roles: ["owner", "ops"] },
     { id: "traps", label: "Trap assets", group: "Operations", icon: "trap", roles: ["owner", "ops"] },
     { id: "noshows", label: "No-shows", group: "Operations", icon: "alert", roles: ["owner", "ops"] },
@@ -173,9 +174,26 @@
     "users.manage": ["sysadmin", "owner"],
     "lists.edit": ["sysadmin", "owner"],
     "settings.edit": ["sysadmin", "owner"],
-    "template.edit": ["sysadmin", "admin"],
-    "mobile.act": ["tech"],
+    "template.edit": ["sysadmin", "admin", "owner"],
+    "mobile.act": ["tech", "trapper"],
   };
+
+  /** Roles Avery can assign on Users — includes Trapper (not on the login switcher). */
+  const USER_ROLE_OPTIONS = [
+    { id: "owner", title: "Owner" },
+    { id: "ops", title: "Operations / Dispatcher" },
+    { id: "admin", title: "Administration" },
+    { id: "sales", title: "Sales / Intake" },
+    { id: "trapper", title: "Trapper" },
+    { id: "sysadmin", title: "System Administrator" },
+  ];
+  function userRoleTitle(roleId) {
+    if (roleId === "tech") return "Trapper";
+    return USER_ROLE_OPTIONS.find((r) => r.id === roleId)?.title
+      || ROLES[roleId]?.title
+      || roleId
+      || "—";
+  }
 
   const TECHS = [
     { id: "johnny", name: "Johnny", home: "Deerfield Beach", color: "#2d6a4c", x: "28%", y: "42%" },
@@ -226,7 +244,47 @@
     { id: "hoa2", name: "HOA 2-week", months: 0.5, list: 180, prepaid: null, freeMonths: 0, freq: "Every 2 weeks" },
   ];
 
-  function programById(id) { return PROGRAMS.find((p) => p.id === id); }
+  function programById(id) { return allPrograms().find((p) => p.id === id); }
+  function extraProgramsSafe() {
+    try { return state.data?.settings?.extraPrograms || []; } catch (_) { return []; }
+  }
+  function extraServiceTypesSafe() {
+    try { return state.data?.settings?.extraServiceTypes || []; } catch (_) { return []; }
+  }
+  function customTemplatesSafe() {
+    try { return state.data?.settings?.customTemplates || []; } catch (_) { return []; }
+  }
+  function allPrograms() {
+    return PROGRAMS.concat(extraProgramsSafe());
+  }
+  function allServiceTypes() {
+    return SERVICE_TYPES.concat(extraServiceTypesSafe());
+  }
+  function allTemplates() {
+    const built = [
+      { key: "proposal", label: "Proposal / quote" },
+      { key: "invoice", label: "Invoice" },
+      { key: "renewal", label: "Renewal notice" },
+      { key: "visit", label: "Visit reminder (2 days before, no-reply)" },
+    ];
+    const custom = customTemplatesSafe().map((t) => ({
+      key: t.key, label: t.label || t.key, custom: true,
+    }));
+    return built.concat(custom);
+  }
+  function normalizeDemoData() {
+    if (!state.data.settings) state.data.settings = {};
+    const s = state.data.settings;
+    if (!Array.isArray(s.extraReasons)) s.extraReasons = [];
+    if (!Array.isArray(s.extraPrograms)) s.extraPrograms = [];
+    if (!Array.isArray(s.extraServiceTypes)) s.extraServiceTypes = [];
+    if (!Array.isArray(s.customTemplates)) s.customTemplates = [];
+    if (!state.data.templates) state.data.templates = {};
+    if (!state.data.integrations) state.data.integrations = { mapsKey: "", processor: "", sendgrid: "", notes: "" };
+    (state.data.users || []).forEach((u) => {
+      if (u.role === "tech") u.role = "trapper";
+    });
+  }
   function programBillAmount(p) {
     if (!p) return 0;
     if (p.id === "12mo") return Math.round(p.list / Math.max(1, p.months));
@@ -792,16 +850,24 @@
         { id: "u3", name: "Christy Brown", role: "admin", active: true },
         { id: "u4", name: "Michelle", role: "admin", active: true },
         { id: "u5", name: "Rocco", role: "sales", active: true },
-        { id: "u6", name: "Johnny", role: "tech", active: true },
-        { id: "u7", name: "Bobby", role: "tech", active: true },
-        { id: "u8", name: "Pedro", role: "tech", active: true },
-        { id: "u9", name: "Miguel", role: "tech", active: true },
-        { id: "u10", name: "Alejo", role: "tech", active: true },
+        { id: "u6", name: "Johnny", role: "trapper", active: true },
+        { id: "u7", name: "Bobby", role: "trapper", active: true },
+        { id: "u8", name: "Pedro", role: "trapper", active: true },
+        { id: "u9", name: "Miguel", role: "trapper", active: true },
+        { id: "u10", name: "Alejo", role: "trapper", active: true },
         { id: "u11", name: "Avery Cole", role: "sysadmin", active: true },
       ],
       holidays: ["2026-09-07", "2026-11-26", "2026-12-25", "2027-01-01", "2027-07-04"],
       blackout: [],
-      settings: { commissionPct: 2, renewalWindow: 60, reminder: "email", extraReasons: [] },
+      settings: {
+        commissionPct: 2,
+        renewalWindow: 60,
+        reminder: "email",
+        extraReasons: [],
+        extraPrograms: [],
+        extraServiceTypes: [],
+        customTemplates: [],
+      },
       templates: {
         proposal: "Hello {customer_name},\nAccount {account_id}.\nYour iguana removal program quote is ready.",
         invoice: "Hello {customer_name},\nInvoice {invoice_or_quote} is due.\nPay by invoice link, website, ACH, or bank transfer.",
@@ -827,33 +893,40 @@
     toast: null,
     modal: null,
     data: window.IguanaStore ? IguanaStore.load(seed) : seed(),
-    mobileStop: null,
-    payView: false,
-    payInvoice: "",
-    assignId: null,
-    assignLocId: null,
-    assignDays: "Mon/Wed",
-    assignFocus: null,
-    schedView: "week",
-    mapTech: null,
-    mapSelect: [],
-    mapLasso: false,
     mapDay: null,
+    mapTech: null,
     mapClient: null,
     mapLoc: null,
-    mapCompare: [],
-    mapPin: null,
     mapColorBy: "tech",
+    mapSelect: [],
+    mapLasso: false,
+    mapPin: null,
     mapSched: null,
-    navOpen: {},
+    mapCompare: [],
+    assignId: null,
+    assignLocId: null,
+    assignFocus: null,
+    assignDays: "Mon/Wed",
+    setupId: null,
+    setupLocId: null,
+    setupDraft: null,
     oneoffDraft: null,
     oneoffDay: null,
-    inboundId: session.inboundId || null,
-    locCount: 1,
     renewPick: [],
     payFilter: "month",
+    paySrcFilter: "all",
     payFocusId: null,
+    payInvoice: null,
+    publicPay: false,
+    payView: false,
+    inboundId: session.inboundId || null,
+    taskFilter: "mine",
+    mobileStop: null,
+    schedView: "week",
+    navOpen: {},
+    locCount: 1,
   };
+  normalizeDemoData();
 
   const $app = document.getElementById("app");
 
@@ -955,7 +1028,7 @@
   function techBy(id) { return TECHS.find((t) => t.id === id); }
   function techName(id) { return techBy(id)?.name || "—"; }
   function custBy(id) { return state.data.customers.find((c) => c.id === id); }
-  function progBy(id) { return PROGRAMS.find((p) => p.id === id); }
+  function progBy(id) { return allPrograms().find((p) => p.id === id); }
   function programAmount(p) { return programBillAmount(p); }
   function addMonths(iso, months) {
     const d = new Date(iso + "T12:00:00");
@@ -1722,7 +1795,7 @@
     return `${ids.length} properties`;
   }
   function programOptions(selected) {
-    return PROGRAMS.map((x) => `<option value="${x.id}" ${x.id === selected ? "selected" : ""}>${esc(x.name)}</option>`).join("");
+    return allPrograms().map((x) => `<option value="${x.id}" ${x.id === selected ? "selected" : ""}>${esc(x.name)}</option>`).join("");
   }
   function pct(v) { return parseFloat(String(v || "0")) || 0; }
   const FL_PLACES = [
@@ -1820,7 +1893,7 @@
     return can("service.edit") || can("service.create") || can("schedule.reassign") || can("schedule.assign");
   }
   function svcTypeLabel(id) {
-    const t = SERVICE_TYPES.find((x) => x.id === id);
+    const t = allServiceTypes().find((x) => x.id === id);
     return t ? `${t.code} · ${t.label}` : id || "Service";
   }
   function defaultServiceCode(c, l) {
@@ -2050,7 +2123,7 @@
     }).sort((a, b) => a.score - b.score || a.homeMiles - b.homeMiles);
   }
   function expiryFrom(start, typeId) {
-    const t = SERVICE_TYPES.find((x) => x.id === typeId);
+    const t = allServiceTypes().find((x) => x.id === typeId);
     if (!start || t == null || !t.months) return start || "";
     return addMonths(start, t.months);
   }
@@ -2104,7 +2177,7 @@
     if (hid) hid.value = exp;
   }
   function applyServiceTypeDefaults() {
-    const t = SERVICE_TYPES.find((x) => x.id === val("sv-type"));
+    const t = allServiceTypes().find((x) => x.id === val("sv-type"));
     if (!t) return;
     setInput("sv-dur", fmtDur(t.duration));
     setInput("sv-idur", fmtDur(t.duration));
@@ -2320,7 +2393,7 @@
     };
   }
   function canEditField(field) {
-    if (!state.role || state.role === "tech") return false;
+    if (!state.role || state.role === "tech" || state.role === "trapper") return false;
     if (field === "opsNote" && state.role === "sales") return false;
     if (["amount", "programId"].includes(field) && state.role === "ops") return false;
     return can("customer.edit") || state.role === "owner" || state.role === "admin" || state.role === "sales" || state.role === "ops";
@@ -2789,6 +2862,7 @@
       quotes: viewQuotes,
       schedule: viewSchedule,
       map: viewMap,
+      trappers: viewTrappers,
       assign: viewAssign,
       oneoffs: viewOneoffs,
       noshows: viewNoshows,
@@ -3336,7 +3410,7 @@
     const selected = d.loc || state.setupLocId || locs.find((l) => locNeedsService(c, l))?.id || locs[0]?.id;
     const loc = locs.find((l) => l.id === selected) || locs[0];
     const code = d.type || defaultServiceCode(c, loc);
-    const st = SERVICE_TYPES.find((t) => t.id === code) || SERVICE_TYPES[0];
+    const st = allServiceTypes().find((t) => t.id === code) || SERVICE_TYPES[0];
     const plan = locPlan(c, loc);
     const start = d.start || plan.start || TODAY;
     const expires = d.expires || expiryFrom(start, code) || plan.expires || "";
@@ -3383,7 +3457,7 @@
             <div class="create-svc-kicker">Service</div>
             <div class="create-svc-line">
               <div class="field req"><label>Service</label>
-                <select id="sv-type" data-act="sv-code">${SERVICE_TYPES.map((t) => `<option value="${t.id}" ${t.id === code ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
+                <select id="sv-type" data-act="sv-code">${allServiceTypes().map((t) => `<option value="${t.id}" ${t.id === code ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
               </div>
               <div class="field"><label>Description</label><input id="sv-desc" value="${esc(d.desc || st.desc || st.label)}" readonly></div>
               <div class="field narrow"><label>Qty</label><input id="sv-qty" type="number" min="1" step="1" value="${esc(d.qty || "1")}"></div>
@@ -4219,6 +4293,9 @@
           const home = t?.home ? ` · ${esc(t.home)}` : "";
           return `<div class="map-pin-tech"><i class="dot" style="background:${color}"></i><span><strong>${esc(name)}</strong>${home}</span></div>`;
         }).join("");
+        const currentSched = SERVICE_SCHEDULES.find((s) => s.days === sched || s.id === svc?.schedule) || SERVICE_SCHEDULES[0];
+        const canReassign = can("schedule.reassign") || state.role === "owner";
+        const canShare = can("schedule.assign") || can("service.create") || can("service.edit") || state.role === "owner";
         pinCard = `
           <div class="map-float-card map-pin-card${flipX ? " flip-x" : ""}${flipY ? " flip-y" : ""}" style="left:${pl.x};top:${pl.y}">
             <button type="button" class="map-float-close" data-act="clear-map-pin" aria-label="Close">×</button>
@@ -4235,9 +4312,26 @@
               <span>${dur}</span>
               <span>${svc ? esc(svcTypeLabel(svc.type)) : "No service yet"}</span>
             </div>
+            ${canReassign ? `
+              <div class="map-pin-assign">
+                <div class="map-pin-label">Change on map</div>
+                <div class="field"><label>Trapper</label>
+                  <select id="pin-tech">${TECHS.map((t) => `<option value="${t.id}" ${t.id === primaryTech ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select>
+                </div>
+                <div class="field"><label>Schedule</label>
+                  <select id="pin-sched">${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}" ${s.id === currentSched.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
+                </div>
+                <div class="actions map-pin-assign-actions">
+                  <button type="button" class="btn btn-sun" data-act="pin-map-assign" data-mode="move" data-cid="${pc.id}" data-lid="${pl.id}">Reassign</button>
+                  ${canShare && svc ? `<button type="button" class="btn btn-ghost" data-act="pin-map-assign" data-mode="share" data-cid="${pc.id}" data-lid="${pl.id}">Share</button>` : ""}
+                </div>
+                <p class="tiny">Reassign moves this stop. Share adds another trapper on different days.</p>
+              </div>
+            ` : ""}
             <div class="actions" style="margin-top:10px">
               <button class="btn btn-ghost" data-act="open-customer" data-id="${pc.id}">Open Bill-To</button>
               ${locNeedsTech(pc, pl) && filterTech ? btn("schedule.assign", "Assign " + techName(filterTech), "map-assign", `data-id="${pc.id}" data-loc="${pl.id}" data-tech="${filterTech}"`) : ""}
+              ${canReassign ? `<button type="button" class="btn btn-ghost" data-act="open-pin-assign" data-cid="${pc.id}" data-lid="${pl.id}">Full assign…</button>` : ""}
             </div>
           </div>`;
       }
@@ -4254,7 +4348,7 @@
     }, 0);
 
     return `
-      ${head("Map & routing", "All trappers on one map. Click a name for their book. Gray diamonds = shared. Assign mode only shows the stop you’re placing.")}
+      ${head("Map & routing", "Click a pin to change trapper or schedule. Box select several, then Assign. Gray diamonds = shared.")}
       ${writeBar("schedule.assign", "Assign")}
       ${assignMode ? `<div class="notice">Assigning <strong>${esc(focusCust.name)} · ${esc(focusLoc.name)}</strong> only — other waiting stops are hidden until you finish this one.</div>` : ""}
       <div class="map-toolbar">
@@ -4354,6 +4448,7 @@
                   <button type="button" class="btn btn-ghost" data-act="clear-map-select">Clear</button>
                   ${btn("schedule.reassign", "Assign", "open-bulk-assign", "", "btn-sun")}
                 </div>
+                <p class="tiny" style="margin:8px 0 0">Assign = pick trapper + schedule for all selected.</p>
               </div>` : ""}
           </div>
         </div>
@@ -5029,7 +5124,7 @@
   }
 
   function programOptionsHtml(selectedId) {
-    return PROGRAMS.map((p) => {
+    return allPrograms().map((p) => {
       const amt = programBillAmount(p);
       const price = p.id === "12mo" ? `${money(amt)}/mo` : money(amt);
       return `<option value="${p.id}" ${p.id === selectedId ? "selected" : ""}>${esc(p.name)} · ${price} · ${esc(p.freq)}</option>`;
@@ -5236,6 +5331,56 @@
     </div>`;
   }
 
+  function viewTrappers() {
+    const rows = TECHS.map((t) => {
+      const user = (state.data.users || []).find((u) =>
+        u.role === "trapper"
+        && String(u.name || "").toLowerCase() === String(t.name || "").toLowerCase()
+      );
+      const stops = (state.data.stops || []).filter((s) =>
+        s.techId === t.id && s.status === "scheduled" && !s.pending
+      );
+      const customers = new Set(stops.map((s) => s.customerId).filter(Boolean)).size;
+      const minutes = stops.reduce((sum, s) => sum + Number(s.durationMin || 0), 0);
+      const next = stops.slice().sort((a, b) =>
+        DAYS.indexOf(a.day) - DAYS.indexOf(b.day)
+        || String(a.time || "").localeCompare(String(b.time || ""))
+      )[0];
+      return { t, user, stops, customers, minutes, next };
+    });
+    return `
+      ${head("Trappers", "Field team list for Rick, Christy, and Tom. Avery manages roles on Users.")}
+      <div class="grid-4">
+        ${stat("Active trappers", rows.filter((r) => r.user?.active !== false).length, "Field team")}
+        ${stat("Stops scheduled", rows.reduce((n, r) => n + r.stops.length, 0), "Current board")}
+        ${stat("Customers covered", new Set((state.data.stops || []).filter((s) => s.status === "scheduled" && !s.pending).map((s) => s.customerId).filter(Boolean)).size, "Across all trappers")}
+        ${stat("Scheduled hours", (rows.reduce((n, r) => n + r.minutes, 0) / 60).toFixed(1), "Current board")}
+      </div>
+      <div class="card section-gap">
+        ${rows.map(({ t, user, stops, customers, minutes, next }) => `
+          <div class="user-row">
+            <div>
+              <div class="actions" style="gap:8px">
+                <i class="dot" style="background:${t.color}"></i>
+                <strong>${esc(t.name)}</strong>
+                <span class="badge ${user?.active === false ? "badge-bad" : "badge-ok"}">${user?.active === false ? "Inactive" : "Active"}</span>
+              </div>
+              <div class="tiny">${esc(t.home)} · ${customers} customer${customers === 1 ? "" : "s"} · ${stops.length} stop${stops.length === 1 ? "" : "s"} · ${fmtClock(minutes)}</div>
+              <div class="tiny">${next ? `Next: ${esc(next.day)} ${esc(next.time || "")} · ${esc(stopLabel(next))}` : "No scheduled stops"}</div>
+            </div>
+            <div class="actions">
+              ${canPage("map") ? `<button class="btn btn-ghost" data-act="map-tech" data-tech="${t.id}">Open on map</button>` : ""}
+              ${canPage("workload") ? `<button class="btn btn-ghost" data-act="nav" data-page="workload">Workload</button>` : ""}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+      ${state.role === "admin"
+        ? `<p class="tiny section-gap">Christy can see the field team and workload here. Rick handles route changes; Avery changes user roles.</p>`
+        : `<p class="tiny section-gap">Need to change a role? Avery or Tom can do that under System → Users.</p>`}
+    `;
+  }
+
   function viewTraps() {
     const traps = state.data.traps || [];
     const valueOut = traps.filter((t) => t.status !== "retrieved").reduce((s, t) => s + t.value, 0);
@@ -5291,15 +5436,15 @@
   /* ---------- System ---------- */
   function viewUsers() {
     return `
-      ${head("Users & roles", "Add people, turn logins off, set their role.")}
+      ${head("Users & roles", "Set each person to the right role. Field techs are Trappers — not Owner.")}
       ${writeBar("users.manage", "Edit users")}
       ${state.data.users.map((u) => `
         <div class="user-row">
           <div>
             ${can("users.manage") ? inline("user", "name", u.name, `data-id="${u.id}"`) : `<strong>${esc(u.name)}</strong>`}
             <div class="tiny">${can("users.manage")
-              ? `<select class="inline-edit" data-edit="user" data-field="role" data-id="${u.id}">${Object.values(ROLES).map((r) => `<option value="${r.id}" ${r.id === u.role ? "selected" : ""}>${esc(r.title)}</option>`).join("")}</select>`
-              : esc(ROLES[u.role]?.title || u.role)}</div>
+              ? `<select class="inline-edit" data-edit="user" data-field="role" data-id="${u.id}">${USER_ROLE_OPTIONS.map((r) => `<option value="${r.id}" ${r.id === u.role || (u.role === "tech" && r.id === "trapper") ? "selected" : ""}>${esc(r.title)}</option>`).join("")}</select>`
+              : esc(userRoleTitle(u.role))}</div>
           </div>
           <div class="row">
             ${statusBadge(u.active ? "active" : "lapsed")}
@@ -5307,13 +5452,16 @@
           </div>
         </div>
       `).join("")}
+      <p class="tiny section-gap">Trapper = field route / mobile. Operations = Rick. Administration = Christy. Owner = Tom. System admin = Avery.</p>
     `;
   }
 
   function viewLists() {
+    const programs = allPrograms();
+    const types = allServiceTypes();
     return `
-      ${head("Configurable lists", "No-show reasons, programs, holidays — change them here.")}
-      ${writeBar("lists.edit", "Add reason")}
+      ${head("Configurable lists", "No-show reasons, programs, and service types — add what the office uses.")}
+      ${writeBar("lists.edit", "Edit lists")}
       <div class="split">
         <div class="card">
           <h3>No-show reasons</h3>
@@ -5326,9 +5474,17 @@
         </div>
         <div class="card">
           <h3>Programs we use</h3>
-          <ul class="settings-list">${PROGRAMS.map((p) => `<li><span>${esc(p.name)}</span><span class="muted">${money(p.list)}</span></li>`).join("")}</ul>
+          <ul class="settings-list">${programs.map((p) => `<li><span>${esc(p.name)}</span><span class="muted">${money(p.list)}${p._custom ? " · custom" : ""}</span></li>`).join("")}</ul>
+          <div class="field"><label>Program name</label><input id="new-prog-name" placeholder="e.g. 9-month prepaid"></div>
+          <div class="field"><label>List price $</label><input id="new-prog-price" type="number" value="1000"></div>
+          <div class="field"><label>Months</label><input id="new-prog-months" type="number" step="0.5" value="6"></div>
+          ${btn("lists.edit", "Add program", "add-program")}
           <h3 class="section-gap">Service types</h3>
-          <ul class="settings-list">${SERVICE_TYPES.map((t) => `<li><span>${esc(t.code)} · ${esc(t.label)}</span><span class="muted">${fmtDur(t.duration)}</span></li>`).join("")}</ul>
+          <ul class="settings-list">${types.map((t) => `<li><span>${esc(t.code)} · ${esc(t.label)}</span><span class="muted">${fmtDur(t.duration)}${t._custom ? " · custom" : ""}</span></li>`).join("")}</ul>
+          <div class="field"><label>Code</label><input id="new-svc-code" placeholder="e.g. 9 - 9 MON RES"></div>
+          <div class="field"><label>Label</label><input id="new-svc-label" placeholder="9-month residential"></div>
+          <div class="field"><label>Duration (min)</label><input id="new-svc-dur" type="number" value="20"></div>
+          ${btn("lists.edit", "Add service type", "add-service-type")}
         </div>
       </div>
     `;
@@ -5336,20 +5492,23 @@
 
   function viewTemplates() {
     const tpls = state.data.templates || {};
-    const cards = [
-      ["proposal", "Proposal / quote"],
-      ["invoice", "Invoice"],
-      ["renewal", "Renewal notice"],
-      ["visit", "Visit reminder (2 days before, no-reply)"],
-    ];
+    const cards = allTemplates();
     return `
-      ${head("Templates", "Edit the body here. Preview in final form before send. Saved on this browser.")}
+      ${head("Templates", "Edit the body, preview, or add a new template. Saves on this browser.")}
+      ${writeBar("template.edit", "Edit templates")}
+      <div class="actions" style="margin-bottom:12px">
+        ${btn("template.edit", "Add template", "add-template", "", "btn-sun")}
+        ${btn("template.edit", "Save all templates", "save-templates", "", "btn-ghost")}
+      </div>
       <div class="grid-3">
-        ${cards.map(([key, t]) => `
+        ${cards.map(({ key, label, custom }) => `
           <div class="card">
-            <h3>${esc(t)}</h3>
-            <textarea class="inline-edit" data-edit="template" data-field="${key}" rows="6">${esc(tpls[key] || "")}</textarea>
-            <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="preview-tpl" data-name="${esc(t)}">Preview rendered</button></div>
+            <h3>${esc(label)}${custom ? ` <span class="badge badge-mute">Custom</span>` : ""}</h3>
+            <textarea id="tpl-${esc(key)}" class="inline-edit" data-edit="template" data-field="${esc(key)}" rows="6">${esc(tpls[key] || "")}</textarea>
+            <div class="actions" style="margin-top:10px">
+              <button class="btn btn-ghost" data-act="preview-tpl" data-name="${esc(label)}" data-key="${esc(key)}">Preview</button>
+              ${custom ? `<button class="btn btn-ghost" data-act="remove-template" data-key="${esc(key)}">Remove</button>` : ""}
+            </div>
           </div>
         `).join("")}
       </div>
@@ -5360,17 +5519,25 @@
     const s = state.data.settings;
     const lock = can("settings.edit") ? "" : "disabled";
     return `
-      ${head("Company settings", "Edits save on this browser (local storage). Reset restores the original demo data.")}
+      ${head("Company settings", "Office defaults — commission %, how early renewals show, and reminder channel.")}
       ${writeBar("settings.edit", "Save")}
       <div class="card">
-        <div class="field"><label>Default commission</label><input id="set-comm" class="inline-edit" data-edit="settings" data-field="commissionPct" type="number" value="${s.commissionPct}" ${lock}></div>
-        <div class="field"><label>Renewal window (days)</label><input id="set-win" class="inline-edit" data-edit="settings" data-field="renewalWindow" type="number" value="${s.renewalWindow}" ${lock}></div>
+        <p class="tiny">These are company-wide defaults. Change a value, then hit <strong>Save settings</strong>.</p>
+        <div class="field"><label>Default commission %</label>
+          <input id="set-comm" type="number" value="${s.commissionPct}" ${lock}>
+          <span class="tiny">Used when Christy enters a renewal bonus split</span>
+        </div>
+        <div class="field"><label>Renewal window (days)</label>
+          <input id="set-win" type="number" value="${s.renewalWindow}" ${lock}>
+          <span class="tiny">How many days before expiry a contract shows on the renewal report</span>
+        </div>
         <div class="field"><label>Reminder channel</label>
-          <select id="set-reminder" class="inline-edit" data-edit="settings" data-field="reminder" ${lock}>
+          <select id="set-reminder" ${lock}>
             <option value="email" ${s.reminder === "email" ? "selected" : ""}>Email</option>
             <option value="sms" ${s.reminder === "sms" ? "selected" : ""}>SMS</option>
             <option value="both" ${s.reminder === "both" ? "selected" : ""}>Email + SMS</option>
           </select>
+          <span class="tiny">Visit notices and renewal notices</span>
         </div>
         ${btn("settings.edit", "Save settings", "save-settings")}
         <div class="actions" style="margin-top:12px"><button class="btn btn-ghost" data-act="reset-demo">Reset demo data</button></div>
@@ -5379,13 +5546,26 @@
   }
 
   function viewIntegrations() {
+    const g = state.data.integrations || {};
+    const lock = can("settings.edit") ? "" : "disabled";
     return `
-      ${head("Integration credentials", "API keys and processor settings. Card numbers never go in this app.")}
+      ${head("Integrations", "API keys and processor settings. Card numbers never go in this app.")}
+      ${writeBar("settings.edit", "Save")}
       <div class="card">
-        <div class="field"><label>Google Maps Platform key</label><input class="inline-edit" data-edit="integration" data-field="mapsKey" value="${esc(state.data.integrations?.mapsKey || "")}" placeholder="Stored here, not hardcoded"></div>
-        <div class="field"><label>Payment processor</label><input class="inline-edit" data-edit="integration" data-field="processor" value="${esc(state.data.integrations?.processor || "")}" placeholder="Portal / website / ACH — card data never stored"></div>
-        <div class="field"><label>SendGrid / SMS</label><input class="inline-edit" data-edit="integration" data-field="sendgrid" value="${esc(state.data.integrations?.sendgrid || "")}" placeholder="Visit notices + renewals · no-reply"></div>
-        <div class="field"><label>Notes</label><textarea class="inline-edit" data-edit="integration" data-field="notes" rows="2" placeholder="Vehicle GPS and handheld GPS stay outside this app">${esc(state.data.integrations?.notes || "")}</textarea></div>
+        <p class="tiny">Fill these in, then <strong>Save integrations</strong>. Values stay on this browser for the demo.</p>
+        <div class="field"><label>Google Maps Platform key</label>
+          <input id="int-maps" value="${esc(g.mapsKey || "")}" placeholder="Maps API key" ${lock}>
+        </div>
+        <div class="field"><label>Payment processor</label>
+          <input id="int-processor" value="${esc(g.processor || "")}" placeholder="Portal / ACH processor id" ${lock}>
+        </div>
+        <div class="field"><label>SendGrid / SMS</label>
+          <input id="int-sendgrid" value="${esc(g.sendgrid || "")}" placeholder="Email / SMS provider key" ${lock}>
+        </div>
+        <div class="field"><label>Notes</label>
+          <textarea id="int-notes" rows="2" placeholder="Vehicle GPS stays outside this app" ${lock}>${esc(g.notes || "")}</textarea>
+        </div>
+        ${btn("settings.edit", "Save integrations", "save-integrations")}
       </div>
       <p class="tiny section-gap">ADP / QuickBooks stay outside. No custom build for a single contract.</p>
     `;
@@ -6078,7 +6258,15 @@
       "generate-schedule": () => generateSchedule(),
       "map-tech": () => {
         const next = ds.tech || null;
-        state.mapTech = next && state.mapTech !== next ? next : null;
+        const openingFromList = state.page !== "map";
+        state.mapTech = openingFromList ? next : (next && state.mapTech !== next ? next : null);
+        if (openingFromList) {
+          state.page = "map";
+          state.mapClient = null;
+          state.mapLoc = null;
+          state.mapCompare = [];
+          ensureNavGroupOpenForPage("map");
+        }
         if (!state.mapTech) {
           state.mapColorBy = "tech";
           state.mapSched = null;
@@ -6112,6 +6300,8 @@
       "clear-map-pin": () => { state.mapPin = null; render(); },
       "clear-map-select": () => { state.mapSelect = []; if (state.modal) state.modal = null; render(); },
       "open-bulk-assign": () => openBulkAssign(),
+      "open-pin-assign": () => openBulkAssign(ds.cid, ds.lid),
+      "pin-map-assign": () => pinMapAssign(ds.cid, ds.lid, ds.mode),
       "confirm-bulk-assign": () => confirmBulkAssign(),
       "map-compare-tech": () => {
         const id = ds.tech;
@@ -6167,7 +6357,14 @@
       "toggle-user": () => toggleUser(ds.id),
       "add-reason": () => addReason(),
       "save-settings": () => saveSettings(),
-      "preview-tpl": () => previewTpl(ds.name),
+      "save-integrations": () => saveIntegrations(),
+      "save-templates": () => saveTemplates(),
+      "add-template": () => openAddTemplate(),
+      "confirm-add-template": () => confirmAddTemplate(),
+      "remove-template": () => removeTemplate(ds.key),
+      "add-program": () => addProgram(),
+      "add-service-type": () => addServiceType(),
+      "preview-tpl": () => previewTpl(ds.name, ds.key),
       "close-modal": () => { captureCreateServiceDraft(); captureOneoffDraft(); state.modal = null; render(); },
       "open-stop": () => { state.mobileStop = ds.id; render(); },
       "close-stop": () => { state.mobileStop = null; render(); },
@@ -6681,7 +6878,7 @@
     }
     const plan = locPlan(c, loc);
     const selectedProg = plan.programId || "12pre";
-    const options = PROGRAMS.map((p) =>
+    const options = allPrograms().map((p) =>
       `<option value="${p.id}" ${p.id === selectedProg ? "selected" : ""}>${esc(programOptionLabel(p))}</option>`
     ).join("");
     state.modal = {
@@ -6778,7 +6975,7 @@
     }
     const blocks = use.map((l) => {
       const selected = locPlan(c, l).programId || "12pre";
-      const options = PROGRAMS.map((p) =>
+      const options = allPrograms().map((p) =>
         `<option value="${p.id}" ${p.id === selected ? "selected" : ""}>${esc(programOptionLabel(p))}</option>`
       ).join("");
       return `<div class="field inv-prop-block" style="margin-top:14px;padding:12px;border:1px dashed var(--line-strong);border-radius:12px">
@@ -7452,7 +7649,7 @@
         </div>
         <div class="setup-grid">
           <div class="field"><label>Service type</label>
-            <select id="es-type" ${continuing ? "" : "disabled"}>${SERVICE_TYPES.map((t) => `<option value="${t.id}" ${t.id === svc.type ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
+            <select id="es-type" ${continuing ? "" : "disabled"}>${allServiceTypes().map((t) => `<option value="${t.id}" ${t.id === svc.type ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
           </div>
           <div class="field"><label>Standing trapper (reassign = change this)</label>
             <select id="es-trapper" ${continuing ? "" : "disabled"}>
@@ -7738,7 +7935,7 @@
             <input id="share-dur" type="number" value="${esc(primary.durationMin || loc.durationMin || 20)}">
           </div>
           <div class="field"><label>Service type</label>
-            <select id="share-type">${SERVICE_TYPES.map((t) => `<option value="${t.id}" ${t.id === primary.type ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
+            <select id="share-type">${allServiceTypes().map((t) => `<option value="${t.id}" ${t.id === primary.type ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
           </div>
         </div>
         <div class="actions" style="margin-top:14px">
@@ -8922,6 +9119,7 @@
   }
 
   function addReason() {
+    if (!can("lists.edit") && state.role !== "owner") return;
     const label = val("new-reason") || "Flooded yard";
     const fault = val("new-reason-fault") || "customer";
     const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "custom";
@@ -8931,13 +9129,130 @@
     }
     if (!state.data.settings.extraReasons) state.data.settings.extraReasons = [];
     state.data.settings.extraReasons.push({ id, label, fault });
-    toast("Reason saved. It is on the technician no-show list.");
+    toast("Reason saved.");
+    render();
+  }
+
+  function addProgram() {
+    if (!can("lists.edit") && state.role !== "owner") return;
+    const name = (val("new-prog-name") || "").trim();
+    const list = Number(val("new-prog-price"));
+    const months = Number(val("new-prog-months")) || 1;
+    if (!name) {
+      toast("Enter a program name.");
+      return;
+    }
+    const id = "custom-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 20);
+    if (allPrograms().some((p) => p.id === id || p.name.toLowerCase() === name.toLowerCase())) {
+      toast("That program is already on the list.");
+      return;
+    }
+    if (!state.data.settings.extraPrograms) state.data.settings.extraPrograms = [];
+    state.data.settings.extraPrograms.push({
+      id, name, months, list: Number.isFinite(list) ? list : 0, prepaid: null, freeMonths: 0, freq: "Bi-weekly", _custom: true,
+    });
+    toast(`Program “${name}” added.`);
+    render();
+  }
+
+  function addServiceType() {
+    if (!can("lists.edit") && state.role !== "owner") return;
+    const code = (val("new-svc-code") || "").trim();
+    const label = (val("new-svc-label") || "").trim();
+    const duration = Number(val("new-svc-dur")) || 20;
+    if (!code || !label) {
+      toast("Enter a code and label.");
+      return;
+    }
+    const id = "custom-" + code.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 24);
+    if (allServiceTypes().some((t) => t.id === id || t.code.toLowerCase() === code.toLowerCase())) {
+      toast("That service type is already on the list.");
+      return;
+    }
+    if (!state.data.settings.extraServiceTypes) state.data.settings.extraServiceTypes = [];
+    state.data.settings.extraServiceTypes.push({
+      id, code, label, desc: label, type: "res", duration, months: 1, price: 0, freq: "WEEKLY", _custom: true,
+    });
+    toast(`Service type “${code}” added.`);
+    render();
+  }
+
+  function openAddTemplate() {
+    if (!can("template.edit") && state.role !== "owner") return;
+    state.modal = {
+      html: `
+        <h3>Add template</h3>
+        <p class="tiny">Name it, write the body. Use {customer_name}, {account_id}, {invoice_or_quote} if you want.</p>
+        <div class="field req"><label>Name</label><input id="tpl-new-label" placeholder="e.g. COI cover letter"></div>
+        <div class="field"><label>Body</label><textarea id="tpl-new-body" rows="6" placeholder="Hello {customer_name},…"></textarea></div>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="confirm-add-template">Add template</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function confirmAddTemplate() {
+    if (!can("template.edit") && state.role !== "owner") return;
+    const label = (val("tpl-new-label") || "").trim();
+    const body = val("tpl-new-body") || "";
+    if (!label) {
+      toast("Enter a template name.");
+      return;
+    }
+    const key = "custom-" + label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 28);
+    if (!state.data.settings.customTemplates) state.data.settings.customTemplates = [];
+    if (allTemplates().some((t) => t.key === key)) {
+      toast("That template name is already used.");
+      return;
+    }
+    state.data.settings.customTemplates.push({ key, label });
+    if (!state.data.templates) state.data.templates = {};
+    state.data.templates[key] = body || `Hello {customer_name},\n\n${label}\n\n— Iguana Control`;
+    state.modal = null;
+    toast(`Template “${label}” added.`);
+    render();
+  }
+
+  function removeTemplate(key) {
+    if (!can("template.edit") && state.role !== "owner") return;
+    if (!key || !String(key).startsWith("custom-")) return;
+    state.data.settings.customTemplates = (state.data.settings.customTemplates || []).filter((t) => t.key !== key);
+    if (state.data.templates) delete state.data.templates[key];
+    toast("Template removed.");
+    render();
+  }
+
+  function saveTemplates() {
+    if (!can("template.edit") && state.role !== "owner") return;
+    if (!state.data.templates) state.data.templates = {};
+    allTemplates().forEach(({ key }) => {
+      const el = document.getElementById("tpl-" + key);
+      if (el) state.data.templates[key] = el.value;
+    });
+    persist();
+    toast("Templates saved on this browser.");
+    render();
+  }
+
+  function saveIntegrations() {
+    if (!can("settings.edit") && state.role !== "owner") return;
+    if (!state.data.integrations) state.data.integrations = {};
+    state.data.integrations.mapsKey = val("int-maps") || "";
+    state.data.integrations.processor = val("int-processor") || "";
+    state.data.integrations.sendgrid = val("int-sendgrid") || "";
+    state.data.integrations.notes = val("int-notes") || "";
+    persist();
+    toast("Integrations saved on this browser.");
     render();
   }
 
   function resetDemo() {
     if (window.IguanaStore) IguanaStore.reset();
     state.data = seed();
+    normalizeDemoData();
     state.modal = null;
     state.selectedCustomer = null;
     state.page = "dashboard";
@@ -8946,19 +9261,27 @@
   }
 
   function saveSettings() {
+    if (!can("settings.edit") && state.role !== "owner") return;
     state.data.settings.commissionPct = Number(val("set-comm") || state.data.settings.commissionPct || 2);
     state.data.settings.renewalWindow = Number(val("set-win") || state.data.settings.renewalWindow || 60);
     if (document.getElementById("set-reminder")) state.data.settings.reminder = val("set-reminder") || "email";
-    toast("Company defaults saved on this browser.");
+    persist();
+    toast("Company settings saved.");
     render();
   }
 
-  function previewTpl(name) {
+  function previewTpl(name, key) {
+    const body = (key && state.data.templates?.[key]) || "";
+    const sample = body
+      ? esc(body).replace(/\{customer_name\}/g, "Diane Walsh").replace(/\{account_id\}/g, "C-1042").replace(/\{invoice_or_quote\}/g, "INV-4419").replace(/\n/g, "<br>")
+      : "";
     const visit = String(name).includes("Visit");
     state.modal = {
-      html: visit
-        ? `<h3>${esc(name)}</h3><div class="preview">Hi Diane Walsh,<br>A technician is scheduled Friday 07:30 at Riverside Park.<br><br>This is an automated message from Iguana Control. You cannot reply to this text or email.</div><button class="btn btn-primary" data-act="close-modal">Looks right</button>`
-        : `<h3>${esc(name)}</h3><div class="preview"><strong>Subject: Sarah Chen · C-1091 · renewal</strong><br><br>Hello Sarah Chen,<br>Account C-1091 expires 24 Sep 2026.<br><br>Your iguana removal program is ready to renew.<br>— Iguana Control<br><br><span class="tiny">Replies stay on this account so Rick and Christy both see them.</span></div><button class="btn btn-primary" data-act="close-modal">Looks right</button>`,
+      html: sample
+        ? `<h3>${esc(name)}</h3><div class="preview">${sample}</div><button class="btn btn-primary" data-act="close-modal">Looks right</button>`
+        : visit
+          ? `<h3>${esc(name)}</h3><div class="preview">Hi Diane Walsh,<br>A technician is scheduled Friday 07:30 at Riverside Park.<br><br>This is an automated message from Iguana Control. You cannot reply to this text or email.</div><button class="btn btn-primary" data-act="close-modal">Looks right</button>`
+          : `<h3>${esc(name)}</h3><div class="preview"><strong>Subject: Sarah Chen · C-1091 · renewal</strong><br><br>Hello Sarah Chen,<br>Account C-1091 expires 24 Sep 2026.<br><br>Your iguana removal program is ready to renew.<br>— Iguana Control</div><button class="btn btn-primary" data-act="close-modal">Looks right</button>`,
     };
     render();
   }
@@ -9042,37 +9365,51 @@
     render();
   }
 
-  function openBulkAssign() {
-    if (!can("schedule.reassign") || !state.mapSelect.length) {
-      toast("Select properties on the map first (Box select).");
+  function openBulkAssign(cid, lid) {
+    if (!can("schedule.reassign") && state.role !== "owner") return;
+    if (cid && lid) {
+      state.mapSelect = [`${cid}:${lid}`];
+      state.mapPin = { cid, lid };
+    }
+    if (!state.mapSelect.length && state.mapPin) {
+      state.mapSelect = [`${state.mapPin.cid}:${state.mapPin.lid}`];
+    }
+    if (!state.mapSelect.length) {
+      toast("Click a property or box-select first.");
       return;
     }
     const n = state.mapSelect.length;
+    const firstKey = state.mapSelect[0];
+    const [fcid, flid] = firstKey.split(":");
+    const firstLoc = locBy(fcid, flid);
+    const firstSvc = svcsFor(fcid, flid).find(svcIsContinuing);
+    const currentTech = firstLoc?.techId || firstSvc?.techId || TECHS[0]?.id;
+    const currentSched = SERVICE_SCHEDULES.find((s) => s.id === firstSvc?.schedule || s.days === (firstSvc?.days || firstLoc?.days)) || SERVICE_SCHEDULES[0];
     const selectDur = state.mapSelect.reduce((sum, key) => {
-      const [cid, lid] = key.split(":");
-      const loc = locBy(cid, lid);
-      return sum + (svcsFor(cid, lid)[0]?.durationMin || loc?.durationMin || 20);
+      const [c, l] = key.split(":");
+      const loc = locBy(c, l);
+      return sum + (svcsFor(c, l)[0]?.durationMin || loc?.durationMin || 20);
     }, 0);
     state.modal = {
       wide: true,
       html: `
-        <h3>Assign ${n} selected ${n === 1 ? "property" : "properties"}</h3>
-        <p class="tiny">Selected duration ${fmtClock(selectDur)}. Pick schedule and trapper, then Assign.</p>
+        <h3>${n === 1 ? "Change trapper / schedule" : `Assign ${n} selected properties`}</h3>
+        <p class="tiny">Duration ${fmtClock(selectDur)}. Same for one pin or a box selection.</p>
         <div class="setup-grid">
           <div class="field req"><label>Action</label>
             <select id="bulk-mode">
-              <option value="move" selected>Reassign · move stops to this trapper</option>
-              <option value="share">Share · add this trapper (second service, different days)</option>
+              <option value="move" selected>Reassign · move to this trapper</option>
+              <option value="share">Share · add trapper (different days)</option>
             </select>
           </div>
           <div class="field req"><label>Trapper</label>
-            <select id="bulk-tech">${TECHS.map((t, i) => `<option value="${t.id}" ${i === 0 ? "selected" : ""}>${esc(t.name)} · ${esc(t.home)}</option>`).join("")}</select>
+            <select id="bulk-tech">${TECHS.map((t) => `<option value="${t.id}" ${t.id === currentTech ? "selected" : ""}>${esc(t.name)} · ${esc(t.home)}</option>`).join("")}</select>
           </div>
           <div class="field req"><label>Schedule</label>
-            <select id="bulk-sched">${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}">${esc(s.label)}</option>`).join("")}</select>
+            <select id="bulk-sched">${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}" ${s.id === currentSched.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
           </div>
         </div>
-        <div class="notice">Reassign moves the stop. Share keeps the current trapper and adds another service — do not copy the stop.</div>
+        <div class="notice">Reassign moves the stop. Share keeps the current trapper and adds another service — don’t copy the stop.</div>
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="clear-map-select">Clear</button>
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
@@ -9083,19 +9420,37 @@
     render();
   }
 
+  function pinMapAssign(cid, lid, mode) {
+    if (!can("schedule.reassign") && state.role !== "owner") return;
+    const techId = val("pin-tech");
+    const schedId = val("pin-sched");
+    if (!cid || !lid || !techId) {
+      toast("Pick a trapper.");
+      return;
+    }
+    applyMapAssign([`${cid}:${lid}`], { mode: mode || "move", techId, schedId });
+  }
+
   function confirmBulkAssign() {
-    if (!can("schedule.reassign") || !state.mapSelect.length) return;
+    if (!can("schedule.reassign") && state.role !== "owner") return;
+    if (!state.mapSelect.length) return;
     const mode = val("bulk-mode") || "move";
     const techId = val("bulk-tech");
-    const sched = SERVICE_SCHEDULES.find((s) => s.id === val("bulk-sched")) || SERVICE_SCHEDULES[0];
+    const schedId = val("bulk-sched");
     if (!techId) {
       toast("Pick a trapper.");
       return;
     }
+    applyMapAssign(state.mapSelect.slice(), { mode, techId, schedId });
+  }
+
+  function applyMapAssign(keys, { mode, techId, schedId }) {
+    if (!keys?.length || !techId) return;
+    const sched = SERVICE_SCHEDULES.find((s) => s.id === schedId) || SERVICE_SCHEDULES[0];
     if (mode === "share") {
       let n = 0;
       let skipped = 0;
-      state.mapSelect.forEach((key) => {
+      keys.forEach((key) => {
         const [cid, lid] = key.split(":");
         const c = custBy(cid);
         const loc = locBy(cid, lid);
@@ -9129,12 +9484,12 @@
           renewal: primary.renewal || primary.expires || null,
           shared: true,
           active: true,
-          opsNote: `Shared via box select — separate service for ${techName(techId)}.`,
+          opsNote: `Shared on map — separate service for ${techName(techId)}.`,
         };
         state.data.services.push(svc);
         loc.shared = true;
         loc.backupId = techId;
-        if (c.paid || c.municipal) {
+        if (c.paid || c.municipal || isMunicipal(c)) {
           patternDays(sched.days).forEach((d) => {
             state.data.stops.push({
               id: nid("S"), customerId: cid, locationId: lid,
@@ -9148,29 +9503,62 @@
       });
       state.mapSelect = [];
       state.mapLasso = false;
+      state.mapPin = null;
       state.modal = null;
       toast(n
-        ? `Shared ${n} ${n === 1 ? "property" : "properties"} with ${techName(techId)} on ${sched.days}.${skipped ? ` Skipped ${skipped}.` : ""}`
-        : `Nothing shared — ${skipped} skipped (need an existing service, free trapper, and different days).`);
+        ? `Shared ${n} ${n === 1 ? "property" : "properties"} with ${techName(techId)} · ${sched.days}.${skipped ? ` Skipped ${skipped}.` : ""}`
+        : `Nothing shared — ${skipped} skipped (need a live service, free trapper, different days).`);
       render();
       return;
     }
     let n = 0;
-    state.mapSelect.forEach((key) => {
+    keys.forEach((key) => {
       const [cid, lid] = key.split(":");
       const c = custBy(cid);
       const loc = locBy(cid, lid);
-      if (!c || !loc || loc.shared) return;
+      if (!c || !loc) return;
+      if (loc.shared) {
+        // Reassign primary (non-shared) service only; leave shared partners alone
+        const primary = svcsFor(cid, lid).find((s) => svcIsContinuing(s) && !s.shared);
+        if (!primary) return;
+        const prev = primary.techId;
+        primary.techId = techId;
+        primary.days = sched.days;
+        primary.schedule = sched.id;
+        loc.techId = techId;
+        loc.days = sched.days;
+        state.data.stops = state.data.stops.filter((s) => !(s.customerId === cid && s.locationId === lid && s.status === "scheduled" && s.type !== "oneoff" && s.techId === prev));
+        if ((c.paid || c.municipal || isMunicipal(c)) && primary.generated !== false) {
+          patternDays(sched.days).forEach((d) => {
+            state.data.stops.push({
+              id: nid("S"), customerId: cid, locationId: lid,
+              techId, day: d, time: nextSlot(techId, d),
+              durationMin: primary.durationMin || 20, type: "service",
+              status: "scheduled", actualMin: null, removals: null,
+            });
+          });
+        }
+        n += 1;
+        return;
+      }
       const prev = loc.techId;
       loc.techId = techId;
       loc.days = sched.days;
-      svcsFor(cid, lid).forEach((svc) => {
+      const list = svcsFor(cid, lid);
+      if (!list.length && locNeedsTech(c, loc)) {
+        // Waiting assign — just set standing tech/days; map-assign path may still run later
+        loc.techId = techId;
+        loc.days = sched.days;
+        n += 1;
+        return;
+      }
+      list.forEach((svc) => {
         if (svc.shared) return;
         svc.techId = techId;
         svc.days = sched.days;
         svc.schedule = sched.id;
         state.data.stops = state.data.stops.filter((s) => !(s.customerId === cid && s.locationId === lid && s.status === "scheduled" && s.type !== "oneoff" && (!prev || s.techId === prev)));
-        if ((c.paid || c.municipal) && svc.generated !== false) {
+        if ((c.paid || c.municipal || isMunicipal(c)) && svc.generated !== false) {
           patternDays(sched.days).forEach((d) => {
             state.data.stops.push({
               id: nid("S"), customerId: cid, locationId: lid,
@@ -9187,8 +9575,9 @@
     });
     state.mapSelect = [];
     state.mapLasso = false;
+    state.mapPin = null;
     state.modal = null;
-    toast(`Assigned ${n} properties to ${techName(techId)} · ${sched.days}.`);
+    toast(n ? `Assigned ${n} ${n === 1 ? "property" : "properties"} to ${techName(techId)} · ${sched.days}.` : "Nothing assigned.");
     render();
   }
 

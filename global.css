@@ -1801,7 +1801,30 @@ h2 .inline-edit:focus { border-color: var(--line-strong); }
   color: var(--ink-soft);
   padding: 2px 4px;
 }
-.map-pin-card { padding-right: 32px; }
+.map-pin-card { padding-right: 32px; width: min(300px, calc(100% - 24px)); }
+.map-pin-assign {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.map-pin-assign .field { margin-bottom: 8px; }
+.map-pin-assign .field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 3px;
+}
+.map-pin-assign select {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+.map-pin-assign-actions { margin-top: 4px; gap: 6px; }
 .map-pin-title {
   font-family: var(--display);
   font-size: 17px;
