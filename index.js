@@ -105,33 +105,41 @@
     },
   };
 
+  const NAV_GROUP_ORDER = ["Home", "Customers", "Operations", "Billing", "Workspace", "Reports", "System", "Field"];
+
   const NAV = [
     { id: "dashboard", label: "Dashboard", group: "Home", icon: "home", roles: ["owner", "ops", "admin", "sales", "sysadmin"] },
-    { id: "customers", label: "Customers", group: "CRM-lite", icon: "people", roles: ["owner", "ops", "admin", "sales"] },
-    { id: "quotes", label: "Quotes", group: "CRM-lite", icon: "mail", roles: ["sales", "owner", "admin"] },
+
+    { id: "customers", label: "Customers", group: "Customers", icon: "people", roles: ["owner", "ops", "admin", "sales"] },
+    { id: "quotes", label: "Quotes", group: "Customers", icon: "mail", roles: ["sales", "owner", "admin"] },
+
     { id: "schedule", label: "Schedule", group: "Operations", icon: "cal", roles: ["owner", "ops"] },
-    { id: "payments", label: "Payment register", group: "Start of day", icon: "pay", roles: ["ops", "owner", "admin"] },
     { id: "map", label: "Map & routing", group: "Operations", icon: "map", roles: ["owner", "ops"] },
-    { id: "assign", label: "Assign technician", group: "Operations", icon: "bolt", roles: ["owner", "ops"] },
     { id: "oneoffs", label: "One-off jobs", group: "Operations", icon: "bolt", roles: ["owner", "ops"] },
     { id: "traps", label: "Trap assets", group: "Operations", icon: "trap", roles: ["owner", "ops"] },
     { id: "noshows", label: "No-shows", group: "Operations", icon: "alert", roles: ["owner", "ops"] },
-    { id: "duration", label: "Duration report", group: "Operations", icon: "clock", roles: ["owner", "ops", "admin"] },
-    { id: "removals", label: "Removal report", group: "Operations", icon: "list", roles: ["owner", "ops"] },
     { id: "workload", label: "Route workload", group: "Operations", icon: "route", roles: ["owner", "ops"] },
-    { id: "invoices", label: "Invoices", group: "Administration", icon: "bill", roles: ["owner", "admin"] },
-    { id: "renewals", label: "Renewal report", group: "Administration", icon: "renew", roles: ["owner", "admin"] },
-    { id: "commission", label: "Commission", group: "Administration", icon: "star", roles: ["owner", "admin"] },
-    { id: "documents", label: "Documents", group: "Administration", icon: "file", roles: ["owner", "ops", "admin"] },
-    { id: "comms", label: "Communication log", group: "Administration", icon: "chat", roles: ["owner", "ops", "admin"] },
-    { id: "mtos", label: "Memo to Office", group: "Internal", icon: "memo", roles: ["owner", "ops", "admin"] },
-    { id: "tasks", label: "Tasks", group: "Internal", icon: "list", roles: ["owner", "ops", "admin"] },
-    { id: "reports", label: "Reports", group: "Reporting", icon: "chart", roles: ["owner", "ops", "admin"] },
+
+    { id: "payments", label: "Payment register", group: "Billing", icon: "pay", roles: ["ops", "owner", "admin"] },
+    { id: "invoices", label: "Invoices", group: "Billing", icon: "bill", roles: ["owner", "admin"] },
+    { id: "renewals", label: "Renewal report", group: "Billing", icon: "renew", roles: ["owner", "admin"] },
+    { id: "commission", label: "Commission", group: "Billing", icon: "star", roles: ["owner", "admin"] },
+
+    { id: "documents", label: "Documents", group: "Workspace", icon: "file", roles: ["owner", "ops", "admin"] },
+    { id: "comms", label: "Communication log", group: "Workspace", icon: "chat", roles: ["owner", "ops", "admin"] },
+    { id: "mtos", label: "Memo to Office", group: "Workspace", icon: "memo", roles: ["owner", "ops", "admin"] },
+    { id: "tasks", label: "Tasks", group: "Workspace", icon: "list", roles: ["owner", "ops", "admin"] },
+
+    { id: "duration", label: "Duration report", group: "Reports", icon: "clock", roles: ["owner", "ops", "admin"] },
+    { id: "removals", label: "Removal report", group: "Reports", icon: "list", roles: ["owner", "ops"] },
+    { id: "reports", label: "Reports hub", group: "Reports", icon: "chart", roles: ["owner", "ops", "admin"] },
+
     { id: "users", label: "Users", group: "System", icon: "users", roles: ["sysadmin", "owner"] },
     { id: "lists", label: "Configurable lists", group: "System", icon: "list", roles: ["sysadmin", "owner"] },
     { id: "templates", label: "Templates", group: "System", icon: "mail", roles: ["sysadmin", "admin", "owner"] },
     { id: "settings", label: "Company settings", group: "System", icon: "cog", roles: ["sysadmin", "owner"] },
     { id: "integrations", label: "Integrations", group: "System", icon: "cog", roles: ["sysadmin", "owner"] },
+
     { id: "mobile", label: "Today's route", group: "Field", icon: "phone", roles: ["tech"] },
   ];
 
@@ -823,6 +831,7 @@
     mapPin: null,
     mapColorBy: "tech",
     mapSched: null,
+    navOpen: {},
     oneoffDraft: null,
     oneoffDay: null,
     inboundId: session.inboundId || null,
@@ -2110,7 +2119,7 @@
       desc: val("sv-desc"),
       qty: val("sv-qty"),
       price: val("sv-price"),
-      tax: checked("sv-tax"),
+      // tax: checked("sv-tax"),
       createInitial: document.getElementById("sv-create-initial") ? checked("sv-create-initial") : true,
       idate: val("sv-idate"),
       freq: val("sv-freq"),
@@ -2490,10 +2499,47 @@
     return `<span class="badge ${cls}">${esc(label)}</span>`;
   }
 
+  function captureUiScroll() {
+    const out = {};
+    document.querySelectorAll("[data-keep-scroll]").forEach((el) => {
+      const key = el.getAttribute("data-keep-scroll");
+      if (key) out[key] = el.scrollTop;
+    });
+    return out;
+  }
+
+  function restoreUiScroll(pos) {
+    if (!pos) return;
+    const apply = () => {
+      Object.keys(pos).forEach((key) => {
+        const el = document.querySelector(`[data-keep-scroll="${key}"]`);
+        if (el) el.scrollTop = pos[key];
+      });
+    };
+    apply();
+    requestAnimationFrame(() => {
+      apply();
+      requestAnimationFrame(apply);
+    });
+  }
+
+  function renderPageKey() {
+    if (state.payView) return "pay";
+    if (!state.role) return "login";
+    if (state.role === "tech") return "tech:" + (state.mobileStop || state.page || "");
+    return String(state.page || "dashboard");
+  }
+
   function render() {
     ensureData();
     if (state.role && !ROLES[state.role]) state.role = null;
     if (state.role && state.role !== "tech" && !canPage(state.page) && !isRecordPage(state.page)) state.page = "dashboard";
+    const pageKey = renderPageKey();
+    const samePage = state._pageKey === pageKey;
+    const scroll = samePage ? captureUiScroll() : null;
+    if (document.activeElement && $app.contains(document.activeElement)) {
+      try { document.activeElement.blur(); } catch (_) { /* ignore */ }
+    }
     try {
       if (state.payView) {
         $app.innerHTML = renderPublicPay() + renderToast();
@@ -2509,6 +2555,8 @@
       $app.innerHTML = `<div class="login-main" style="padding:40px"><h2>Could not open this screen</h2><p class="lede">${esc(err && err.message)}</p><div class="who-switch">${peopleButtons()}</div></div>`;
     }
     bind();
+    if (samePage) restoreUiScroll(scroll);
+    state._pageKey = pageKey;
     persist();
     persistSession();
   }
@@ -2564,35 +2612,79 @@
     return NAV.filter((n) => (n.roles || []).includes(state.role));
   }
 
+  function navGroupsForRole() {
+    const by = {};
+    navForRole().forEach((n) => {
+      if (!by[n.group]) by[n.group] = [];
+      by[n.group].push(n);
+    });
+    return NAV_GROUP_ORDER.filter((g) => by[g]?.length).map((label) => ({ label, items: by[label] }));
+  }
+
+  function navGroupKey(label) {
+    return String(label || "").toLowerCase().replace(/\s+/g, "-");
+  }
+
+  function isNavGroupOpen(label, hasActive) {
+    if (!state.navOpen || typeof state.navOpen !== "object") state.navOpen = {};
+    const key = navGroupKey(label);
+    if (Object.prototype.hasOwnProperty.call(state.navOpen, key)) return !!state.navOpen[key];
+    // Default: keep the active section open; Home stays open
+    return hasActive || label === "Home";
+  }
+
+  function ensureNavGroupOpenForPage(pageId) {
+    const item = NAV.find((n) => n.id === pageId);
+    if (!item) return;
+    if (!state.navOpen || typeof state.navOpen !== "object") state.navOpen = {};
+    state.navOpen[navGroupKey(item.group)] = true;
+  }
+
+  function toggleNavGroup(label) {
+    if (!label) return;
+    if (!state.navOpen || typeof state.navOpen !== "object") state.navOpen = {};
+    const key = navGroupKey(label);
+    const groups = navGroupsForRole();
+    const g = groups.find((x) => x.label === label);
+    const hasActive = !!(g && g.items.some((n) => n.id === state.page));
+    const open = isNavGroupOpen(label, hasActive);
+    state.navOpen[key] = !open;
+    render();
+  }
+
   function renderShell() {
     const r = role();
     if (!r) {
       return renderLogin();
     }
-    const groups = [];
-    navForRole().forEach((n) => {
-      const last = groups[groups.length - 1];
-      if (!last || last.label !== n.group) groups.push({ label: n.group, items: [n] });
-      else last.items.push(n);
-    });
-    const nav = groups.map((g) => `
-      <div class="nav-group">
-        <div class="nav-label">${esc(g.label)}</div>
-        ${g.items.map((n) => `
-          <button class="nav-btn ${state.page === n.id ? "active" : ""}" data-act="nav" data-page="${n.id}">
-            ${ICONS[n.icon] || ""} ${esc(n.label)}
-          </button>
-        `).join("")}
-      </div>
-    `).join("");
+    const groups = navGroupsForRole();
+    const nav = groups.map((g) => {
+      const hasActive = g.items.some((n) => n.id === state.page);
+      const open = isNavGroupOpen(g.label, hasActive);
+      return `
+      <div class="nav-group ${open ? "open" : ""} ${hasActive ? "has-active" : ""}">
+        <button type="button" class="nav-group-toggle" data-act="nav-toggle" data-group="${esc(g.label)}" aria-expanded="${open ? "true" : "false"}">
+          <span class="nav-group-title">${esc(g.label)}</span>
+          <span class="nav-group-meta">${g.items.length}</span>
+          <span class="nav-chevron" aria-hidden="true"></span>
+        </button>
+        <div class="nav-group-body" ${open ? "" : "hidden"}>
+          ${g.items.map((n) => `
+            <button class="nav-btn ${state.page === n.id ? "active" : ""}" data-act="nav" data-page="${n.id}">
+              ${ICONS[n.icon] || ""} ${esc(n.label)}
+            </button>
+          `).join("")}
+        </div>
+      </div>`;
+    }).join("");
     return `
       <div class="shell">
-        <aside class="sidebar">
+        <aside class="sidebar" data-keep-scroll="sidebar">
           <div class="mark">
             <div class="mark-badge">IC</div>
             <span>Iguana Control</span>
           </div>
-          ${nav}
+          <nav class="sidebar-nav">${nav}</nav>
           <div class="sidebar-foot">Role-gated demo · BRD §5</div>
         </aside>
         <div class="main">
@@ -2601,12 +2693,12 @@
               <div class="crumb">${pageTitle()}</div>
             </div>
             <div class="top-actions">
-              <select class="mobile-nav" data-act="nav-select">${navForRole().map((n) => `<option value="${n.id}" ${n.id === state.page ? "selected" : ""}>${esc(n.label)}</option>`).join("")}</select>
+              <select class="mobile-nav" data-act="nav-select">${navForRole().map((n) => `<option value="${n.id}" ${n.id === state.page ? "selected" : ""}>${esc(n.group)} · ${esc(n.label)}</option>`).join("")}</select>
               <div class="who-switch" title="Switch person">${peopleButtons()}</div>
               <button class="btn btn-ghost" data-act="logout">Sign out</button>
             </div>
           </header>
-          <div class="content">${safePageBody()}</div>
+          <div class="content${state.page === "map" ? " content-map" : ""}" data-keep-scroll="content">${safePageBody()}</div>
         </div>
       </div>
     `;
@@ -2893,10 +2985,9 @@
     });
     const failedAuth = (state.data.autopayAuthorizations || []).filter((a) => a.status === "FAILED");
     const notes = unreadNotifications();
-    const autopayPlans = (state.data.billingPlans || []).filter((bp) => bp.autopay).length;
     const mine = myOpenTasks();
     return `
-      ${head("Administration", "AutoPay pays + allocates + creates the next period automatically. You only work exceptions (declines) and non-AutoPay register lines.")}
+      ${head("Administration", "Payment register, exceptions, renewals, and invoices. Match and allocate what lands on the register.")}
       ${mine.length ? `
         <div class="card" style="margin-bottom:16px">
           <h3>My tasks <span class="muted">${mine.length} open · from Tom / Rick</span></h3>
@@ -2927,7 +3018,7 @@
       ` : ""}
       <div class="card" style="margin-bottom:16px">
         <h3>1 · Waiting for payment <span class="muted">contracts pending</span></h3>
-        <p class="tiny">Ops blocked until balance is zero. AutoPay accounts charge overnight — no register mark needed on success.</p>
+        <p class="tiny">Ops blocked until balance is zero.</p>
         ${waitingLocs.length ? waitingLocs.slice(0, 8).map(({ c, l, ct }) => `
           <div class="fit-row">
             <div>
@@ -2942,21 +3033,16 @@
       </div>
       <div class="card" style="margin-bottom:16px">
         <h3>2 · Payment register <span class="muted">manual / external</span></h3>
-        <p class="tiny">AutoPay successes are already allocated. Unallocated lines are portal/external. After recovering a decline, generate the next period yourself.</p>
+        <p class="tiny">Unallocated portal and external lines. Allocate so Ops can create service where needed.</p>
         ${awaiting.length ? awaiting.slice(0, 8).map(payRegisterRow).join("") : `<p class="muted">Nothing waiting to allocate.</p>`}
         <div class="actions" style="margin-top:10px">
           <button class="btn btn-primary" data-act="nav" data-page="payments">Open payment register</button>
           ${btn("payment.post", "Record payment", "new-pay")}
         </div>
       </div>
-      <div class="card" style="margin-bottom:16px">
-        <h3>AutoPay <span class="muted">${autopayPlans} plan(s) on</span></h3>
-        <p class="tiny">Success → post + allocate + next monthly period + notification. Decline → exception; contact customer → external pay → allocate → <strong>Generate next period</strong>.</p>
-        <div class="actions">${btn("payment.post", "Run overnight AutoPay", "run-overnight-autopay", "", "btn-sun")}</div>
-      </div>
       ${failed.length || failedAuth.length ? `
         <div class="card" style="margin-bottom:16px">
-          <h3>AutoPay exceptions <span class="muted">contact customer</span></h3>
+          <h3>Payment exceptions <span class="muted">contact customer</span></h3>
           ${failedAuth.map((a) => {
             const c = custBy(a.customerId);
             const loc = a.locationId ? locBy(a.customerId, a.locationId) : null;
@@ -2964,7 +3050,7 @@
               <div>
                 <span class="badge badge-bad">${esc(a.failureCode || "FAILED")}</span>
                 <strong>${esc(c?.name || "—")}</strong>${loc ? ` · ${esc(loc.name)}` : ""}
-                <div class="tiny">${esc(a.method || "")}${a.last4 ? " ····" + esc(a.last4) : ""} · ${esc((a.failedAt || "").slice(0, 10))} · external pay → allocate → generate next period</div>
+                <div class="tiny">${esc(a.method || "")}${a.last4 ? " ····" + esc(a.last4) : ""} · ${esc((a.failedAt || "").slice(0, 10))} · external pay → allocate</div>
               </div>
               <div class="actions">
                 <button class="btn btn-sun" data-act="contact-autopay" data-id="${c?.id}" data-loc="${a.locationId || ""}">Log contact</button>
@@ -2986,14 +3072,17 @@
         </div>
       ` : ""}
       <div class="card" style="margin-bottom:16px">
-        <h3>3 · Renewal report <span class="muted">prepare → review → send</span></h3>
-        <p class="tiny">Programs nearing expiry. Prepare drafts, edit proposed text, then approve — no AutoPay charge on send.</p>
-        ${table(["Prep?", "Bill-To", "Property", "Expires", "Amount", "Flag"], renew.slice(0, 6).map((row) => {
+        <h3>3 · Renewal report <span class="muted">select → send</span></h3>
+        <p class="tiny">Check the ones to send, then Send opens a confirmation list.</p>
+        ${table(["", "Bill-To", "Property", "Expires", "Amount", "Flag"], renew.slice(0, 6).map((row) => {
           const m = renewalMeta(row);
+          const ct = contractForLoc(row.customerId, row.locationId);
+          const existing = (state.data.renewals || []).find((r) => r.rowId === row.id || (ct && r.contractId === ct.id));
+          const alreadySent = existing?.status === "SENT";
           return [
-            m.batchable
-              ? `<label class="chk"><input type="checkbox" data-act="renew-toggle" data-id="${row.id}" ${(state.renewPick || []).includes(row.id) ? "checked" : ""}></label>`
-              : `<span class="tiny">Review</span>`,
+            alreadySent
+              ? `<span class="tiny">Sent</span>`
+              : `<label class="chk"><input type="checkbox" data-act="renew-toggle" data-id="${row.id}" ${(state.renewPick || []).includes(row.id) ? "checked" : ""}></label>`,
             custBtn(row.customerId, row.name),
             esc(row.locName),
             row.expires,
@@ -3002,20 +3091,20 @@
           ];
         }))}
         <div class="actions" style="margin-top:10px">
-          ${btn("renewal.send", "Prepare selected", "prepare-renewals", "", "btn-sun")}
+          ${btn("renewal.send", `Send selected${(state.renewPick || []).length ? ` (${(state.renewPick || []).length})` : ""}`, "open-send-renewals", "", "btn-sun")}
           <button class="btn btn-ghost" data-act="nav" data-page="renewals">Full renewal report</button>
         </div>
       </div>
       <div class="card" style="margin-bottom:16px">
         <h3>Add a customer</h3>
-        <p class="tiny">Call → Bill-To + locations → quote → accept / contract invoice → AutoPay or register → Ready for service.</p>
+        <p class="tiny">Call → Bill-To + locations → quote → accept / contract invoice → payment → Ready for service.</p>
         <div class="actions">${btn("customer.create", "Add customer", "new-customer")}</div>
       </div>
       <div class="grid-4">
         ${stat("Waiting for payment", waitingLocs.length, "Pending contracts")}
         ${stat("Awaiting allocation", awaiting.length, "On the register", awaiting.length ? "alert" : "")}
-        ${stat("AutoPay exceptions", failed.length + failedAuth.length, "Contact customer", (failed.length || failedAuth.length) ? "alert" : "")}
-        ${stat("Notifications", notes.length, "AutoPay + billing", notes.length ? "alert" : "")}
+        ${stat("Exceptions", failed.length + failedAuth.length, "Contact customer", (failed.length || failedAuth.length) ? "alert" : "")}
+        ${stat("Notifications", notes.length, "Unread", notes.length ? "alert" : "")}
       </div>
       <div class="split section-gap">
         <div class="card">
@@ -3194,7 +3283,7 @@
               <div class="field"><label>Description</label><input id="sv-desc" value="${esc(d.desc || st.desc || st.label)}" readonly></div>
               <div class="field narrow"><label>Qty</label><input id="sv-qty" type="number" min="1" step="1" value="${esc(d.qty || "1")}"></div>
               <div class="field narrow"><label>Price</label><input id="sv-price" type="number" step="0.01" value="${esc(price)}"></div>
-              <div class="field chk-field"><label class="chk"><input type="checkbox" id="sv-tax" ${d.tax ? "checked" : ""}> Tax</label></div>
+              <!-- <div class="field chk-field"><label class="chk"><input type="checkbox" id="sv-tax" ${d.tax ? "checked" : ""}> Tax</label></div> -->
             </div>
           </div>
 
@@ -3410,12 +3499,12 @@
             ${showOpsNotes ? `<dt>Ops note</dt><dd>${esc(c.opsNote || "—")}</dd>` : ""}
           </dl>
         </div>
-        <div class="panel-box">
+        <div class="panel-box panel-locs-box">
           ${canEditLoc ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-locations" data-id="${c.id}">Edit locations</button>` : ""}
           <div class="panel-kicker">Locations · 360°</div>
           <h3>${(c.locations || []).length} propert${(c.locations || []).length === 1 ? "y" : "ies"}</h3>
           <p class="tiny">Proposal → contract + billing plan → invoice → allocate payment → Ready for service.</p>
-          <div class="panel-locs">
+          <div class="panel-locs" data-keep-scroll="panel-locs">
             ${(c.locations || []).map((l) => {
               const plan = locPlan(c, l);
               const prog = progBy(plan.programId);
@@ -3692,18 +3781,18 @@
   function billingCard(c) {
     const inv = state.data.invoices.filter((i) => i.customerId === c.id);
     const pays = state.data.payments.filter((p) => p.customerId === c.id);
+    const rows = [...inv.map((i) => {
+      const st = invoiceFinStatus(i);
+      return { when: i.sent || i.paidOn || "—", kind: st === "FAILED" ? "bad" : st === "PAID" ? "ok" : "warn", text: `Invoice ${i.id} · ${invProperty(i)} · ${money(i.amount)} · paid ${money(allocated(i.id))} · bal ${money(invoiceBalance(i))} · ${st}` };
+    }),
+    ...pays.map((p) => ({ when: p.date, kind: p.failed ? "bad" : payNeedsMark(p) ? "warn" : "ok", text: `Payment ${money(p.amount)} · alloc ${money(paymentAllocatedAmount(p.id))} · ${p.method} · ${p.memo}` }))]
+      .sort((a, b) => String(b.when).localeCompare(String(a.when)));
     return `
-      <div class="card">
+      <div class="card billing-timeline-card">
         <h3>Billing timeline</h3>
         <p class="tiny">Bill-To is ${esc(c.billTo || c.name)}. Balances come from payment allocations.</p>
-        <div class="timeline">
-          ${[...inv.map((i) => {
-            const st = invoiceFinStatus(i);
-            return { when: i.sent || i.paidOn || "—", kind: st === "FAILED" ? "bad" : st === "PAID" ? "ok" : "warn", text: `Invoice ${i.id} · ${invProperty(i)} · ${money(i.amount)} · paid ${money(allocated(i.id))} · bal ${money(invoiceBalance(i))} · ${st}` };
-          }),
-             ...pays.map((p) => ({ when: p.date, kind: p.failed ? "bad" : payNeedsMark(p) ? "warn" : "ok", text: `Payment ${money(p.amount)} · alloc ${money(paymentAllocatedAmount(p.id))} · ${p.method} · ${p.memo}` }))]
-            .sort((a, b) => String(a.when).localeCompare(String(b.when)))
-            .map((t) => `
+        <div class="timeline" data-keep-scroll="billing-tl">
+          ${rows.map((t) => `
               <div class="tl-item">
                 <div class="when">${esc(t.when)}</div>
                 <div class="tl-rail"><i class="${t.kind === "bad" ? "bad" : t.kind === "warn" ? "warn" : ""}"></i></div>
@@ -3718,15 +3807,19 @@
   function commCard(c) {
     const items = state.data.comms.filter((x) => x.customerId === c.id);
     return `
-      <div class="card">
+      <div class="card comm-log-card">
         <h3>Shared communication log</h3>
-        ${items.map((x) => `<div class="comm-item"><strong>${esc(x.who)}</strong> · ${esc(x.channel)} · ${esc(x.date)}<div>${esc(x.text)}</div></div>`).join("") || `<p class="muted">No correspondence yet.</p>`}
+        <div class="comm-log-list" data-keep-scroll="comm-log">
+          ${items.map((x) => `<div class="comm-item"><strong>${esc(x.who)}</strong> · ${esc(x.channel)} · ${esc(x.date)}<div>${esc(x.text)}</div></div>`).join("") || `<p class="muted">No correspondence yet.</p>`}
+        </div>
         ${state.role !== "tech" ? `
-          <div class="field section-gap"><label>Add a note</label>
-            <select id="comm-channel"><option>Office</option><option>Phone</option><option>Email</option><option>Text</option></select>
+          <div class="comm-log-compose">
+            <div class="field section-gap"><label>Add a note</label>
+              <select id="comm-channel"><option>Office</option><option>Phone</option><option>Email</option><option>Text</option></select>
+            </div>
+            <div class="field"><textarea id="comm-text" rows="2" placeholder="Call, email, or office note — stays on this account"></textarea></div>
+            <button class="btn btn-primary" data-act="add-comm" data-id="${c.id}">Save to log</button>
           </div>
-          <div class="field"><textarea id="comm-text" rows="2" placeholder="Call, email, or office note — stays on this account"></textarea></div>
-          <button class="btn btn-primary" data-act="add-comm" data-id="${c.id}">Save to log</button>
         ` : ""}
       </div>
     `;
@@ -3824,14 +3917,7 @@
   }
 
   function mapRoadsSvg() {
-    return `<svg class="map-roads" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0 22 H100 M0 38 H100 M0 55 H100 M0 72 H100" stroke="#fff" stroke-width="1.8" opacity="0.95"/>
-      <path d="M0 22 H100 M0 38 H100 M0 55 H100 M0 72 H100" stroke="#d4d0c8" stroke-width="1.1"/>
-      <path d="M18 0 V100 M35 0 V100 M52 0 V100 M68 0 V100 M82 0 V100" stroke="#fff" stroke-width="1.4" opacity="0.9"/>
-      <path d="M18 0 V100 M35 0 V100 M52 0 V100 M68 0 V100 M82 0 V100" stroke="#d8d4cc" stroke-width="0.85"/>
-      <path d="M8 8 C22 18, 28 40, 22 62 C18 78, 12 90, 6 100" fill="none" stroke="#f5d76e" stroke-width="1.3"/>
-      <path d="M42 0 C48 20, 55 35, 60 55 C66 78, 70 92, 74 100" fill="none" stroke="#f5d76e" stroke-width="1.1"/>
-    </svg>`;
+    return "";
   }
   const SCHED_COLORS = {
     "Mon/Wed": "#7b5ea7",
@@ -3891,7 +3977,6 @@
     const filterTech = state.mapTech;
     const filterDay = state.mapDay;
     const colorBy = filterTech ? (state.mapColorBy || "schedule") : "tech";
-    const waiting = opsAssignQueue();
     const focusCid = state.mapClient;
     const focusLid = state.mapLoc;
     const assignMode = !!(focusCid && focusLid);
@@ -3984,16 +4069,42 @@
       const pl = pc?.locations.find((x) => x.id === state.mapPin.lid);
       if (pc && pl) {
         const techs = locTechs(pc, pl);
+        const shared = locIsShared(pc, pl);
         const svc = svcFor(pc.id, pl.id);
+        const primaryTech = pl.techId || svc?.techId || techs[0];
+        const sched = locScheduleKey(pc, pl);
+        const dur = fmtClock(svc?.durationMin || pl.durationMin || 20);
+        const xPct = pct(pl.x);
+        const yPct = pct(pl.y);
+        const flipX = xPct > 58;
+        const flipY = yPct > 55;
+        const cityLine = [pl.city, pl.zip].filter(Boolean).join(" · ");
+        const addrLine = pl.address || cityLine || "—";
+        const trapperRows = (shared ? techs : (primaryTech ? [primaryTech] : [])).map((tid) => {
+          const t = techBy(tid);
+          const name = t?.name || techName(tid);
+          const color = t?.color || "#888";
+          const home = t?.home ? ` · ${esc(t.home)}` : "";
+          return `<div class="map-pin-tech"><i class="dot" style="background:${color}"></i><span><strong>${esc(name)}</strong>${home}</span></div>`;
+        }).join("");
         pinCard = `
-          <div class="map-float-card map-pin-card" style="left:${pl.x};top:${pl.y}">
-            <button type="button" class="map-float-close" data-act="clear-map-pin">×</button>
-            <strong>${esc(pc.name)}</strong>
-            <div class="tiny">${esc(pl.name)} · ${esc(pl.address)}</div>
-            <div class="tiny">${locIsShared(pc, pl) ? `Shared · ${techs.map(techName).join(" / ")}` : `Tech · ${esc(techName(pl.techId || svc?.techId) || "unassigned")}`} · ${esc(locScheduleKey(pc, pl))}</div>
-            <div class="tiny">${fmtClock(svc?.durationMin || pl.durationMin || 20)} · ${svc ? esc(svcTypeLabel(svc.type)) : "No service yet"}</div>
-            <div class="actions" style="margin-top:8px">
-              <button class="btn btn-ghost" data-act="open-customer" data-id="${pc.id}">Customer</button>
+          <div class="map-float-card map-pin-card${flipX ? " flip-x" : ""}${flipY ? " flip-y" : ""}" style="left:${pl.x};top:${pl.y}">
+            <button type="button" class="map-float-close" data-act="clear-map-pin" aria-label="Close">×</button>
+            <div class="map-pin-title">${esc(pl.name || "Property")}</div>
+            <div class="map-pin-addr">${esc(addrLine)}</div>
+            ${cityLine && pl.address ? `<div class="map-pin-meta">${esc(cityLine)}</div>` : ""}
+            <div class="map-pin-meta">Bill-To · ${esc(pc.billTo || pc.name)}</div>
+            <div class="map-pin-section">
+              <div class="map-pin-label">${shared ? `Shared · ${techs.length} trappers` : "Trapper"}</div>
+              ${trapperRows || `<div class="map-pin-tech"><span class="muted">Unassigned</span></div>`}
+            </div>
+            <div class="map-pin-facts">
+              <span>Days · ${esc(sched)}</span>
+              <span>${dur}</span>
+              <span>${svc ? esc(svcTypeLabel(svc.type)) : "No service yet"}</span>
+            </div>
+            <div class="actions" style="margin-top:10px">
+              <button class="btn btn-ghost" data-act="open-customer" data-id="${pc.id}">Open Bill-To</button>
               ${locNeedsTech(pc, pl) && filterTech ? btn("schedule.assign", "Assign " + techName(filterTech), "map-assign", `data-id="${pc.id}" data-loc="${pl.id}" data-tech="${filterTech}"`) : ""}
             </div>
           </div>`;
@@ -4027,8 +4138,8 @@
           <div class="actions" style="margin-top:8px">${TECHS.map((t) => btn("schedule.reassign", "Move to " + t.name, "bulk-move", `data-tech="${t.id}"`, "btn-ghost")).join("")}</div>
         </div>` : ""}
 
-      <div class="map-vrm">
-        <aside class="map-vrm-side card">
+      <div class="map-vrm${showBestFit ? " has-bestfit" : ""}">
+        <aside class="map-vrm-side card" data-keep-scroll="map-side">
           ${!filterTech ? `
             <div class="vrm-side-head">
               <h3>Trappers</h3>
@@ -4066,7 +4177,7 @@
               <div class="vrm-row vrm-total"><span></span><span>Total</span><span>${sideList.length || techBookLocations(filterTech).length}</span><span>${fmtClock((sideList.length ? sideList : techBookLocations(filterTech)).reduce((a, r) => a + r.durationMin, 0))}</span></div>
             </div>
             <h3 class="section-gap">Stops ${filterDay ? "· " + esc(filterDay) : ""}</h3>
-            <div class="vrm-stops">
+            <div class="vrm-stops" data-keep-scroll="vrm-stops">
               ${(sideList.length ? sideList : techBookLocations(filterTech).filter((r) => !filterDay || patternDays(r.days).includes(filterDay))).map((r, i) => `
                 <button type="button" class="vrm-stop ${state.mapPin?.cid === r.c.id && state.mapPin?.lid === r.l.id ? "on" : ""}" data-act="map-pin" data-cid="${r.c.id}" data-lid="${r.l.id}">
                   <span class="vrm-stop-n" style="background:${SCHED_COLORS[r.days] || selectedTech.color}">${i + 1}</span>
@@ -4078,50 +4189,61 @@
               `).join("") || `<p class="muted">No stops for this filter.</p>`}
             </div>
           `}
-
-          ${showBestFit ? `
-            <div class="map-bestfit-block section-gap">
-              <h3>Best fit · ${esc(focusLoc.name)}</h3>
-              <p class="tiny">Only this property is on the map for assigning</p>
-              <div class="bestfit">
-                ${ranked.map((r, i) => `
-                  <div class="bestfit-card ${filterTech === r.t.id ? "pick" : ""} ${compareIds.includes(r.t.id) ? "compare-on" : ""}">
-                    <button type="button" class="bestfit-main" data-act="map-tech" data-tech="${r.t.id}">
-                      <strong>${i === 0 ? "Suggested · " : ""}${esc(r.t.name)}</strong> · ${esc(r.t.home)}
-                      <div class="tiny">${r.miles} mi · ~${r.mins} min · ${r.route.length} nearby stops</div>
-                    </button>
-                    <div class="bestfit-actions">
-                      <button type="button" class="btn btn-ghost" data-act="map-compare-tech" data-tech="${r.t.id}">${compareIds.includes(r.t.id) ? "In compare" : "Compare drive"}</button>
-                      ${btn("schedule.assign", "Assign", "map-assign", `data-id="${focusCust.id}" data-loc="${focusLoc.id}" data-tech="${r.t.id}"`, "btn-sun")}
-                    </div>
-                  </div>
-                `).join("")}
-              </div>
-              ${compareRows.length ? `
-                <div class="map-compare-box">
-                  ${compareRows.map((r) => `<div class="map-compare-row"><i class="dot" style="background:${r.t.color}"></i><div><strong>${esc(r.t.name)}</strong><div class="tiny">${r.miles} mi · ~${r.mins} min</div></div></div>`).join("")}
-                  <button class="btn btn-ghost" data-act="clear-map-compare">Clear compare</button>
-                </div>` : ""}
-            </div>
-          ` : ""}
           ${genQ.length ? `<div class="notice" style="margin-top:10px">${genQ.length} assigned, not live. ${btn("schedule.generate", "Generate", "generate-schedule")}</div>` : ""}
         </aside>
 
-        <div class="map-canvas gmap map-vrm-canvas" id="map-canvas">
-          <div class="map-bg gmap"></div>
-          ${mapRoadsSvg()}
-          <div class="map-water" aria-hidden="true"></div>
-          <div class="map-label gmap-label" style="left:4%;top:12%">Gulf of Mexico</div>
-          <div class="map-label gmap-label" style="left:58%;top:8%">Atlantic</div>
-          <div class="map-label gmap-label city" style="left:30%;top:48%">Fort Lauderdale</div>
-          <div class="map-label gmap-label city" style="left:26%;top:36%">Boca Raton</div>
-          <div class="map-label gmap-label city" style="left:12%;top:32%">Tampa</div>
-          <div class="map-label gmap-label city" style="left:36%;top:22%">West Palm</div>
-          <div class="map-label gmap-label city" style="left:16%;top:68%">Naples</div>
-          ${routeLines.length ? `<svg class="route-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${routeLines.join("")}</svg>` : ""}
-          ${pins.join("")}
-          ${pinCard}
+        <div class="map-vrm-canvas-wrap">
+          <div class="map-canvas gmap map-vrm-canvas" id="map-canvas">
+            <div class="map-bg gmap"></div>
+            <div class="map-terrain" aria-hidden="true">
+              <div class="map-water gulf"></div>
+              <div class="map-water atlantic"></div>
+              <div class="map-water lake"></div>
+              <div class="map-land-patch" style="left:28%;top:28%;width:22%;height:18%"></div>
+              <div class="map-land-patch" style="left:52%;top:44%;width:18%;height:16%"></div>
+            </div>
+            <div class="map-label gmap-label water" style="left:3%;top:14%">Gulf</div>
+            <div class="map-label gmap-label water" style="right:4%;top:10%;left:auto">Atlantic</div>
+            <div class="map-label gmap-label city" style="left:30%;top:48%">Fort Lauderdale</div>
+            <div class="map-label gmap-label city" style="left:26%;top:36%">Boca Raton</div>
+            <div class="map-label gmap-label city" style="left:12%;top:32%">Tampa</div>
+            <div class="map-label gmap-label city" style="left:36%;top:22%">West Palm</div>
+            <div class="map-label gmap-label city" style="left:16%;top:68%">Naples</div>
+            ${routeLines.length ? `<svg class="route-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${routeLines.join("")}</svg>` : ""}
+            ${pins.join("")}
+            ${pinCard}
+          </div>
         </div>
+
+        ${showBestFit ? `
+        <aside class="map-vrm-side card is-right" data-keep-scroll="map-bestfit">
+          <div class="map-bestfit-block">
+            <div class="vrm-side-head">
+              <h3>Best fit</h3>
+              <p class="tiny">${esc(focusCust.name)} · ${esc(focusLoc.name)}</p>
+            </div>
+            <div class="bestfit">
+              ${ranked.map((r, i) => `
+                <div class="bestfit-card ${filterTech === r.t.id ? "pick" : ""} ${compareIds.includes(r.t.id) ? "compare-on" : ""}">
+                  <button type="button" class="bestfit-main" data-act="map-tech" data-tech="${r.t.id}">
+                    <strong>${i === 0 ? "Suggested · " : ""}${esc(r.t.name)}</strong> · ${esc(r.t.home)}
+                    <div class="tiny">${r.miles} mi · ~${r.mins} min · ${r.route.length} nearby stops</div>
+                  </button>
+                  <div class="bestfit-actions">
+                    <button type="button" class="btn btn-ghost" data-act="map-compare-tech" data-tech="${r.t.id}">${compareIds.includes(r.t.id) ? "In compare" : "Compare drive"}</button>
+                    ${btn("schedule.assign", "Assign", "map-assign", `data-id="${focusCust.id}" data-loc="${focusLoc.id}" data-tech="${r.t.id}"`, "btn-sun")}
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+            ${compareRows.length ? `
+              <div class="map-compare-box">
+                ${compareRows.map((r) => `<div class="map-compare-row"><i class="dot" style="background:${r.t.color}"></i><div><strong>${esc(r.t.name)}</strong><div class="tiny">${r.miles} mi · ~${r.mins} min</div></div></div>`).join("")}
+                <button class="btn btn-ghost" data-act="clear-map-compare">Clear compare</button>
+              </div>` : ""}
+          </div>
+        </aside>
+        ` : ""}
       </div>
     `;
   }
@@ -4744,7 +4866,16 @@
     </div>`;
   }
 
-  function renewalProposedText(row) {
+  function renewalProposedText(row, programId) {
+    const pid = programId || row.programId;
+    const p = progBy(pid);
+    const amt = p ? programBillAmount(p) : Number(row.amount || 0);
+    if (p?.id === "12mo") {
+      return `${money(amt)}/month × ${p.months} — ${p.name}`;
+    }
+    if (p) {
+      return `${money(amt)} upfront — ${p.name}`;
+    }
     const bp = (() => {
       const ct = contractForLoc(row.customerId, row.locationId);
       return ct ? planForContract(ct.id) : null;
@@ -4753,30 +4884,55 @@
     return `${money(row.amount)} upfront — same terms`;
   }
 
+  function programOptionsHtml(selectedId) {
+    return PROGRAMS.map((p) => {
+      const amt = programBillAmount(p);
+      const price = p.id === "12mo" ? `${money(amt)}/mo` : money(amt);
+      return `<option value="${p.id}" ${p.id === selectedId ? "selected" : ""}>${esc(p.name)} · ${price} · ${esc(p.freq)}</option>`;
+    }).join("");
+  }
+
   function viewRenewals() {
-    const rows = renewalCandidates().map((row) => {
+    const candidates = renewalCandidates();
+    const rows = candidates.map((row) => {
       const m = renewalMeta(row);
       const ct = contractForLoc(row.customerId, row.locationId);
       const existing = (state.data.renewals || []).find((r) => r.rowId === row.id || (ct && r.contractId === ct.id));
-      const send = m.batchable
-        ? `<label class="chk"><input type="checkbox" data-act="renew-toggle" data-id="${row.id}" ${(state.renewPick || []).includes(row.id) ? "checked" : ""}></label>`
-        : `<span class="tiny">Hold</span>`;
-      const status = existing
-        ? statusBadge(existing.status === "SENT" ? "sent" : "DRAFT")
-        : `<span class="badge badge-mute">Not prepared</span>`;
-      const act = existing?.status === "SENT"
+      const pickProgram = existing?.programId || row.programId;
+      const alreadySent = existing?.status === "SENT";
+      const send = alreadySent
+        ? `<span class="tiny">—</span>`
+        : `<label class="chk"><input type="checkbox" data-act="renew-toggle" data-id="${row.id}" ${(state.renewPick || []).includes(row.id) ? "checked" : ""}></label>`;
+      const status = alreadySent
+        ? statusBadge("sent")
+        : `<span class="badge badge-mute">Ready</span>`;
+      const act = alreadySent
         ? `<span class="tiny">Sent ${esc((existing.sentAt || "").slice(0, 10))}</span>`
         : `<button class="btn btn-ghost" data-act="review-renewal" data-id="${row.id}">Review / edit</button>`;
-      return [send, custBtn(row.customerId, row.name), esc(row.locName), row.expires, m.window, money(row.amount), esc(existing?.proposedText || renewalProposedText(row)), m.flag, status, act];
+      const proposed = existing?.proposedText || renewalProposedText(row, pickProgram);
+      const planCell = `${esc(progBy(pickProgram)?.name || pickProgram || "—")}<div class="tiny">${esc(proposed)}</div>`;
+      return [send, custBtn(row.customerId, row.name), esc(row.locName), row.expires, m.window, money(existing?.amount != null ? existing.amount : row.amount), planCell, m.flag, status, act];
     });
+    const pickable = candidates.filter((row) => {
+      const ct = contractForLoc(row.customerId, row.locationId);
+      const existing = (state.data.renewals || []).find((r) => r.rowId === row.id || (ct && r.contractId === ct.id));
+      return existing?.status !== "SENT";
+    });
+    const pickedN = (state.renewPick || []).length;
     return `
-      ${head("Renewal report", "Prepare → review / edit proposed text → approve & send. AutoPay is never charged on send.")}
+      ${head("Renewal report", "Select renewals → Send → confirm the list in the modal → Send.")}
       ${writeBar("renewal.send", "Send renewal")}
-      <div class="notice">Workflow matches the billing prototype: batch prepare drafts, edit amounts/text, then approve. No automatic card charge.</div>
-      ${table(["Prep?", "Bill-To", "Property", "Expires", "Window", "Amount", "Proposed", "Flag", "Status", ""], rows)}
+      <div class="notice">
+        Check one or more rows, then <strong>Send selected</strong>. A modal lists what will go out — confirm there. Use <strong>Review / edit</strong> only when the program needs to change (e.g. 1-month → 6/12). AutoPay is never charged on send.
+      </div>
+      <div class="actions" style="margin-bottom:10px">
+        <button class="btn btn-ghost" data-act="renew-select-all">Select all (${pickable.length})</button>
+        <button class="btn btn-ghost" data-act="renew-clear">Clear selection${pickedN ? ` (${pickedN})` : ""}</button>
+        ${btn("renewal.send", `Send selected${pickedN ? ` (${pickedN})` : ""}`, "open-send-renewals", "", "btn-sun")}
+      </div>
+      ${table(["", "Bill-To", "Property", "Expires", "Window", "Amount", "Program / proposed", "Flag", "Status", ""], rows)}
       <div class="actions" style="margin-top:12px">
-        ${btn("renewal.send", "Prepare selected", "prepare-renewals", "", "btn-sun")}
-        ${btn("renewal.send", "Approve & send prepared", "batch-renewals")}
+        ${btn("renewal.send", `Send selected${pickedN ? ` (${pickedN})` : ""}`, "open-send-renewals", "", "btn-sun")}
       </div>
     `;
   }
@@ -5209,6 +5365,10 @@
       if (["INPUT", "TEXTAREA", "LABEL", "OPTION"].includes(e.target.tagName) && e.target !== el && !e.target.hasAttribute("data-act")) {
         return;
       }
+      // Map / list clicks: stop focus jump + keep scroll position across re-render
+      if (String(el.dataset.act || "").startsWith("map-") || el.dataset.act === "focus-tech" || el.dataset.act === "focus-client") {
+        e.preventDefault();
+      }
       act(el.dataset.act, el.dataset);
     };
     $app.onchange = (e) => {
@@ -5245,6 +5405,13 @@
       }
       if (el.dataset.act === "nav-select") {
         state.page = el.value;
+        ensureNavGroupOpenForPage(el.value);
+        if (el.value === "map") {
+          state.mapClient = null;
+          state.mapLoc = null;
+          state.mapCompare = [];
+          state.mapPin = null;
+        }
         render();
       }
       if (el.dataset.act === "assign-days") {
@@ -5273,6 +5440,7 @@
         applyServiceTypeDefaults();
         refreshSetupFit();
       }
+      if (el.dataset.act === "ren-program") applyRenewalProgramFields();
       if (el.dataset.act === "oo-type") {
         const t = TASK_TYPES.find((x) => x.id === el.value);
         captureOneoffDraft();
@@ -5519,7 +5687,19 @@
       enter: () => enterAs(ds.who || ds.role),
       logout: () => { state.role = null; state.page = "dashboard"; persistSession(); render(); },
       "reset-demo": () => resetDemo(),
-      nav: () => { state.page = ds.page; state.selectedCustomer = null; render(); },
+      nav: () => {
+        state.page = ds.page;
+        state.selectedCustomer = null;
+        ensureNavGroupOpenForPage(ds.page);
+        if (ds.page === "map") {
+          state.mapClient = null;
+          state.mapLoc = null;
+          state.mapCompare = [];
+          state.mapPin = null;
+        }
+        render();
+      },
+      "nav-toggle": () => toggleNavGroup(ds.group),
       "switch-role-btn": () => switchRole(ds.role),
       "open-customer": () => { state.selectedCustomer = ds.id; state.page = "customer"; state.payFocusId = null; render(); },
       "open-pay-row": () => openPayRow(ds.id),
@@ -5558,11 +5738,13 @@
       "send-renewal": () => openRenewal(ds.id),
       "confirm-renewal": () => confirmRenewal(ds.id),
       "review-renewal": () => reviewRenewal(ds.id),
-      "prepare-renewals": () => prepareRenewals(),
+      "open-send-renewals": () => openSendSelectedRenewals(),
+      "confirm-send-renewals": () => confirmSendSelectedRenewals(),
       "save-renewal-draft": () => saveRenewalDraft(ds.id),
       "approve-renewal": () => approveRenewal(ds.id),
       "renew-toggle": () => toggleRenewPick(ds.id),
-      "batch-renewals": () => batchRenewals(),
+      "renew-select-all": () => renewSelectAll(),
+      "renew-clear": () => renewClearSelection(),
       "generate-next-period": () => generateNextBillingPeriod(ds.id, ds.loc),
       "run-autopay": () => runAutopayCharge(ds.id, ds.loc, { succeed: true }),
       "run-autopay-fail": () => runAutopayCharge(ds.id, ds.loc, { succeed: false }),
@@ -5598,6 +5780,12 @@
       bestfit: () => openAssign(ds.id),
       "open-assign": () => { state.modal = null; openAssign(ds.id, ds.loc); },
       "compare-routes": () => openCompareRoutes(ds.id, ds.loc),
+      "map-focus-assign": () => {
+        state.mapClient = ds.id || null;
+        state.mapLoc = ds.loc || null;
+        state.mapPin = null;
+        render();
+      },
       "map-assign": () => mapAssign(ds.id, ds.tech, ds.loc),
       "focus-client": () => { state.mapClient = ds.id; state.mapLoc = ds.loc || null; render(); },
       "open-service": () => openCreateService(ds.id, ds.loc),
@@ -6436,35 +6624,89 @@
     reviewRenewal(id);
   }
 
-  function prepareRenewals() {
-    if (!can("renewal.send")) return;
+  function selectedUnsentRenewalIds() {
     if (!Array.isArray(state.data.renewals)) state.data.renewals = [];
-    const picked = (state.renewPick || []).filter((id) => {
+    return (state.renewPick || []).filter((id) => {
       const row = parseRenewId(id);
-      return row && renewalMeta(row).batchable;
+      if (!row) return false;
+      const ct = contractForLoc(row.customerId, row.locationId);
+      const existing = state.data.renewals.find((x) => x.rowId === id || (ct && x.contractId === ct.id));
+      return existing?.status !== "SENT";
     });
+  }
+
+  function ensureRenewalDraft(id) {
+    const row = parseRenewId(id);
+    if (!row) return null;
+    if (!Array.isArray(state.data.renewals)) state.data.renewals = [];
+    const ct = contractForLoc(row.customerId, row.locationId);
+    let r = state.data.renewals.find((x) => x.rowId === id || (ct && x.contractId === ct.id));
+    const programId = r?.programId || row.programId;
+    const text = r?.proposedText || renewalProposedText(row, programId);
+    const amount = r?.amount != null ? r.amount : (progBy(programId) ? programBillAmount(progBy(programId)) : row.amount);
+    if (!r) {
+      r = {
+        id: nid("REN"), rowId: id, contractId: ct?.id || null,
+        customerId: row.customerId, locationId: row.locationId,
+        status: "DRAFT", proposedText: text, programId, amount, sent: false,
+      };
+      state.data.renewals.push(r);
+    } else if (r.status !== "SENT") {
+      r.proposedText = r.proposedText || text;
+      if (!r.programId) r.programId = programId;
+      if (r.amount == null) r.amount = amount;
+      r.status = "DRAFT";
+    }
+    return r;
+  }
+
+  function openSendSelectedRenewals() {
+    if (!can("renewal.send")) return;
+    const picked = selectedUnsentRenewalIds();
     if (!picked.length) {
-      toast("Select one or more standard renewals to prepare.");
+      toast("Select one or more renewals, then Send.");
       return;
     }
-    let n = 0;
-    picked.forEach((id) => {
+    const list = picked.map((id) => {
       const row = parseRenewId(id);
-      const ct = contractForLoc(row.customerId, row.locationId);
-      let r = state.data.renewals.find((x) => x.rowId === id || (ct && x.contractId === ct.id));
-      const text = renewalProposedText(row);
-      if (!r) {
-        r = { id: nid("REN"), rowId: id, contractId: ct?.id || null, customerId: row.customerId, locationId: row.locationId, status: "DRAFT", proposedText: text, sent: false };
-        state.data.renewals.push(r);
-      } else if (r.status !== "SENT") {
-        r.proposedText = r.proposedText || text;
-        r.status = "DRAFT";
-      }
-      n += 1;
-    });
-    state.renewPick = [];
-    toast(`Prepared ${n} renewal draft${n === 1 ? "" : "s"} for review.`);
+      const r = ensureRenewalDraft(id);
+      const programId = r?.programId || row.programId;
+      const amount = r?.amount != null ? r.amount : row.amount;
+      const proposed = r?.proposedText || renewalProposedText(row, programId);
+      return `<div class="fit-row" style="align-items:flex-start">
+        <div>
+          <strong>${esc(row.name)}</strong> · ${esc(row.locName)}
+          <div class="tiny">Expires ${esc(row.expires)} · ${esc(progBy(programId)?.name || programId || "—")} · ${money(amount)}</div>
+          <div class="tiny">${esc(proposed)}</div>
+        </div>
+      </div>`;
+    }).join("");
+    state.modal = {
+      wide: true,
+      html: `
+        <h3>Send renewals</h3>
+        <p>${picked.length} selected. Review the list, then send. AutoPay is <strong>not</strong> charged.</p>
+        <div class="preview" style="max-height:min(50vh,420px);overflow:auto">${list}</div>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="close-modal">Back</button>
+          <button class="btn btn-primary" data-act="confirm-send-renewals">Send ${picked.length}</button>
+        </div>
+      `,
+    };
     render();
+  }
+
+  function confirmSendSelectedRenewals() {
+    if (!can("renewal.send")) return;
+    const picked = selectedUnsentRenewalIds();
+    if (!picked.length) {
+      state.modal = null;
+      toast("Nothing selected to send.");
+      render();
+      return;
+    }
+    picked.forEach((id) => ensureRenewalDraft(id));
+    sendRenewalBatch(picked);
   }
 
   function reviewRenewal(id) {
@@ -6474,21 +6716,32 @@
     const ct = contractForLoc(row.customerId, row.locationId);
     if (!Array.isArray(state.data.renewals)) state.data.renewals = [];
     let r = state.data.renewals.find((x) => x.rowId === row.id || (ct && x.contractId === ct.id));
-    const defaultText = renewalProposedText(row);
+    const pickProgram = r?.programId || row.programId || "12pre";
+    const defaultText = r?.proposedText || renewalProposedText(row, pickProgram);
+    const defaultAmt = r?.amount != null ? r.amount : (progBy(pickProgram) ? programBillAmount(progBy(pickProgram)) : row.amount);
     if (!r) {
-      r = { id: nid("REN"), rowId: row.id, contractId: ct?.id || null, customerId: row.customerId, locationId: row.locationId, status: "DRAFT", proposedText: defaultText, sent: false };
+      r = {
+        id: nid("REN"), rowId: row.id, contractId: ct?.id || null,
+        customerId: row.customerId, locationId: row.locationId,
+        status: "DRAFT", proposedText: defaultText, programId: pickProgram, amount: defaultAmt, sent: false,
+      };
       state.data.renewals.push(r);
     }
+    const currentName = progBy(row.programId)?.name || row.programId || "—";
     state.modal = {
       html: `
         <h3>Review renewal · ${esc(row.locName)}</h3>
-        <p>Edit proposed terms before sending. AutoPay will <strong>not</strong> be charged on send.</p>
+        <p>Choose the renewal program (can differ from the current plan), edit terms, then send. AutoPay is <strong>not</strong> charged on send.</p>
         <div class="preview">
           <strong>${esc(row.name)}</strong> · ${esc(row.locName)} · expires ${esc(row.expires)}
-          <div class="tiny">${esc(m.flag)}</div>
+          <div class="tiny">Current program: ${esc(currentName)} · ${esc(m.flag)}</div>
         </div>
-        <div class="field"><label>Proposed renewal terms</label><input id="ren-text" value="${esc(r.proposedText || defaultText)}"></div>
-        <div class="field"><label>Amount (optional override)</label><input id="ren-amt" type="number" step="0.01" value="${esc(row.amount)}"></div>
+        <div class="field req"><label>Renewal program</label>
+          <select id="ren-program" data-act="ren-program">${programOptionsHtml(pickProgram)}</select>
+          <div class="tiny">For 1-month ending, pick a 6- or 12-month plan instead of repeating 1-month.</div>
+        </div>
+        <div class="field"><label>Proposed renewal terms</label><input id="ren-text" value="${esc(defaultText)}"></div>
+        <div class="field"><label>Amount</label><input id="ren-amt" type="number" step="0.01" value="${esc(defaultAmt)}"></div>
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="close-modal">Back</button>
           <button class="btn btn-ghost" data-act="save-renewal-draft" data-id="${row.id}">Save draft</button>
@@ -6499,6 +6752,20 @@
     render();
   }
 
+  function applyRenewalProgramFields() {
+    const pid = val("ren-program");
+    const p = progBy(pid);
+    if (!p) return;
+    const amt = programBillAmount(p);
+    setInput("ren-amt", amt);
+    const textEl = document.getElementById("ren-text");
+    if (textEl) {
+      textEl.value = p.id === "12mo"
+        ? `${money(amt)}/month × ${p.months} — ${p.name}`
+        : `${money(amt)} upfront — ${p.name}`;
+    }
+  }
+
   function saveRenewalDraft(id) {
     const row = parseRenewId(id);
     if (!row) return;
@@ -6506,11 +6773,13 @@
     let r = (state.data.renewals || []).find((x) => x.rowId === row.id || (ct && x.contractId === ct.id));
     if (!r) return;
     r.proposedText = val("ren-text") || r.proposedText;
+    r.programId = val("ren-program") || r.programId || row.programId;
     const amt = Number(val("ren-amt"));
     if (Number.isFinite(amt) && amt > 0) r.amount = amt;
+    else if (progBy(r.programId)) r.amount = programBillAmount(progBy(r.programId));
     r.status = "DRAFT";
     state.modal = null;
-    toast("Renewal draft saved.");
+    toast("Renewal draft saved · " + (progBy(r.programId)?.name || "program set"));
     render();
   }
 
@@ -6527,32 +6796,81 @@
     const ct = contractForLoc(row.customerId, row.locationId);
     if (!Array.isArray(state.data.renewals)) state.data.renewals = [];
     let r = state.data.renewals.find((x) => x.rowId === row.id || (ct && x.contractId === ct.id));
-    const proposed = fromReview ? (val("ren-text") || r?.proposedText || renewalProposedText(row)) : (r?.proposedText || renewalProposedText(row));
+    const programId = fromReview
+      ? (val("ren-program") || r?.programId || row.programId)
+      : (r?.programId || row.programId);
+    const p = progBy(programId);
+    const proposed = fromReview
+      ? (val("ren-text") || r?.proposedText || renewalProposedText(row, programId))
+      : (r?.proposedText || renewalProposedText(row, programId));
     const amtOverride = fromReview ? Number(val("ren-amt")) : Number(r?.amount);
-    const amount = Number.isFinite(amtOverride) && amtOverride > 0 ? amtOverride : row.amount;
+    const amount = Number.isFinite(amtOverride) && amtOverride > 0
+      ? amtOverride
+      : (p ? programBillAmount(p) : row.amount);
     if (!r) {
-      r = { id: nid("REN"), rowId: row.id, contractId: ct?.id || null, customerId: row.customerId, locationId: row.locationId, status: "DRAFT", proposedText: proposed, sent: false };
+      r = {
+        id: nid("REN"), rowId: row.id, contractId: ct?.id || null,
+        customerId: row.customerId, locationId: row.locationId,
+        status: "DRAFT", proposedText: proposed, programId, amount, sent: false,
+      };
       state.data.renewals.push(r);
     }
     r.proposedText = proposed;
+    r.programId = programId;
     r.amount = amount;
     r.status = "SENT";
     r.sent = true;
     r.sentAt = TODAY;
+
+    const termStart = row.expires || TODAY;
+    const stayAutopayNotice = (m.noticeOnly || row.autoPay) && (!programId || programId === row.programId) && programId === "12mo";
+
+    if (l && programId) {
+      // Apply chosen plan for the next term; invoice id attached below when created
+      commitLocationPlan(l, programId, termStart, null, row.customerId);
+      l.amount = amount;
+      l.paid = false;
+      l.lifecycle = "waiting_payment";
+    }
+    if (c && programId) {
+      c.programId = programId;
+      c.amount = amount;
+      if (c.status === "renewal" || c.status === "active") c.status = "waiting_payment";
+    }
     if (l) l.renewalSent = TODAY;
     if (c) c.renewalSent = TODAY;
-    if (m.noticeOnly || row.autoPay) {
-      state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Renewal notice for ${row.locName}: ${proposed}. AutoPay not charged.` });
+
+    const planLabel = p?.name || programId || "renewal";
+    if (stayAutopayNotice) {
+      state.data.comms.push({
+        id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY,
+        text: `Renewal notice for ${row.locName}: ${proposed} (${planLabel}). AutoPay not charged on send.`,
+      });
       state.modal = null;
-      toast(`Notice sent to ${row.name} for ${row.locName}. Saved card was not charged.`);
+      toast(`Notice sent to ${row.name} · ${planLabel}. Saved card was not charged.`);
       render();
       return;
     }
-    const inv = { id: nid("INV"), customerId: row.customerId, locationId: row.locationId, contractId: ct?.id || null, amount, status: "sent", sent: TODAY, paidOn: null, kind: "renewal", description: proposed };
+
+    const inv = {
+      id: nid("INV"), customerId: row.customerId, locationId: row.locationId,
+      contractId: l?.contractId || ct?.id || null,
+      amount, status: "sent", sent: TODAY, paidOn: null, kind: "renewal",
+      description: proposed, programId,
+    };
     state.data.invoices.push(inv);
-    state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Renewal ${inv.id} emailed for ${row.locName}: ${proposed}. No AutoPay charge on send.` });
+    if (l && programId) {
+      // Link invoice onto the new commitment period
+      commitLocationPlan(l, programId, termStart, inv.id, row.customerId);
+      l.amount = amount;
+    }
+    r.contractId = l?.contractId || r.contractId;
+    state.data.comms.push({
+      id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY,
+      text: `Renewal ${inv.id} emailed for ${row.locName}: ${proposed} (${planLabel}). No AutoPay charge on send.`,
+    });
     state.modal = null;
-    toast("Renewal invoice " + inv.id + " sent to " + row.name + " for " + row.locName + ".");
+    toast(`Renewal ${inv.id} sent · ${planLabel} · ${row.name} · ${row.locName}.`);
     render();
   }
 
@@ -6563,15 +6881,32 @@
     render();
   }
 
-  function batchRenewals() {
+  function renewSelectAll() {
+    if (!Array.isArray(state.renewPick)) state.renewPick = [];
+    const ids = renewalCandidates().filter((row) => {
+      const ct = contractForLoc(row.customerId, row.locationId);
+      const existing = (state.data.renewals || []).find((r) => r.rowId === row.id || (ct && r.contractId === ct.id));
+      return existing?.status !== "SENT";
+    }).map((r) => r.id);
+    state.renewPick = ids;
+    toast(ids.length ? `Selected ${ids.length} renewal${ids.length === 1 ? "" : "s"}.` : "Nothing left to select.");
+    render();
+  }
+
+  function renewClearSelection() {
+    state.renewPick = [];
+    render();
+  }
+
+  function sendRenewalBatch(ids) {
     if (!can("renewal.send")) return;
     if (!Array.isArray(state.data.renewals)) state.data.renewals = [];
-    const drafts = state.data.renewals.filter((r) => r.status === "DRAFT");
-    if (!drafts.length) {
-      toast("Prepare renewal drafts first, then approve & send.");
+    const list = (ids || []).map((id) => ensureRenewalDraft(id)).filter(Boolean).filter((r) => r.status !== "SENT");
+    if (!list.length) {
+      toast("Nothing to send.");
       return;
     }
-    drafts.forEach((r) => {
+    list.forEach((r) => {
       const row = parseRenewId(r.rowId) || (r.customerId && r.locationId ? {
         id: r.rowId, customerId: r.customerId, locationId: r.locationId,
         name: custBy(r.customerId)?.billTo || custBy(r.customerId)?.name,
@@ -6579,29 +6914,49 @@
         amount: r.amount || locPlan(custBy(r.customerId), locBy(r.customerId, r.locationId)).amount,
         autoPay: locPlan(custBy(r.customerId), locBy(r.customerId, r.locationId)).autoPay,
         expires: locPlan(custBy(r.customerId), locBy(r.customerId, r.locationId)).expires,
-        programId: locPlan(custBy(r.customerId), locBy(r.customerId, r.locationId)).programId,
+        programId: r.programId || locPlan(custBy(r.customerId), locBy(r.customerId, r.locationId)).programId,
       } : null);
       if (!row) return;
+      if (r.programId) row.programId = r.programId;
+      const programId = r.programId || row.programId;
+      const p = progBy(programId);
+      const amount = r.amount != null ? r.amount : (p ? programBillAmount(p) : row.amount);
       const m = renewalMeta(row);
       const c = custBy(row.customerId);
       const l = locBy(row.customerId, row.locationId);
+      const termStart = row.expires || TODAY;
+      if (l && programId) {
+        commitLocationPlan(l, programId, termStart, null, row.customerId);
+        l.amount = amount;
+        l.paid = false;
+        l.lifecycle = "waiting_payment";
+      }
+      if (c && programId) {
+        c.programId = programId;
+        c.amount = amount;
+        if (c.status === "renewal" || c.status === "active") c.status = "waiting_payment";
+      }
       if (l) l.renewalSent = TODAY;
       if (c) c.renewalSent = TODAY;
       r.status = "SENT";
       r.sent = true;
       r.sentAt = TODAY;
-      if (m.noticeOnly || row.autoPay) {
-        state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal notice for ${row.locName}: ${r.proposedText}. AutoPay not charged.` });
+      r.programId = programId;
+      r.amount = amount;
+      const noticeOnly = (m.noticeOnly || row.autoPay) && programId === "12mo";
+      if (noticeOnly) {
+        state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal notice for ${row.locName}: ${r.proposedText} (${p?.name || programId}). AutoPay not charged.` });
       } else {
-        const inv = { id: nid("INV"), customerId: row.customerId, locationId: row.locationId, contractId: r.contractId, amount: r.amount || row.amount, status: "sent", sent: TODAY, paidOn: null, kind: "renewal", description: r.proposedText };
+        const inv = { id: nid("INV"), customerId: row.customerId, locationId: row.locationId, contractId: l?.contractId || r.contractId, amount, status: "sent", sent: TODAY, paidOn: null, kind: "renewal", description: r.proposedText, programId };
         state.data.invoices.push(inv);
-        state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal ${inv.id} to ${row.name} · ${row.locName}. No AutoPay charge.` });
+        if (l && programId) commitLocationPlan(l, programId, termStart, inv.id, row.customerId);
+        state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal ${inv.id} to ${row.name} · ${row.locName} · ${p?.name || programId}. No AutoPay charge.` });
       }
     });
-    const n = drafts.length;
+    const n = list.length;
     state.renewPick = [];
     state.modal = null;
-    toast(`Approved & sent ${n} renewal${n === 1 ? "" : "s"} after review. No AutoPay charges.`);
+    toast(`Sent ${n} renewal${n === 1 ? "" : "s"}. No AutoPay charges.`);
     render();
   }
 
@@ -6738,7 +7093,7 @@
       qty: Number(val("sv-qty") || 1),
       price: Number(val("sv-price") || 0),
       initialPrice: createInitial ? Number(val("sv-iprice") || val("sv-price") || 0) : 0,
-      tax: checked("sv-tax"),
+      // tax: checked("sv-tax"),
       locked: false,
       unscheduled: false,
       active: true,
