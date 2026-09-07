@@ -54,7 +54,7 @@
       title: "Owner",
       initials: "TM",
       color: "#c4a24a",
-      access: "Every module — customers, map, payments, memos, logs, reports, lists, and settings. Records are editable. Day-to-day posting still sits with Ops and Admin when you want them to run it.",
+      access: "You can open everything. Christy still posts payments day to day; Rick still runs the routes.",
       chips: ["All modules", "Can edit", "Reports & lists"],
     },
     ops: {
@@ -63,7 +63,7 @@
       title: "Operations / Dispatcher",
       initials: "RT",
       color: "#2d6a4c",
-      access: "Normal day: payment register → create the service → assign on the map. Click a technician’s home to see their properties. No commission or payroll.",
+      access: "Register shows who paid. Create the service, put it on the map, click a trapper’s home for their book. No commission or payroll here.",
       chips: ["Register", "Create service", "Assign on map"],
     },
     admin: {
@@ -72,7 +72,7 @@
       title: "Administration Director",
       initials: "CB",
       color: "#1d6a75",
-      access: "AutoPay pays & allocates overnight. You handle declines (contact → external pay → allocate → generate next period) and non-AutoPay register lines. Renewals prepare → review → send.",
+      access: "AutoPay runs overnight. You fix declines and match anything that hits the register by hand. Renewals: pick, check, send.",
       chips: ["AutoPay exceptions", "Allocate", "Renewals"],
     },
     // Sales (Rocco) and technician mobile (Johnny) hidden from demo login / switcher for now
@@ -101,8 +101,8 @@
       title: "System Administrator",
       initials: "AC",
       color: "#163528",
-      access: "Users, editable lists, templates, integration credentials, company settings.",
-      chips: ["SYS-01–05"],
+      access: "Users, lists, email templates, API keys, company defaults.",
+      chips: ["Users", "Lists", "Settings"],
     },
   };
 
@@ -483,7 +483,7 @@
           days: "Fri",
           durationMin: 180,
           locations: [{ id: "L-1020a", name: "Riverside Park", address: "Riverside Park (manual pin), Naples, FL", x: "20%", y: "74%", gps: "26.1420, -81.7948", manualPin: true }],
-          notes: "Municipal PO — schedule and create service without payment. Invoice after the service period (ADM-24). PO hours are the hard limit.",
+          notes: "Municipal PO — schedule without waiting for payment. Invoice after the service period. PO hours are the hard limit.",
           opsNote: "Pin is GPS-overridden; techs must tap-to-navigate.",
         },
         {
@@ -761,7 +761,7 @@
       ],
       comms: [
         { id: "CM-1", customerId: "C-1091", who: "Christy Brown", channel: "Email", date: "2026-08-20", text: "Previewed renewal notice. Holding send until she confirms prepaid vs monthly." },
-        { id: "CM-2", customerId: "C-1066", who: "Christy Brown", channel: "Call", date: "2026-08-26", text: "Left voicemail: auto-pay declined. Service paused until payment (BR-01)." },
+        { id: "CM-2", customerId: "C-1066", who: "Christy Brown", channel: "Call", date: "2026-08-26", text: "Left voicemail: auto-pay declined. Service paused until they pay." },
         { id: "CM-3", customerId: "C-1042", who: "Rick Torgerson", channel: "Call", date: "2026-08-18", text: "Diane asked to pause the Labor Day week. Noted on the account." },
         { id: "CM-4", customerId: "C-1180", who: "Rocco", channel: "Web form", date: "2026-08-26", text: "Inquiry: 12-month program for a Boca/Fort Lauderdale residence." },
       ],
@@ -2641,10 +2641,10 @@
               <div class="mark-badge">IC</div>
               <span>Iguana Control</span>
             </div>
-            <h1>One company.<br>One service book.</h1>
-            <p class="login-brand-copy">Florida’s iguana remediation CRM — customers, routes, payments, and renewals in one place for the people who run the work.</p>
+            <h1>Iguana Control</h1>
+            <p class="login-brand-copy">Customers, routes, payments, renewals — the same book we use every day.</p>
           </div>
-          <div class="login-meta">Iguana Control · Operations</div>
+          <div class="login-meta">Office + field</div>
         </aside>
         <main class="login-main">
           <div class="demo-flag">Click a person to enter — no password</div>
@@ -2781,7 +2781,7 @@
     if (state.page === "customer") return viewCustomer();
     if (!role()) return renderLogin();
     if (!canPage(state.page) && !isRecordPage(state.page)) {
-      return `<div class="forbidden"><h2>Not on this role’s routes</h2><p>${esc(role().name)} does not have ${esc(state.page)}. Switch people from the top bar, or go home.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
+      return `<div class="forbidden"><h2>Your login doesn’t include this screen</h2><p>${esc(role().name)} doesn’t have ${esc(state.page)}. Switch people from the top bar, or go home.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
     }
     const views = {
       dashboard: viewDashboard,
@@ -2816,7 +2816,7 @@
 
   function writeBar(action, label, extra = "") {
     if (can(action)) return extra;
-    return `<div class="notice locked">${esc(role().title)} is read-only here. “${esc(label)}” is an ${actionOwner(action)} operation.</div>`;
+    return `<div class="notice locked">${esc(role().title)} can’t do that here. “${esc(label)}” is for ${actionOwner(action)}.</div>`;
   }
   function actionOwner(action) {
     const ids = WRITE[action] || [];
@@ -2834,7 +2834,7 @@
     if (state.role === "admin") {
       try { return dashAdmin(); } catch (err) {
         console.error(err);
-        return `<div class="notice locked">Administration dashboard failed to draw (${esc(err.message)}). Use the names in the top bar — Christy is the third name.</div>`;
+        return `<div class="notice locked">Admin dashboard hit an error (${esc(err.message)}). Click <strong>Christy</strong> in the top bar and try again.</div>`;
       }
     }
     if (state.role === "sales") return dashSales();
@@ -2851,7 +2851,7 @@
     const mtos = (state.data.mtos || []).filter((m) => !m.read);
     const modules = [
       ["Customers", "customers", "Bill-Tos and properties"],
-      ["Quotes", "quotes", "Sales pipeline"],
+      ["Quotes", "quotes", "Sent quotes"],
       ["Schedule", "schedule", "Weekly board"],
       ["Map & routing", "map", "Trappers and stops"],
       ["One-off jobs", "oneoffs", "Live call-ins"],
@@ -2862,10 +2862,10 @@
       ["Invoices", "invoices", "Sent and open"],
       ["Renewal report", "renewals", "30–60 day window"],
       ["Commission", "commission", "Renewal splits"],
-      ["Documents", "documents", "COIs and files"],
-      ["Communication log", "comms", "Shared notes"],
+      ["Documents", "documents", "COIs, photos, files"],
+      ["Communication log", "comms", "Calls and notes"],
       ["Memo to Office", "mtos", "Tech memos"],
-      ["Tasks", "tasks", "Cross-role work"],
+      ["Tasks", "tasks", "Tom / Rick / Christy"],
       ["Duration report", "duration", "Sched vs clocked"],
       ["Removal report", "removals", "Counts and weight"],
       ["Reports hub", "reports", "All report tiles"],
@@ -2876,7 +2876,7 @@
       ["Integrations", "integrations", "Credentials"],
     ];
     return `
-      ${head("Owner overview", "Full company view — every module is on your routes. Edit when you need to; day-to-day posting still sits with Ops and Administration.")}
+      ${head("Owner overview", "Everything’s here. Edit when you need to — Christy and Rick still handle the daily posting.")}
       ${mine.length ? `
         <div class="card" style="margin-bottom:16px">
           <h3>My tasks <span class="muted">${mine.length} open</span></h3>
@@ -2895,7 +2895,7 @@
       </div>
       <div class="card section-gap">
         <h3>All modules</h3>
-        <p class="tiny">Open any route — customers, map, payments, memos, logs, reports, and system lists.</p>
+        <p class="tiny">Shortcuts into the screens you use.</p>
         <div class="owner-mod-grid">
           ${modules.map(([label, page, hint]) => `
             <button type="button" class="owner-mod" data-act="nav" data-page="${page}">
@@ -2941,7 +2941,7 @@
     const retrieve = (state.data.traps || []).filter((t) => t.status === "out" || t.status === "missing");
     const mine = myOpenTasks();
     return `
-      ${head("Dispatch board", "New paid properties need service once. Monthly AutoPay customers already have a trapper — payments keep the same service. Failed monthly pay → talk, then stop service if needed.")}
+      ${head("Dispatch board", "New paid account → set up service once. Monthly AutoPay keeps the same trapper. Card declines → call them, stop service if they won’t pay.")}
       ${mine.length ? `
         <div class="card" style="margin-bottom:16px">
           <h3>My tasks <span class="muted">${mine.length} open · from Tom / Christy</span></h3>
@@ -3026,7 +3026,8 @@
       ` : ""}
       ${mtos.length ? `
         <div class="card" style="margin-bottom:16px">
-          <h3>New memos from the field <span class="muted">they ping you — you do not have to open the stop</span></h3>
+          <h3>New memos from the field <span class="muted">${mtos.length}</span></h3>
+          <p class="tiny">Techs send these — you don’t have to open the stop first.</p>
           ${mtos.map(mtoCard).join("")}
         </div>
       ` : ""}
@@ -3039,7 +3040,7 @@
       <div class="split section-gap">
         <div class="card">
           <h3>Duration by trapper · this week</h3>
-          <p class="tiny">Minutes on property. Payroll is ~35% of revenue — this is how you see who is light vs loaded.</p>
+          <p class="tiny">Minutes on the property this week — who’s light vs loaded.</p>
           ${table(["Technician", "Stops", "Scheduled min"], TECHS.map((t) => {
             const ss = state.data.stops.filter((s) => s.techId === t.id && !s.pending);
             return [t.name, ss.length, ss.reduce((a, s) => a + s.durationMin, 0) + " min"];
@@ -3047,7 +3048,7 @@
         </div>
         <div class="card">
           <h3>Next few days</h3>
-          <p class="tiny">Sequence of stops — not a dumped monthly report.</p>
+          <p class="tiny">Stops in order for the next few days.</p>
           ${["Thu", "Fri"].map((d) => {
             const ss = state.data.stops.filter((s) => s.day === d && !s.pending).sort((a, b) => String(a.time).localeCompare(String(b.time)));
             return `<div class="tiny" style="margin:8px 0 4px"><strong>${d}</strong> · ${ss.length} stops</div>
@@ -3196,7 +3197,7 @@
       </div>
       <div class="card" style="margin-bottom:16px">
         <h3>Add a customer</h3>
-        <p class="tiny">Call → Bill-To + locations → quote → accept / contract invoice → payment → Ready for service.</p>
+        <p class="tiny">After the call: add Bill-To and properties, quote, invoice, then payment.</p>
         <div class="actions">${btn("customer.create", "Add customer", "new-customer")}</div>
       </div>
       <div class="grid-4">
@@ -3219,7 +3220,7 @@
         </div>
         <div class="card">
           <h3>Municipal</h3>
-          <p class="tiny">No pay-before gate. Service first → Rick confirms hours → invoice with PO + period → they pay. PO hours are the hard limit.</p>
+          <p class="tiny">Service first. Rick confirms hours. You invoice with PO and period. They pay later.</p>
           ${muni.length ? muni.map((c) => {
             const left = muniHoursRemaining(c);
             const warn = muniNearLimit(c);
@@ -3237,7 +3238,7 @@
     const inbound = (state.data.inbound || []).slice();
     const inquiries = state.data.customers.filter((c) => c.status === "inquiry");
     return `
-      ${head("Incoming", "Step 1. Add Bill-To and properties. Step 2. One quote with program options (same or different per property). Step 3. Client chooses. Step 4. Invoice each property and send.")}
+      ${head("Incoming", "Add Bill-To and properties, send a quote, they pick a plan, then invoice each property.")}
       <div class="card" style="margin-bottom:16px">
         <h3>Today’s calls and messages</h3>
         <p class="tiny">Click Add this customer. Fill the form. Instructions and whether they accept messages are on that form.</p>
@@ -3270,12 +3271,12 @@
 
   function dashSys() {
     return `
-      ${head("System administration", "Users, editable lists, templates, credentials, company defaults — the work PestPac used to hide behind the vendor.")}
+      ${head("System administration", "Users, lists, templates, keys, and company defaults. Change them here.")}
       <div class="grid-4">
-        ${stat("Active users", state.data.users.filter((u) => u.active).length, "SYS-01")}
-        ${stat("No-show reasons", REASONS.length, "SYS-02")}
-        ${stat("Commission default", state.data.settings.commissionPct + "%", "SYS-05")}
-        ${stat("Renewal window", state.data.settings.renewalWindow + " days", "ADM-10")}
+        ${stat("Active users", state.data.users.filter((u) => u.active).length, "Logins")}
+        ${stat("No-show reasons", REASONS.length, "Lists")}
+        ${stat("Commission default", state.data.settings.commissionPct + "%", "Default %")}
+        ${stat("Renewal window", state.data.settings.renewalWindow + " days", "Days out")}
       </div>
       <div class="card section-gap">
         <h3>Open a system screen</h3>
@@ -3315,7 +3316,7 @@
 
   function viewAddCustomer() {
     if (!can("customer.create")) {
-      return `<div class="forbidden"><h2>Not on this role’s routes</h2><p>Only Sales and Administration add customers.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
+      return `<div class="forbidden"><h2>Your login doesn’t include this screen</h2><p>Only Sales and Administration add customers.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
     }
     const inbound = (state.data.inbound || []).find((n) => n.id === state.inboundId);
     const html = window.IguanaIntake
@@ -3326,7 +3327,7 @@
 
   function viewCreateService() {
     if (!can("service.create")) {
-      return `<div class="forbidden"><h2>Not on this role’s routes</h2><p>This role cannot create services.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
+      return `<div class="forbidden"><h2>Your login doesn’t include this screen</h2><p>This login can’t create services.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
     }
     const c = custBy(state.setupId || state.selectedCustomer);
     if (!c) return `<p>Customer not found.</p><button class="btn btn-ghost" data-act="nav" data-page="customers">← Customers</button>`;
@@ -3518,7 +3519,7 @@
       ${can("customer.create")
         ? `<div class="page-head" style="margin-top:0"><div></div><div class="actions">${btn("customer.create", "New customer", "new-customer")}</div></div>`
         : state.role === "ops"
-          ? `<div class="notice locked">Operations does not create customers. New clients from Administration appear on your dashboard, newest first — assign them on the map.</div>`
+          ? `<div class="notice locked">Ops doesn’t add customers. When Admin puts someone on the register paid, they show up here — assign them on the map.</div>`
           : writeBar("customer.create", "New customer")}
       ${table(["ID", "Name", "Type", "Service address", "Status", "Dispatch"], rows)}
     `;
@@ -3606,9 +3607,9 @@
         </div>
         <div class="panel-box panel-locs-box">
           ${canEditLoc ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-locations" data-id="${c.id}">Edit locations</button>` : ""}
-          <div class="panel-kicker">Locations · 360°</div>
+          <div class="panel-kicker">Locations</div>
           <h3>${(c.locations || []).length} propert${(c.locations || []).length === 1 ? "y" : "ies"}</h3>
-          <p class="tiny">Proposal → contract + billing plan → invoice → allocate payment → Ready for service.</p>
+          <p class="tiny">Quote → invoice → pay → ready for service.</p>
           <div class="panel-locs" data-keep-scroll="panel-locs">
             ${(c.locations || []).map((l) => {
               const plan = locPlan(c, l);
@@ -3650,7 +3651,7 @@
                 <div class="tiny">GPS ${esc(gps)}${l.subdivision ? ` · ${esc(l.subdivision)}` : ""}</div>
                 <div class="tiny"><strong>Contract</strong> ${ct ? `${esc(ct.id)} · ${esc(ct.program || "")} · ${esc(ct.startDate || "")} → ${esc(ct.endDate || "")}` : "None yet"}</div>
                 <div class="tiny"><strong>Billing plan</strong> ${esc(billingPlanLabel(l))}${onAutopay ? " · AutoPay charges & allocates overnight — Christy does not mark those lines" : ""}</div>
-                ${apaFail ? `<div class="tiny" style="color:var(--bad,#b42318)">Decline recovery: contact customer → Record external payment → Allocate → Generate next period (manual). Rick can stop service if they will not pay.</div>` : ""}
+                ${apaFail ? `<div class="tiny" style="color:var(--bad,#b42318)">Declined: call them, take external pay, allocate, then generate the next period by hand. Rick can stop service if they won’t pay.</div>` : ""}
                 ${billingPeriodLabel(l) ? `<div class="tiny">${esc(billingPeriodLabel(l))}</div>` : ""}
                 ${periods.length ? `<div class="tiny" style="margin-top:6px"><strong>Periods</strong></div>
                   <table class="mini-table"><thead><tr><th>#</th><th>Dates</th><th>Amt</th><th>Inv</th><th>Status</th></tr></thead><tbody>
@@ -3754,7 +3755,7 @@
           <h3 style="margin:0">Documents <span class="muted">${docs.length}</span></h3>
           ${btn("docs.upload", "Attach file", "upload-doc", `data-id="${c.id}"`, "btn-ghost")}
         </div>
-        <p class="tiny">Choose a file from your computer and attach it to this Bill-To (COI, contracts, photos, police reports).</p>
+        <p class="tiny">Choose a file and attach it to this Bill-To.</p>
         ${docs.length ? docs.map((d) => docRowHtml(d, false)).join("") : `<p class="muted">No files on this account yet.</p>`}
       </div>
     `;
@@ -3936,7 +3937,7 @@
     const items = state.data.comms.filter((x) => x.customerId === c.id);
     return `
       <div class="card comm-log-card">
-        <h3>Shared communication log</h3>
+        <h3>Communication log</h3>
         <div class="comm-log-list" data-keep-scroll="comm-log">
           ${items.map((x) => `<div class="comm-item"><strong>${esc(x.who)}</strong> · ${esc(x.channel)} · ${esc(x.date)}<div>${esc(x.text)}</div></div>`).join("") || `<p class="muted">No correspondence yet.</p>`}
         </div>
@@ -3963,7 +3964,7 @@
         q.sent ? (q.programId ? "Client chose" : "Waiting on client") : btn("quote.send", "Preview & send", "send-quote", `data-id="${q.customerId}"`)];
     });
     return `
-      ${head("Quotes", "One quote per Bill-To. List the programs, name every property, and ask: same plan on all, or different per property? Then invoice each property after they choose.")}
+      ${head("Quotes", "One quote per Bill-To. List the programs and properties. After they pick, invoice each property.")}
       ${table(["Quote", "Bill-To", "Properties", "Program", "Status", "Date", ""], rows)}
     `;
   }
@@ -3977,11 +3978,11 @@
         <button class="${state.schedView === "month" ? "on" : ""}" data-act="sched-view" data-view="month">Monthly</button>
       </div>`;
     return `
-      ${head("Schedule", "Weekly board for the live week. Monthly calendar shows standing routes repeating through August. Stops land here after you assign a technician on the map.")}
+      ${head("Schedule", "This week’s board. Monthly shows standing routes. Stops show up after you assign on the map.")}
       ${writeBar("schedule.reassign", "Reassign")}
       ${genQ.length ? `<div class="notice">${genQ.length} assigned service(s) are not on this board yet. ${btn("schedule.generate", "Generate now", "generate-schedule")}</div>` : ""}
       ${toggle}
-      <div class="notice">Routes start and end at the technician’s home — there is no depot. Company blackouts: ${state.data.holidays.map(esc).join(", ")}. Reassigning a trapper moves the stop; it does not copy it.</div>
+      <div class="notice">Routes start and end at the tech’s home — no depot. Company blackouts: ${state.data.holidays.map(esc).join(", ")}. Reassign moves the stop; it doesn’t copy it.</div>
       ${state.schedView === "month" ? monthCalendar() : weekBoard()}
       <div class="card section-gap">
         <h3>Visit notices · 2 days before</h3>
@@ -4253,7 +4254,7 @@
     }, 0);
 
     return `
-      ${head("Visual Route Manager", "Master map shows every trapper. Click a trapper to drill into their book and day schedules. Shared properties are gray diamonds. Assign mode shows only the stop you are placing.")}
+      ${head("Map & routing", "All trappers on one map. Click a name for their book. Gray diamonds = shared. Assign mode only shows the stop you’re placing.")}
       ${writeBar("schedule.assign", "Assign")}
       ${assignMode ? `<div class="notice">Assigning <strong>${esc(focusCust.name)} · ${esc(focusLoc.name)}</strong> only — other waiting stops are hidden until you finish this one.</div>` : ""}
       <div class="map-toolbar">
@@ -4422,7 +4423,7 @@
     ].join("");
     const covered = c.locations.filter((l) => l.covered !== false);
     return `
-      ${head("Assign technician", "Optional close-up: drive times from each home to this property. Rick’s normal path is the geo map — click a technician home there to see their whole book.")}
+      ${head("Assign technician", "Drive times from each home to this property. Usual path: Map & routing → click a trapper’s home.")}
       ${writeBar("schedule.assign", "Assign")}
       <div class="legend">${TECHS.map((t) => `<span><i class="dot" style="background:${t.color}"></i> ${esc(t.name)}</span>`).join("")}<span><i class="dot" style="background:#c4a24a"></i> This property</span><span><i class="dot" style="background:#8a7a55"></i> Other properties</span></div>
       <div class="assign-stage">
@@ -4436,7 +4437,7 @@
         <div class="card assign-panel">
           <h3>${esc(c.name)}</h3>
           <p class="tiny">${esc(c.id)} · ${covered.length} ${covered.length === 1 ? "property" : "properties"} on this Bill-To</p>
-          ${!(c.paid || isMunicipal(c)) ? `<div class="notice locked">Not paid yet. You can still set the standing technician and days; live dispatch waits for payment (BR-01).</div>` : isMunicipal(c) ? `<div class="notice">Municipal PO — schedule without payment. Invoice after service against PO hours (${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"}).</div>` : `<div class="notice">${esc(loc?.name || "This property")} is on the map. Next stops for ${esc(state.assignDays)} are drawn from each tech’s home.</div>`}
+          ${!(c.paid || isMunicipal(c)) ? `<div class="notice locked">Not paid yet. You can still pick a trapper and days; live stops wait until it’s paid.</div>` : isMunicipal(c) ? `<div class="notice">Municipal PO — schedule without payment. Invoice after service against PO hours (${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"}).</div>` : `<div class="notice">${esc(loc?.name || "This property")} is on the map. Nearby stops for ${esc(state.assignDays)} draw from each tech’s home.</div>`}
           ${covered.length > 1 ? `
             <div class="field">
               <label>Property to catch iguanas</label>
@@ -4481,7 +4482,7 @@
     const live = state.data.stops.filter((s) => s.type === "oneoff" && !s.pending && s.status === "scheduled");
     const todayLive = live.filter((s) => s.day === day);
     return `
-      ${head("One-off / live call-in", "Customer calls — iguana in the toilet, garage, office. No full account. Rick finds the nearest trapper who has room on today’s route and drops the stop in.")}
+      ${head("One-off / live call-in", "Someone calls — toilet, garage, office. No full account. Drop it on whoever’s closest with room today.")}
       ${writeBar("oneoff.insert", "Create live job")}
       <div class="actions" style="margin-bottom:14px">
         ${btn("oneoff.insert", "New call-in job", "new-oneoff")}
@@ -4533,7 +4534,7 @@
 
   function viewCreateOneoff() {
     if (!can("oneoff.insert")) {
-      return `<div class="forbidden"><h2>Not on this role’s routes</h2><p>Only Operations drops live call-ins.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
+      return `<div class="forbidden"><h2>Your login doesn’t include this screen</h2><p>Only Operations drops live call-ins.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
     }
     const d = state.oneoffDraft || {};
     const day = d.day || todayDay();
@@ -4635,7 +4636,7 @@
     const pendingExt = state.data.stops.filter((s) => s.pendingExt);
     const thuJohnny = state.data.stops.filter((s) => s.techId === "johnny" && s.day === "Thu" && s.status === "scheduled");
     return `
-      ${head("Missed visits", "Gate, weather, a private event — log the miss. You approve or deny a contract extension. The system does not auto-add a make-up visit.")}
+      ${head("Missed visits", "Gate, weather, private event — log it. You decide on an extension. No automatic make-up visit.")}
       ${writeBar("noshow.mark", "Mark no-show")}
       ${pendingExt.length ? `
         <div class="card" style="margin-bottom:16px">
@@ -4704,8 +4705,8 @@
     });
     return `
       ${head("Duration / hours report", state.role === "admin"
-        ? "Municipal: clocked hours → invoice (name, PO, period). PO hours are the time limit — pay after service, not before."
-        : "Rick confirms field time here. Municipal rows show PO hours used / left — pass confirmed hours to Christy for the invoice.")}
+        ? "Municipal hours for the invoice (name, PO, period). PO hours are the limit — they pay after service."
+        : "Confirm field time here. Municipal rows show PO hours used / left — pass those to Christy for the invoice.")}
       ${state.role === "admin" || state.role === "owner" || state.role === "ops" ? `
         <div class="card" style="margin-bottom:16px">
           <h3>Hours per account <span class="muted">municipal · PO running total</span></h3>
@@ -4731,7 +4732,7 @@
         return [DAY_DATES[s.day] || s.day, stopLabel(s), techName(s.techId), s.removals.count, s.removals.weight + " lb"];
       });
     return `
-      ${head("Monthly removal report", "Only dates with actual removals — no empty visit noise (OPS-17 / RPT-03).")}
+      ${head("Monthly removal report", "Only days with actual removals. Zero-catch visits stay off this list.")}
       ${table(["Date", "Customer", "Technician", "Count", "Weight"], rows)}
       <p class="tiny">Customers who had visits but zero removals are omitted on purpose.</p>
     `;
@@ -4739,7 +4740,7 @@
 
   function viewWorkload() {
     return `
-      ${head("Route / workload", "Upcoming stops by technician for the next few days — sequence of service, not a dumped report. Dense routes list every stop.")}
+      ${head("Route / workload", "Next few days by trapper, in stop order. Busy routes show every stop.")}
       ${TECHS.map((t) => {
         const ss = state.data.stops.filter((s) => s.techId === t.id && !s.pending).sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || String(a.time).localeCompare(String(b.time)));
         const extra = t.id === "bobby" ? state.data.customers.find((c) => c.id === "C-1108")?.locations.filter((l) => l.covered !== false).length : 0;
@@ -4775,7 +4776,7 @@
       ];
     });
     return `
-      ${head("Invoices", "One invoice per property / billing period. Status is allocation-derived: OPEN, PARTIAL, or PAID. Full pay activates the contract for Ops.")}
+      ${head("Invoices", "One invoice per property / period. OPEN, PARTIAL, or PAID from what’s allocated. Paid in full → Ops can set up service.")}
       ${writeBar("invoice.send", "Send invoice")}
       <div class="actions" style="margin-bottom:10px">${btn("invoice.create", "Manual municipal invoice", "manual-invoice", "", "btn-ghost")}</div>
       ${table(["Invoice", "Bill-To", "Property", "Amount", "Paid", "Balance", "Status", "Kind", "Sent", ""], rows)}
@@ -4855,11 +4856,11 @@
     });
     return `
       ${head("Payment register", isOps
-        ? "After Christy allocates payment and balance is zero, open Bill-To and create service."
-        : "Record payment = create payment + allocation. Unallocated register lines still need Allocate on the property. Memos stay editable.")}
+        ? "When Christy’s done and the balance is $0, open the Bill-To and create the service."
+        : "Record payment posts and allocates. Portal lines may still need Allocate on the property. You can edit memos after save.")}
       ${isOps
-        ? `<div class="notice">You do not allocate invoices. When balance is zero: open Bill-To → create service → assign on the map.</div>`
-        : `<div class="notice">Sources: ONLINE / AUTOPAY / EXTERNAL. Direct post allocates in one step. Portal lines may await allocation.</div>`}
+        ? `<div class="notice">You don’t allocate invoices. When balance is zero: open Bill-To → create service → assign on the map.</div>`
+        : `<div class="notice">Online, AutoPay, and external payments land here. Portal lines sometimes still need Allocate on the property.</div>`}
       <div class="seg" style="margin-bottom:8px">
         ${filters.map(([id, lab]) => `<button class="${filter === id ? "on" : ""}" data-act="pay-filter" data-filter="${id}">${lab}</button>`).join("")}
       </div>
@@ -5063,10 +5064,10 @@
     });
     const pickedN = (state.renewPick || []).length;
     return `
-      ${head("Renewal report", "Select renewals → Send → confirm the list in the modal → Send.")}
+      ${head("Renewal report", "Check the ones to send, then Send — you’ll confirm the list.")}
       ${writeBar("renewal.send", "Send renewal")}
       <div class="notice">
-        Check one or more rows, then <strong>Send selected</strong>. A modal lists what will go out — confirm there. Use <strong>Review / edit</strong> only when the program needs to change (e.g. 1-month → 6/12). AutoPay is never charged on send.
+        Select rows, then <strong>Send selected</strong>. Confirm in the modal. Use <strong>Review / edit</strong> only if the program changed (e.g. 1-month → 6/12). Sending a notice does not charge AutoPay.
       </div>
       <div class="actions" style="margin-bottom:10px">
         <button class="btn btn-ghost" data-act="renew-select-all">Select all (${pickable.length})</button>
@@ -5086,11 +5087,11 @@
       return [b.period, custBtn(b.customerId, c?.name || "—"), money2(b.amount), b.splits.map((s) => `${techName(s.techId)} ${s.pct}% (${money2(s.dollars)})`).join(" · ")];
     });
     return `
-      ${head("Commission / bonus", "Renewal payments only — never first-term (BR-08). Split is a manual Administration entry at payment review, not auto-calculated from history. Dollar figure only; ADP stays outside the system.")}
+      ${head("Commission / bonus", "Renewal pay only — not the first term. You enter the split by hand. Dollars only; ADP stays outside.")}
       ${writeBar("commission.enter", "Enter split")}
       <div class="actions" style="margin-bottom:12px">${btn("commission.enter", "Enter split on next renewal", "enter-comm")}</div>
       ${table(["Period", "Account", "Bonus $", "Split"], rows)}
-      <p class="tiny">Default rate ${state.data.settings.commissionPct}% (SYS-05). Owner can read this report. Section 5 gives commission entry to Administration, not Ops.</p>
+      <p class="tiny">Default rate ${state.data.settings.commissionPct}%. Owner can read this. Christy’s team enters the split — not Ops.</p>
     `;
   }
 
@@ -5110,7 +5111,7 @@
     const kinds = ["coi", "contract", "photo", "police", "other"];
     const counts = kinds.map((k) => ({ k, n: docs.filter((d) => d.kind === k).length })).filter((x) => x.n);
     return `
-      ${head("Documents", "Choose a real file from your computer, pick the customer, and attach it to that Bill-To. Ops and Admin both see it.")}
+      ${head("Documents", "Attach a file to the Bill-To. Rick and Christy both see it.")}
       ${writeBar("docs.upload", "Upload")}
       <div class="doc-summary">
         ${counts.map((x) => `<span class="doc-chip">${docKindBadge(x.k)} <strong>${x.n}</strong></span>`).join("")}
@@ -5156,7 +5157,7 @@
   function viewComms() {
     const items = state.role === "sales" ? [] : state.data.comms;
     return `
-      ${head("Shared communication log", "Calls, emails, and texts on the account — visible to authorized staff, not trapped in a personal inbox (ADM-22).")}
+      ${head("Communication log", "Calls, emails, and texts on the account — the office can all see them.")}
       ${items.map((x) => {
         const c = custBy(x.customerId);
         return `<div class="comm-item">${custBtn(x.customerId, c?.name)} · ${esc(x.who)} · ${esc(x.channel)} · ${esc(x.date)}<div>${esc(x.text)}</div></div>`;
@@ -5185,7 +5186,7 @@
       return false;
     });
     return `
-      ${head("Memo to Office", "Private technician notes, routed to Operations or Administration — not a single management dump (OPS-22 / NOT-06).")}
+      ${head("Memo to Office", "Tech notes to Ops or Admin — stays on that memo.")}
       ${list.map(mtoCard).join("") || `<p class="muted">No memos for this department.</p>`}
     `;
   }
@@ -5211,7 +5212,7 @@
       ["all", "Everything"],
     ];
     return `
-      ${head("Tasks", "Tom, Rick, and Christy create tasks for each other about a customer. Open a Bill-To from the task, or create one from the customer page.")}
+      ${head("Tasks", "Tom, Rick, and Christy leave tasks for each other on a customer. Open the Bill-To from the task, or create one from the customer page.")}
       ${writeBar("task.create", "Create task")}
       <div class="seg" style="margin-bottom:12px">
         ${filters.map(([id, lab]) => `<button class="${filter === id ? "on" : ""}" data-act="task-filter" data-filter="${id}">${lab}</button>`).join("")}
@@ -5239,7 +5240,7 @@
     const traps = state.data.traps || [];
     const valueOut = traps.filter((t) => t.status !== "retrieved").reduce((s, t) => s + t.value, 0);
     return `
-      ${head("Trap assets", "Traps are ~$80 each. Track where they sit, update status, and pull them when a contract ends — the field notebook was losing them.")}
+      ${head("Trap assets", "Traps run about $80 each. Track where they are and pull them when the contract ends.")}
       ${writeBar("trap.update", "Update trap")}
       <div class="grid-3">
         ${stat("In the field", traps.filter((t) => t.status === "deployed" || t.status === "out").length, "Need a location")}
@@ -5267,15 +5268,15 @@
   }
 
   function viewReports() {
-    const ops = ["Duration vs scheduled (RPT-02)", "Route / workload (RPT-04)", "Monthly removals per customer (RPT-03)"];
-    const adm = ["Payment register that never disappears (RPT-01)", "Failed auto-pay (ADM-09)", "Renewal 30/60 with batch send (RPT-05)", "Hours per account / PO (municipal)", "Commission by technician (RPT-07)"];
-    const own = ["Non-renewal by technician (RPT-06, P2)", "Closing rate (RPT-08, P2)"];
+    const ops = ["Duration vs scheduled", "Route / workload", "Monthly removals"];
+    const adm = ["Payment register", "Failed auto-pay", "Renewals (30 / 60 days)", "Hours per account / PO (municipal)", "Commission by technician"];
+    const own = ["Non-renewals by technician", "Closing rate"];
     const show = [];
     if (["owner", "ops"].includes(state.role)) show.push(...ops);
     if (["owner", "admin"].includes(state.role)) show.push(...adm);
     if (state.role === "owner") show.push(...own);
     return `
-      ${head("Reports", "Each role only sees the reports that sit on their routes.")}
+      ${head("Reports", "Only the reports for your job.")}
       <ul class="settings-list">${show.map((s) => `<li><span>${esc(s)}</span><span class="muted">Available</span></li>`).join("")}</ul>
       <div class="actions section-gap">
         ${canPage("duration") ? `<button class="btn btn-ghost" data-act="nav" data-page="duration">Open duration</button>` : ""}
@@ -5290,7 +5291,7 @@
   /* ---------- System ---------- */
   function viewUsers() {
     return `
-      ${head("Users & roles", "Add, deactivate, assign a Section 5 role (SYS-01).")}
+      ${head("Users & roles", "Add people, turn logins off, set their role.")}
       ${writeBar("users.manage", "Edit users")}
       ${state.data.users.map((u) => `
         <div class="user-row">
@@ -5311,7 +5312,7 @@
 
   function viewLists() {
     return `
-      ${head("Configurable lists", "No-show reasons, removal fields, programs, holidays — editable without a developer (SYS-02).")}
+      ${head("Configurable lists", "No-show reasons, programs, holidays — change them here.")}
       ${writeBar("lists.edit", "Add reason")}
       <div class="split">
         <div class="card">
@@ -5324,9 +5325,9 @@
           ${btn("lists.edit", "Add reason", "add-reason")}
         </div>
         <div class="card">
-          <h3>Programs in use (~7–8, not the legacy pile)</h3>
+          <h3>Programs we use</h3>
           <ul class="settings-list">${PROGRAMS.map((p) => `<li><span>${esc(p.name)}</span><span class="muted">${money(p.list)}</span></li>`).join("")}</ul>
-          <h3 class="section-gap">Service types they actually use</h3>
+          <h3 class="section-gap">Service types</h3>
           <ul class="settings-list">${SERVICE_TYPES.map((t) => `<li><span>${esc(t.code)} · ${esc(t.label)}</span><span class="muted">${fmtDur(t.duration)}</span></li>`).join("")}</ul>
         </div>
       </div>
@@ -5379,7 +5380,7 @@
 
   function viewIntegrations() {
     return `
-      ${head("Integration credentials", "Stored here, not hardcoded (SYS-03). Payment card data never touches this app.")}
+      ${head("Integration credentials", "API keys and processor settings. Card numbers never go in this app.")}
       <div class="card">
         <div class="field"><label>Google Maps Platform key</label><input class="inline-edit" data-edit="integration" data-field="mapsKey" value="${esc(state.data.integrations?.mapsKey || "")}" placeholder="Stored here, not hardcoded"></div>
         <div class="field"><label>Payment processor</label><input class="inline-edit" data-edit="integration" data-field="processor" value="${esc(state.data.integrations?.processor || "")}" placeholder="Portal / website / ACH — card data never stored"></div>
@@ -5444,7 +5445,7 @@
             <div class="tiny">${esc(loc?.address || s.address || "")}</div>
           </div>
           <div class="phone-body">
-            <div class="notice">No invoice, price, or payment on this screen (MOB-07).</div>
+            <div class="notice">No invoice, price, or payment on this screen.</div>
             ${(() => {
               const gps = loc?.gps || (loc ? approxGps(loc) : "");
               return gps ? `
@@ -5495,7 +5496,7 @@
         <div class="pay-box">
           <div class="mark" style="margin-bottom:16px"><div class="mark-badge">IC</div><span>Iguana Control</span></div>
           <h2 style="font-family:var(--display);font-size:28px;margin-bottom:8px">Pay an invoice</h2>
-          <p class="muted">No login. Invoice link, website checkout, or ACH — these post themselves on the register.</p>
+          <p class="muted">No login. Pay by invoice link, website, or ACH — it shows up on the register.</p>
           <div class="field"><label>Invoice number</label>
             <input id="pay-id" value="${esc(state.payInvoice)}" placeholder="INV-4510">
           </div>
@@ -5507,7 +5508,7 @@
             <button class="btn btn-ghost" data-act="lookup-pay">Look up</button>
             <button class="btn btn-primary" data-act="pay-now" ${inv && inv.status !== "paid" ? "" : "disabled"}>Pay ${inv ? money(inv.amount) : ""}</button>
           </div>
-          <p class="tiny">Checks Tom deposits and bank wires are posted by Administration. Your name stays on the payment register — it does not disappear into a batch total.</p>
+          <p class="tiny">Checks Tom deposits and bank wires are posted by Administration. Your name stays on the register line (not rolled into a batch).</p>
           <p class="tiny section-gap"><button class="btn btn-ghost" data-act="close-pay">Back to CRM</button></p>
         </div>
       </div>
@@ -6174,7 +6175,7 @@
       "complete-stop": () => completeStop(ds.id),
       "miss-stop": () => missStop(ds.id),
       "add-photo": () => addPhoto(ds.id),
-      navigate: () => toast("Would open native Maps at " + ds.gps + " (MOB-09)."),
+      navigate: () => toast("Would open Maps at " + ds.gps + "."),
     };
     (actions[name] || (() => {}))();
   }
@@ -6657,7 +6658,7 @@
         <strong>${esc(p.name)}</strong>
         <div>Billing: ${commitment.billingFrequency === "monthly" ? "Monthly" : "Upfront"} · Invoice amount: ${money(amount)}${commitment.autoPay ? " · AutoPay recommended" : ""}</div>
         <div>Visit pattern: ${esc(p.freq)}</div>
-        <div>Start ${TODAY} → expires ${expires} <span class="tiny">(BR-04, system-calculated)</span></div>
+        <div>Start ${TODAY} → expires ${expires} <span class="tiny">(calculated from the program)</span></div>
         <div class="tiny" style="margin-top:6px">${esc(billing)}</div>
       </div>
     `;
@@ -6755,7 +6756,7 @@
     const cmt = loc.commitment;
     state.data.comms.push({
       id: nid("CM"), customerId: c.id, who: role().name, channel: "Email", date: TODAY,
-      text: `Contract + invoice ${inv.id} for ${loc.name} (${billingPlanLabel(loc)})${wantAutopay ? " · AutoPay ON — overnight charge allocates without Christy marking the register" : " · AutoPay OFF — Christy allocates from the register"}. Pending payment — Ops unlocks when balance is zero.`,
+      text: `Contract + invoice ${inv.id} for ${loc.name} (${billingPlanLabel(loc)})${wantAutopay ? " · AutoPay ON — overnight charge posts without Christy marking the register" : " · AutoPay OFF — Christy allocates from the register"}. Waiting on payment — Ops sets up service when the balance is zero.`,
     });
     state.modal = null;
     state.page = "customer";
@@ -6791,7 +6792,7 @@
       wide: true,
       html: `
         <h3>Send invoice to all</h3>
-        <p>Bill-To ${esc(c.billTo || c.name)}. Each property gets its own contract + billing plan + period-1 invoice (PENDING PAYMENT). Ops unlocks only after full allocation.</p>
+        <p>Bill-To ${esc(c.billTo || c.name)}. Each property gets its own invoice. Ops sets up service after it’s paid in full.</p>
         ${blocks}
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
@@ -8223,7 +8224,7 @@
     state.modal = {
       html: `
         <h3>Reassign ${esc(c.name)}</h3>
-        <p>This moves the existing stop. It does not copy it onto a second technician (OPS-25).</p>
+        <p>This moves the existing stop. It does not put a copy on a second technician.</p>
         <div class="bestfit">
           ${TECHS.map((t) => `<button class="bestfit-card" data-act="confirm-reassign" data-id="${c.id}" data-tech="${t.id}" data-day="Fri">${esc(t.name)} · Friday</button>`).join("")}
         </div>
@@ -8436,7 +8437,7 @@
     state.data.stops.forEach((s) => {
       if (s.day === "Fri" && s.status === "scheduled") s.status = "blocked_off";
     });
-    toast("Friday blocked company-wide. Existing stops are not flagged missed and contracts are not extended (OPS-12a).");
+    toast("Friday blocked company-wide. Existing stops aren’t marked missed and contracts aren’t extended.");
     render();
   }
 
@@ -8460,7 +8461,7 @@
     s.fault = "customer";
     s.reason = "Gated — no answer";
     s.extended = false;
-    toast("Customer-fault miss logged. Contract is not extended (BR-05).");
+    toast("Customer-fault miss logged. Contract is not extended.");
     render();
   }
 
@@ -8596,7 +8597,7 @@
     state.modal = {
       html: `
         <h3>Allocate payment · ${esc(inv.id)}</h3>
-        <p>Post / confirm allocation to this invoice. When balance reaches zero the contract becomes <strong>ACTIVE</strong> and Rick can create service.</p>
+        <p>Post / confirm payment on this invoice. When the balance hits zero the contract goes active and Rick can create service.</p>
         <div class="preview"><strong>${esc(inv.id)}</strong> · Bill-To ${esc(c?.billTo || c?.name || "")} · ${esc(invProperty(inv))} · Amount ${money(inv.amount)} · Paid ${money(allocated(inv.id))} · Balance ${money(bal)} · ${esc(invoiceFinStatus(inv))}</div>
         <div class="field"><label>Method</label>
           <select id="rp-method">${pay().optionsHtml(methodDefault)}</select>
@@ -8706,7 +8707,7 @@
     state.modal = {
       html: `
         <h3>Edit payment memo</h3>
-        <p>Memos stay editable after save (ADM-14). Used to tie a payment to a location for bonus calc.</p>
+        <p>You can edit memos after save. Use them to note which location a payment was for (bonus tracking).</p>
         <div class="field"><label>Memo</label><textarea id="memo-text" rows="3">${esc(p.memo)}</textarea></div>
         <div class="actions">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
@@ -8721,7 +8722,7 @@
     const p = state.data.payments.find((x) => x.id === id);
     p.memo = val("memo-text");
     state.modal = null;
-    toast("Memo updated after posting. The register did not lock the field.");
+    toast("Memo saved.");
     render();
   }
 
@@ -8906,7 +8907,7 @@
         <h3>${esc(d.name)}</h3>
         <p class="tiny">${docKindBadge(d.kind)} · ${custBtn(d.customerId, c?.billTo || c?.name || "—")} · ${esc(d.by)} · ${esc(d.date)}</p>
         ${d.note ? `<p>${esc(d.note)}</p>` : ""}
-        <div class="notice">Sample seed file — no binary stored. Attach a new file with <strong>Choose file…</strong> to view / download it here.</div>
+        <div class="notice">This is a sample placeholder — no real file behind it. Attach a new one with <strong>Choose file…</strong> if you want to open or download it.</div>
         <div class="actions" style="margin-top:12px"><button class="btn btn-primary" data-act="close-modal">Close</button></div>
       `,
     };
@@ -8966,7 +8967,7 @@
     const s = state.data.stops.find((x) => x.id === id);
     s.status = "in_progress";
     s.startedAt = Date.now();
-    toast("Clock started (OPS-14).");
+    toast("Clock started.");
     render();
   }
 
@@ -8995,7 +8996,7 @@
     s.draftWt = val("rem-wt");
     s.draftMto = val("mto-text");
     s.draftDept = val("mto-dept");
-    toast("Photo queued on this stop (MOB-05 / OPS-21).");
+    toast("Photo added on this stop.");
     render();
   }
 
@@ -9056,7 +9057,7 @@
       wide: true,
       html: `
         <h3>Assign ${n} selected ${n === 1 ? "property" : "properties"}</h3>
-        <p class="tiny">Selected duration ${fmtClock(selectDur)}. Choose schedule and trapper — same Clear / Assign flow as Visual Route Manager.</p>
+        <p class="tiny">Selected duration ${fmtClock(selectDur)}. Pick schedule and trapper, then Assign.</p>
         <div class="setup-grid">
           <div class="field req"><label>Action</label>
             <select id="bulk-mode">

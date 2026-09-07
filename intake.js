@@ -26,7 +26,7 @@
           <strong>Service location ${i + 1}</strong>
           ${removable ? `<button type="button" class="btn btn-ghost" data-act="remove-loc-row" data-index="${i}">Remove</button>` : ""}
         </div>
-        <p class="tiny">Each property has its own map. Type address or lat/long, or drag / click the pin — fields stay in sync.</p>
+        <p class="tiny">Each property has its own map. Type the address or lat/long, or drag the pin — they stay matched.</p>
         <div class="loc-map-row">
           <div class="loc-map-fields">
             <div class="intake-grid">
@@ -80,9 +80,9 @@
       <div class="intake">
         <div class="intake-bar">
           <div>
-            <div class="tiny">Step 1 · After the call or message</div>
+            <div class="tiny">After the call or message</div>
             <h2>Add customer</h2>
-            <p class="muted">One Bill-To. Add properties with their own maps. Quote next. Client picks the plan. Then invoice each property.</p>
+            <p class="muted">One Bill-To, then the properties. Save first — quote comes after. Don’t pick a plan on this form.</p>
           </div>
           <div class="actions">
             <button class="btn btn-ghost" data-act="cancel-add" type="button">Cancel</button>
