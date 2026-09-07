@@ -766,9 +766,18 @@
         { id: "CM-4", customerId: "C-1180", who: "Rocco", channel: "Web form", date: "2026-08-26", text: "Inquiry: 12-month program for a Boca/Fort Lauderdale residence." },
       ],
       documents: [
-        { id: "D-1", customerId: "C-1020", name: "COI — Coastal Parks 2026.pdf", by: "Christy Brown", date: "2026-01-06" },
-        { id: "D-2", customerId: "C-1108", name: "HOA board approval.pdf", by: "Michelle", date: "2026-01-12" },
-        { id: "D-3", customerId: "C-1042", name: "Gate photo.jpg", by: "Johnny", date: "2026-08-24" },
+        { id: "D-1", customerId: "C-1020", locationId: "L-1020a", kind: "coi", name: "COI — Coastal Parks 2026.pdf", by: "Christy Brown", date: "2026-01-06", note: "Sent to city AP for PO-4481." },
+        { id: "D-2", customerId: "C-1020", locationId: "L-1020a", kind: "contract", name: "Municipal service agreement 2026.pdf", by: "Tom Portuallo", date: "2026-01-02", note: "Signed park monitoring agreement." },
+        { id: "D-3", customerId: "C-1020", locationId: "L-1020a", kind: "photo", name: "Riverside Park — trap line.jpg", by: "Alejo", date: "2026-08-15", note: "Field photo after Friday run." },
+        { id: "D-4", customerId: "C-1108", locationId: "L-1108a", kind: "contract", name: "HOA board approval.pdf", by: "Michelle", date: "2026-01-12", note: "Board OK for community program." },
+        { id: "D-5", customerId: "C-1108", locationId: "L-1108a", kind: "photo", name: "Clubhouse pond access.jpg", by: "Bobby", date: "2026-08-20", note: "Gate code on the photo note." },
+        { id: "D-6", customerId: "C-1042", locationId: "L-1042a", kind: "photo", name: "Gate / canal access.jpg", by: "Johnny", date: "2026-08-24", note: "How to reach the back canal." },
+        { id: "D-7", customerId: "C-1042", locationId: "L-1042a", kind: "other", name: "Customer site instructions.pdf", by: "Christy Brown", date: "2026-03-10", note: "Diane’s written access notes." },
+        { id: "D-8", customerId: "C-1066", locationId: "L-1066a", kind: "police", name: "Vehicle incident report — Aug 2026.pdf", by: "Christy Brown", date: "2026-08-12", note: "Admin file — not Ops-only." },
+        { id: "D-9", customerId: "C-1066", locationId: "L-1066a", kind: "coi", name: "COI — commercial account.pdf", by: "Michelle", date: "2026-04-01", note: "On file for property manager." },
+        { id: "D-10", customerId: "C-1112", locationId: "L-1112a", kind: "photo", name: "Preserve pin location.jpg", by: "Johnny", date: "2026-08-10", note: "Before trap IC-330 went missing." },
+        { id: "D-11", customerId: "C-1091", locationId: "L-1091a", kind: "contract", name: "Signed 12-month program.pdf", by: "Rocco", date: "2025-09-24", note: "Original acceptance scan." },
+        { id: "D-12", customerId: "C-1020", locationId: "L-1020a", kind: "other", name: "July hours timesheet export.pdf", by: "Rick Torgerson", date: "2026-08-02", note: "Confirmed hours for Christy’s invoice." },
       ],
       traps: [
         { id: "T-441", serial: "IC-441", customerId: "C-1042", locationId: "L-1042a", status: "deployed", value: 80, lastSeen: "2026-08-24", note: "Back canal. Johnny confirmed on Mon." },
@@ -3731,8 +3740,23 @@
         </div>
       </div>
       ${showMoney ? paymentHistoryCard(c) : ""}
+      ${["ops", "owner", "admin"].includes(state.role) ? customerDocumentsCard(c) : ""}
       ${["ops", "owner"].includes(state.role) ? serviceHistoryCard(c) : ""}
       ${["owner", "ops", "admin"].includes(state.role) ? customerTasksCard(c) : ""}
+    `;
+  }
+
+  function customerDocumentsCard(c) {
+    const docs = docsForCustomer(c.id).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    return `
+      <div class="card section-gap">
+        <div class="actions" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+          <h3 style="margin:0">Documents <span class="muted">${docs.length}</span></h3>
+          ${btn("docs.upload", "Attach file", "upload-doc", `data-id="${c.id}"`, "btn-ghost")}
+        </div>
+        <p class="tiny">Choose a file from your computer and attach it to this Bill-To (COI, contracts, photos, police reports).</p>
+        ${docs.length ? docs.map((d) => docRowHtml(d, false)).join("") : `<p class="muted">No files on this account yet.</p>`}
+      </div>
     `;
   }
 
@@ -5070,16 +5094,63 @@
     `;
   }
 
+  function docKindLabel(kind) {
+    return ({ coi: "COI", photo: "Photo", police: "Police / incident", contract: "Contract", other: "Other" })[kind] || "File";
+  }
+  function docKindBadge(kind) {
+    const map = { coi: "badge-sea", photo: "badge-ok", police: "badge-bad", contract: "badge-warn", other: "badge-mute" };
+    return `<span class="badge ${map[kind] || "badge-mute"}">${esc(docKindLabel(kind))}</span>`;
+  }
+  function docsForCustomer(cid) {
+    return (state.data.documents || []).filter((d) => d.customerId === cid);
+  }
+
   function viewDocuments() {
+    const docs = (state.data.documents || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const kinds = ["coi", "contract", "photo", "police", "other"];
+    const counts = kinds.map((k) => ({ k, n: docs.filter((d) => d.kind === k).length })).filter((x) => x.n);
     return `
-      ${head("Documents", "COIs, police reports, photos — visible across departments, not siloed to Ops (ADM-13).")}
+      ${head("Documents", "Choose a real file from your computer, pick the customer, and attach it to that Bill-To. Ops and Admin both see it.")}
       ${writeBar("docs.upload", "Upload")}
-      <div class="actions" style="margin-bottom:12px">${btn("docs.upload", "Attach document", "upload-doc")}</div>
-      ${state.data.documents.map((d) => {
-        const c = custBy(d.customerId);
-        return `<div class="doc-row"><div><strong>${esc(d.name)}</strong><div class="tiny">${custBtn(d.customerId, c?.name)} · ${esc(d.by)}</div></div><span class="muted">${esc(d.date)}</span></div>`;
-      }).join("")}
+      <div class="doc-summary">
+        ${counts.map((x) => `<span class="doc-chip">${docKindBadge(x.k)} <strong>${x.n}</strong></span>`).join("")}
+        <span class="tiny">${docs.length} files on file</span>
+      </div>
+      <div class="actions" style="margin-bottom:12px">${btn("docs.upload", "Attach document", "upload-doc", "", "btn-sun")}</div>
+      <div class="card doc-list">
+        ${docs.length ? docs.map((d) => docRowHtml(d, true)).join("") : `<p class="muted">No documents yet. Attach one to a customer.</p>`}
+      </div>
     `;
+  }
+
+  function docExt(name) {
+    return ((name || "").match(/\.([a-z0-9]+)$/i) || [, "file"])[1].toUpperCase();
+  }
+  function fmtDocSize(n) {
+    const b = Number(n) || 0;
+    if (!b) return "";
+    if (b < 1024) return b + " B";
+    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + " KB";
+    return (b / (1024 * 1024)).toFixed(1) + " MB";
+  }
+  function docRowHtml(d, showCustomer) {
+    const c = custBy(d.customerId);
+    const loc = d.locationId ? locBy(d.customerId, d.locationId) : null;
+    const ext = docExt(d.name);
+    const isImg = !!(d.mime || "").startsWith("image/") || ["JPG", "JPEG", "PNG", "GIF", "WEBP"].includes(ext);
+    return `<div class="doc-row">
+      <div class="doc-icon${isImg && d.dataUrl ? " has-thumb" : ""}" aria-hidden="true">${isImg && d.dataUrl ? `<img src="${d.dataUrl}" alt="">` : (isImg ? "IMG" : ext.slice(0, 4))}</div>
+      <div class="doc-body">
+        <div class="doc-title">${docKindBadge(d.kind)} <strong>${esc(d.name)}</strong></div>
+        <div class="tiny">${showCustomer ? `${custBtn(d.customerId, c?.billTo || c?.name || "—")}${loc ? ` · ${esc(loc.name)}` : ""} · ` : (loc ? `${esc(loc.name)} · ` : "")}by ${esc(d.by)}${d.size ? ` · ${fmtDocSize(d.size)}` : ""}${d.mime ? ` · ${esc(d.mime.split("/").pop())}` : ""}</div>
+        ${d.note ? `<div class="tiny doc-note">${esc(d.note)}</div>` : ""}
+      </div>
+      <div class="doc-meta">
+        <span class="muted">${esc(d.date)}</span>
+        ${d.dataUrl || d.fileName ? `<button type="button" class="btn btn-ghost" data-act="view-doc" data-id="${d.id}">View</button>` : `<button type="button" class="btn btn-ghost" data-act="view-doc" data-id="${d.id}">Details</button>`}
+        ${showCustomer ? `<button type="button" class="btn btn-ghost" data-act="open-customer" data-id="${d.customerId}">Open account</button>` : ""}
+      </div>
+    </div>`;
   }
 
   function viewComms() {
@@ -6089,7 +6160,9 @@
       "edit-memo": () => openMemo(ds.id),
       "save-memo": () => saveMemo(ds.id),
       "add-comm": () => addComm(ds.id),
-      "upload-doc": () => uploadDoc(),
+      "upload-doc": () => uploadDoc(ds.id),
+      "save-upload-doc": () => saveUploadDoc(),
+      "view-doc": () => viewDoc(ds.id),
       "toggle-user": () => toggleUser(ds.id),
       "add-reason": () => addReason(),
       "save-settings": () => saveSettings(),
@@ -8652,13 +8725,191 @@
     render();
   }
 
-  function uploadDoc() {
-    if (!can("docs.upload")) return;
-    state.data.documents.unshift({
-      id: nid("D"), customerId: "C-1042", name: "Service photo — Walsh.jpg",
-      by: role().name, date: TODAY,
-    });
-    toast("Document attached on the account — visible to Ops and Admin, not siloed.");
+  function uploadDoc(customerId) {
+    if (!can("docs.upload") && state.role !== "owner") return;
+    const custs = state.data.customers.filter((c) => c.status !== "inquiry" || isMunicipal(c));
+    const pick = custBy(customerId) || custBy(state.selectedCustomer) || custs[0];
+    const kinds = [
+      ["coi", "COI — insurance certificate"],
+      ["contract", "Contract / agreement"],
+      ["photo", "Photo"],
+      ["police", "Police / incident report"],
+      ["other", "Other file"],
+    ];
+    state.modal = {
+      wide: true,
+      html: `
+        <h3>Attach document</h3>
+        <p class="tiny">Pick a file from your computer, then link it to a customer account.</p>
+        <div class="field req"><label>File</label>
+          <label class="doc-file-pick" for="doc-file">
+            <input type="file" id="doc-file" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,image/*,application/pdf">
+            <span class="doc-file-btn">Choose file…</span>
+            <span class="doc-file-name" id="doc-file-label">No file chosen</span>
+          </label>
+          <div class="doc-file-preview" id="doc-file-preview" hidden></div>
+        </div>
+        <div class="field req"><label>Customer (Bill-To)</label>
+          <select id="doc-cust">${custs.map((c) => `<option value="${c.id}" ${c.id === pick?.id ? "selected" : ""}>${esc(c.billTo || c.name)}</option>`).join("")}</select>
+        </div>
+        <div class="field req"><label>Type</label>
+          <select id="doc-kind">${kinds.map(([id, lab]) => `<option value="${id}">${esc(lab)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Display name <span class="tiny">(defaults to the file name)</span></label>
+          <input id="doc-name" placeholder="Uses the chosen file name">
+        </div>
+        <div class="field"><label>Note</label>
+          <input id="doc-note" placeholder="Optional — why this is on the account">
+        </div>
+        <div class="actions" style="margin-top:12px">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="save-upload-doc">Attach file to account</button>
+        </div>
+      `,
+    };
+    render();
+    setTimeout(() => bindDocFilePicker(), 0);
+  }
+
+  function bindDocFilePicker() {
+    const fileEl = document.getElementById("doc-file");
+    const label = document.getElementById("doc-file-label");
+    const nameEl = document.getElementById("doc-name");
+    const preview = document.getElementById("doc-file-preview");
+    const kindEl = document.getElementById("doc-kind");
+    if (!fileEl) return;
+    fileEl.onchange = () => {
+      const file = fileEl.files && fileEl.files[0];
+      if (!file) {
+        if (label) label.textContent = "No file chosen";
+        if (preview) { preview.hidden = true; preview.innerHTML = ""; }
+        return;
+      }
+      if (label) label.textContent = `${file.name} · ${fmtDocSize(file.size)}`;
+      if (nameEl && !nameEl.value.trim()) nameEl.value = file.name;
+      else if (nameEl && nameEl.dataset.fromFile !== "0") nameEl.value = file.name;
+      nameEl.dataset.fromFile = "1";
+      const lower = file.name.toLowerCase();
+      if (kindEl) {
+        if (/\.(jpg|jpeg|png|gif|webp)$/.test(lower)) kindEl.value = "photo";
+        else if (/coi|insurance|cert/.test(lower)) kindEl.value = "coi";
+        else if (/police|incident|accident/.test(lower)) kindEl.value = "police";
+        else if (/contract|agreement|signed/.test(lower)) kindEl.value = "contract";
+      }
+      if (preview && file.type.startsWith("image/") && file.size <= 2_500_000) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          preview.hidden = false;
+          preview.innerHTML = `<img src="${reader.result}" alt="Preview">`;
+        };
+        reader.readAsDataURL(file);
+      } else if (preview) {
+        preview.hidden = false;
+        preview.innerHTML = `<div class="tiny">Ready to attach · ${esc(file.type || "file")} · ${fmtDocSize(file.size)}</div>`;
+      }
+    };
+    if (nameEl) {
+      nameEl.oninput = () => { nameEl.dataset.fromFile = "0"; };
+    }
+  }
+
+  function saveUploadDoc() {
+    if (!can("docs.upload") && state.role !== "owner") return;
+    const cid = val("doc-cust");
+    const c = custBy(cid);
+    if (!c) {
+      toast("Pick a customer.");
+      return;
+    }
+    const fileEl = document.getElementById("doc-file");
+    const file = fileEl && fileEl.files && fileEl.files[0];
+    if (!file) {
+      toast("Choose a file first — use Choose file…");
+      return;
+    }
+    if (file.size > 4_500_000) {
+      toast("File is too large for this demo (max ~4.5 MB). Pick a smaller file.");
+      return;
+    }
+    const kind = val("doc-kind") || "other";
+    const name = (val("doc-name") || file.name || "Attached file").trim();
+    const note = val("doc-note") || "Attached from Documents workspace.";
+    const loc = (c.locations || [])[0];
+    const reader = new FileReader();
+    reader.onerror = () => toast("Could not read that file.");
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      // Keep preview data for images / small files; skip huge payloads in localStorage
+      const keepData = file.type.startsWith("image/") ? file.size <= 900_000 : file.size <= 350_000;
+      state.data.documents.unshift({
+        id: nid("D"),
+        customerId: c.id,
+        locationId: loc?.id || null,
+        kind,
+        name,
+        fileName: file.name,
+        mime: file.type || "",
+        size: file.size,
+        dataUrl: keepData ? dataUrl : null,
+        by: role().name,
+        date: TODAY,
+        note,
+      });
+      state.modal = null;
+      toast(`Attached “${name}” on ${c.billTo || c.name}.`);
+      render();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function viewDoc(id) {
+    const d = (state.data.documents || []).find((x) => x.id === id);
+    if (!d) return;
+    const c = custBy(d.customerId);
+    const isImg = !!(d.mime || "").startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(d.name || "");
+    if (d.dataUrl && isImg) {
+      state.modal = {
+        wide: true,
+        html: `
+          <h3>${esc(d.name)}</h3>
+          <p class="tiny">${custBtn(d.customerId, c?.billTo || c?.name || "—")} · ${esc(d.by)} · ${esc(d.date)}${d.size ? ` · ${fmtDocSize(d.size)}` : ""}</p>
+          ${d.note ? `<p class="tiny">${esc(d.note)}</p>` : ""}
+          <div class="doc-view-frame"><img src="${d.dataUrl}" alt="${esc(d.name)}"></div>
+          <div class="actions" style="margin-top:12px">
+            <a class="btn btn-ghost" href="${d.dataUrl}" download="${esc(d.fileName || d.name)}">Download</a>
+            <button class="btn btn-primary" data-act="close-modal">Close</button>
+          </div>
+        `,
+      };
+      render();
+      return;
+    }
+    if (d.dataUrl) {
+      state.modal = {
+        wide: true,
+        html: `
+          <h3>${esc(d.name)}</h3>
+          <p class="tiny">${custBtn(d.customerId, c?.billTo || c?.name || "—")} · ${esc(d.mime || "file")}${d.size ? ` · ${fmtDocSize(d.size)}` : ""}</p>
+          ${d.note ? `<p class="tiny">${esc(d.note)}</p>` : ""}
+          <div class="notice">File is on this account. Open / download it below.</div>
+          <div class="actions" style="margin-top:12px">
+            <a class="btn btn-sun" href="${d.dataUrl}" download="${esc(d.fileName || d.name)}" target="_blank" rel="noopener">Open / download file</a>
+            <button class="btn btn-ghost" data-act="close-modal">Close</button>
+          </div>
+        `,
+      };
+      render();
+      return;
+    }
+    state.modal = {
+      html: `
+        <h3>${esc(d.name)}</h3>
+        <p class="tiny">${docKindBadge(d.kind)} · ${custBtn(d.customerId, c?.billTo || c?.name || "—")} · ${esc(d.by)} · ${esc(d.date)}</p>
+        ${d.note ? `<p>${esc(d.note)}</p>` : ""}
+        <div class="notice">Sample seed file — no binary stored. Attach a new file with <strong>Choose file…</strong> to view / download it here.</div>
+        <div class="actions" style="margin-top:12px"><button class="btn btn-primary" data-act="close-modal">Close</button></div>
+      `,
+    };
     render();
   }
 
