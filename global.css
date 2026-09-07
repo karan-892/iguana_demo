@@ -691,7 +691,47 @@ tr.clickable:hover td { background: #faf6ee; }
   min-height: 320px;
   flex: 1;
   overflow: visible;
+  position: relative;
 }
+.map-canvas.lasso-on {
+  cursor: crosshair;
+  user-select: none;
+}
+.map-box-select {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  border: 1.5px solid rgba(37, 99, 235, 0.95);
+  background: rgba(59, 130, 246, 0.22);
+  box-sizing: border-box;
+}
+.map-select-panel {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 22;
+  min-width: 168px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(20, 24, 18, 0.16);
+  font-size: 13px;
+}
+.map-select-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 6px;
+  color: var(--ink-soft);
+}
+.map-select-row strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.map-select-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.map-select-actions .btn { flex: 1; justify-content: center; }
 .content-map {
   overflow-y: auto;
   overflow-x: hidden;
@@ -768,6 +808,18 @@ tr.clickable:hover td { background: #faf6ee; }
   border: 1px solid #fff;
   box-shadow: 0 0 0 1px #8a8680;
 }
+.map-legend-pin {
+  display: inline-block;
+  width: 10px;
+  height: 14px;
+  margin-right: 4px;
+  vertical-align: middle;
+  background: #e11d2e;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 0 2px rgba(225, 29, 46, 0.35), 0 1px 2px rgba(0,0,0,0.25);
+}
 
 .map-canvas {
   background: #cfe0d0;
@@ -799,7 +851,7 @@ tr.clickable:hover td { background: #faf6ee; }
   box-shadow: 0 1px 4px rgba(0,0,0,0.35);
 }
 
-.pin span {
+.pin span:not(.prop-pin-mark):not(.prop-pin-dot) {
   position: absolute;
   left: 50%;
   top: calc(100% + 4px);
@@ -836,46 +888,108 @@ tr.clickable:hover td { background: #faf6ee; }
 }
 
 .pin.prop-pin {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
   z-index: 3;
+  transform: translate(-50%, -50%);
 }
-.pin.prop-pin::after {
-  content: "";
-  display: block;
+.pin.prop-pin .prop-pin-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  background: var(--pin-color, #888);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  pointer-events: none;
+}
+.pin.prop-pin.diamond .prop-pin-dot,
+.pin.prop-pin.shared .prop-pin-dot {
   width: 10px;
   height: 10px;
-  background: var(--pin-color, #888);
-  border: 1.5px solid #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
-}
-.pin.prop-pin.dot::after { border-radius: 50%; }
-.pin.prop-pin.diamond::after {
-  width: 9px;
-  height: 9px;
   border-radius: 1px;
-  transform: rotate(45deg);
+  transform: translate(-50%, -50%) rotate(45deg);
   background: #8a8680;
-  margin: 1px 0 0 1px;
 }
-.pin.prop-pin.need::after,
-.pin.prop-pin.assign-focus::after {
+.pin.prop-pin.need .prop-pin-dot {
   width: 12px;
   height: 12px;
   box-shadow: 0 0 0 3px rgba(196, 162, 74, 0.4), 0 1px 3px rgba(0,0,0,0.35);
 }
-.pin.prop-pin.pin-open {
-  z-index: 11;
-}
-.pin.prop-pin.pin-open::after {
+.pin.prop-pin.pin-open:not(.assign-focus) .prop-pin-dot {
   box-shadow: 0 0 0 3px rgba(29, 106, 117, 0.45), 0 1px 3px rgba(0,0,0,0.35);
 }
+.pin.prop-pin.picked:not(.assign-focus) .prop-pin-dot {
+  background: #e11d2e !important;
+  width: 13px;
+  height: 13px;
+  border-color: #fff;
+  box-shadow: 0 0 0 3px rgba(225, 29, 46, 0.55), 0 1px 4px rgba(0,0,0,0.4);
+}
+.pin.prop-pin.picked.diamond .prop-pin-dot,
+.pin.prop-pin.picked.shared .prop-pin-dot {
+  background: #e11d2e !important;
+  box-shadow: 0 0 0 3px rgba(225, 29, 46, 0.55), 0 1px 4px rgba(0,0,0,0.4);
+}
+.pin.prop-pin .prop-pin-mark { display: none; }
+.pin.prop-pin::after { display: none; }
 .pin.prop-pin .pin-dot { display: none; }
-.pin.shared.diamond::after { background: #8a8680; }
+
+/* Only the property Rick opened the map to assign */
+.pin.prop-pin.assign-focus {
+  width: 28px;
+  height: 36px;
+  z-index: 14;
+  transform: translate(-50%, -94%);
+}
+.pin.prop-pin.assign-focus .prop-pin-dot { display: none; }
+.pin.prop-pin.assign-focus .prop-pin-mark {
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  transform: translateX(-50%) rotate(-45deg);
+  background: #e11d2e;
+  border: 2.5px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  box-shadow:
+    0 0 0 5px rgba(225, 29, 46, 0.28),
+    0 4px 12px rgba(180, 20, 35, 0.45);
+  pointer-events: none;
+  animation: assign-pin-pulse 1.6s ease-in-out infinite;
+}
+.pin.prop-pin.assign-focus .prop-pin-mark::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+.pin.prop-pin.assign-focus:hover .prop-pin-mark {
+  filter: brightness(1.06);
+  transform: translateX(-50%) rotate(-45deg) scale(1.06);
+}
+@keyframes assign-pin-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(225, 29, 46, 0.22), 0 4px 12px rgba(180, 20, 35, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(225, 29, 46, 0.18), 0 4px 14px rgba(180, 20, 35, 0.5); }
+}
 
 .pin.home-pin {
   z-index: 6;
@@ -885,11 +999,13 @@ tr.clickable:hover td { background: #faf6ee; }
   padding: 0;
   font: inherit;
   color: inherit;
+  transform: translate(-50%, -50%);
 }
 .pin.home-pin .pin-dot {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-width: 3px;
+  border-radius: 50%;
 }
 .pin.home-pin.on .pin-dot,
 .pin.home-pin.focus .pin-dot {
@@ -913,13 +1029,9 @@ tr.clickable:hover td { background: #faf6ee; }
   height: 16px;
   box-shadow: 0 0 0 4px rgba(196, 162, 74, 0.4);
 }
-.pin.prop-pin .pin-dot {
-  width: 11px;
-  height: 11px;
-}
-.pin.prop-pin.on-book .pin-dot {
-  width: 12px;
-  height: 12px;
+.pin.prop-pin.on-book .prop-pin-mark {
+  width: 18px;
+  height: 18px;
 }
 .pin.stop-pin { opacity: 0.85; z-index: 2; }
 .pin.stop-pin .pin-dot { width: 8px; height: 8px; border-width: 1px; }

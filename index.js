@@ -471,15 +471,19 @@
           paid: false,
           autoPay: false,
           municipal: true,
+          billTiming: "after",
+          billPeriod: "preceding",
+          hourlyRate: 85,
           po: "PO-4481",
           poCapHours: 120,
           hoursUsed: 86,
+          poCapAmount: 10200,
           techId: "alejo",
           backupId: "miguel",
           days: "Fri",
           durationMin: 180,
           locations: [{ id: "L-1020a", name: "Riverside Park", address: "Riverside Park (manual pin), Naples, FL", x: "20%", y: "74%", gps: "26.1420, -81.7948", manualPin: true }],
-          notes: "PO account — may schedule before invoice payment (ADM-24).",
+          notes: "Municipal PO — schedule and create service without payment. Invoice after the service period (ADM-24). PO hours are the hard limit.",
           opsNote: "Pin is GPS-overridden; techs must tap-to-navigate.",
         },
         {
@@ -980,11 +984,43 @@
   }
   function locPaid(c, l) {
     if (!c || !l) return false;
-    if (c.municipal) return true;
+    if (isMunicipal(c)) return true; // pay after service — Ops may schedule before invoice
     if (l.paid) return true;
     const ct = contractForLoc(c.id, l.id);
     if (ct && ct.status === "ACTIVE") return true;
     return locInvoices(c.id, l.id).some((i) => invoiceFinStatus(i) === "PAID");
+  }
+  function isMunicipal(c) {
+    return !!(c && (c.municipal || c.type === "municipal"));
+  }
+  function muniPoCapHours(c) {
+    return Number(c?.poCapHours) || 0;
+  }
+  function muniHoursUsed(c) {
+    return Number(c?.hoursUsed) || 0;
+  }
+  function muniHoursRemaining(c) {
+    const cap = muniPoCapHours(c);
+    if (!cap) return null;
+    return Math.max(0, cap - muniHoursUsed(c));
+  }
+  function muniNearLimit(c) {
+    const cap = muniPoCapHours(c);
+    if (!cap) return false;
+    return muniHoursUsed(c) / cap >= 0.85;
+  }
+  function muniClockedHours(c, lid) {
+    if (!c) return 0;
+    const ss = (state.data.stops || []).filter((s) => s.customerId === c.id && (!lid || s.locationId === lid) && s.actualMin != null && !s.pending);
+    return +(ss.reduce((a, s) => a + (s.actualMin || 0), 0) / 60).toFixed(2);
+  }
+  function muniSuggestPeriod(c) {
+    // Demo date is Aug 27 2026 — preceding month = July; current = August
+    const preceding = (c?.billPeriod || "preceding") === "preceding";
+    return preceding ? "July 2026" : "August 2026";
+  }
+  function muniHourlyRate(c) {
+    return Number(c?.hourlyRate) || 0;
   }
   function contractForLoc(cid, lid) {
     if (!lid) return null;
@@ -3174,10 +3210,14 @@
         </div>
         <div class="card">
           <h3>Municipal</h3>
-          <p class="tiny">Manual invoice with PO # and service period. Rick confirms hours.</p>
-          ${muni.length ? muni.map((c) => `<div class="fit-row"><div><strong>${esc(c.name)}</strong><div class="tiny">${esc(c.po)} · ${c.hoursUsed}/${c.poCapHours} hrs</div></div>
+          <p class="tiny">No pay-before gate. Service first → Rick confirms hours → invoice with PO + period → they pay. PO hours are the hard limit.</p>
+          ${muni.length ? muni.map((c) => {
+            const left = muniHoursRemaining(c);
+            const warn = muniNearLimit(c);
+            return `<div class="fit-row"><div><strong>${esc(c.name)}</strong><div class="tiny">${esc(c.po)} · ${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"} hrs${left != null ? ` · ${left} left` : ""}${warn ? " · near limit" : ""}</div></div>
             <button class="btn btn-ghost" data-act="manual-invoice" data-id="${c.id}">Manual invoice</button>
-          </div>`).join("") : `<p class="muted">None.</p>`}
+          </div>`;
+          }).join("") : `<p class="muted">None.</p>`}
           <div class="tiny" style="margin-top:8px">Admin MTOs: ${mtos.filter((x) => !x.read).length} unread</div>
         </div>
       </div>
@@ -3313,6 +3353,7 @@
     return `
       <div class="create-svc">
         <button class="btn btn-ghost" data-act="cancel-create-service">← ${esc(c.name)}</button>
+        ${isMunicipal(c) ? `<div class="notice">Municipal — create &amp; schedule without payment. Christy invoices after the service period against PO hours (${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"}).</div>` : ""}
         <div class="create-svc-head">
           <div>
             <h2>Service setup</h2>
@@ -3498,7 +3539,7 @@
     if (state.role === "sales") return `<span class="muted">—</span>`;
     if (c.status === "lapsed") return statusBadge("lapsed");
     if (c.status === "waiting_payment") return statusBadge("waiting_payment");
-    if (c.municipal) return `<span class="gate"><span class="badge badge-sea">PO — schedulable</span></span>`;
+    if (c.municipal) return `<span class="gate"><span class="badge badge-sea">PO · pay after service</span></span>`;
     const locs = (c.locations || []).filter((l) => l.covered !== false);
     const paidN = locs.filter((l) => locPaid(c, l)).length;
     if (locs.length > 1 && paidN && paidN < locs.length) return `<span class="badge badge-warn">${paidN}/${locs.length} properties paid</span>`;
@@ -3547,7 +3588,8 @@
             <dt>Mobile</dt><dd>${esc(c.mobile || "—")}</dd>
             <dt>Email</dt><dd>${esc(c.email || "—")}</dd>
             <dt>Company</dt><dd>${esc(c.company || "—")}</dd>
-            ${(c.municipal || c.type === "municipal") ? `<dt>PO</dt><dd>${esc(c.po || "—")} · ${c.hoursUsed || 0}/${c.poCapHours || 0} hrs</dd>` : ""}
+            ${(c.municipal || c.type === "municipal") ? `<dt>PO / hours</dt><dd>${esc(c.po || "—")} · ${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"} hrs used · ${muniHoursRemaining(c) == null ? "—" : muniHoursRemaining(c) + " left"}${muniNearLimit(c) ? ` <span class="badge badge-bad">Near PO limit</span>` : ""}</dd>
+            <dt>Billing</dt><dd>Pay after service · invoice ${(c.billPeriod || "preceding") === "current" ? "current" : "preceding"} month${c.hourlyRate ? ` · ${money(c.hourlyRate)}/hr` : ""}</dd>` : ""}
             <dt>SMS / Email</dt><dd>${c.acceptSms ? "SMS on" : "SMS off"} · ${c.acceptEmail === false ? "Email off" : "Email on"}</dd>
             <dt>Instructions</dt><dd>${esc(c.notes || "—")}</dd>
             ${showOpsNotes ? `<dt>Ops note</dt><dd>${esc(c.opsNote || "—")}</dd>` : ""}
@@ -3659,6 +3701,14 @@
                   ${(c.municipal || c.type === "municipal") && (can("invoice.create") || state.role === "owner") ? `<button class="btn btn-ghost" data-act="manual-invoice" data-id="${c.id}" data-loc="${l.id}">Manual invoice</button>` : ""}
                   ${locNeedsService(c, l) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
                   ${locNeedsTech(c, l) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
+                  ${(() => {
+                    const live = svcs.filter(svcIsContinuing);
+                    if (!live.length || !["ops", "owner"].includes(state.role)) return "";
+                    return `
+                      ${btn("schedule.reassign", "Reassign trapper", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost")}
+                      ${can("service.create") || can("schedule.assign") ? `<button class="btn btn-ghost" data-act="share-property" data-id="${c.id}" data-loc="${l.id}">Share · add trapper</button>` : ""}
+                    `;
+                  })()}
                   ${(() => {
                     const live = svcs.find(svcIsContinuing);
                     if (!live || !can("service.stop")) return "";
@@ -4080,7 +4130,7 @@
 
         const key = `${c.id}:${l.id}`;
         const on = state.mapSelect.includes(key);
-        const color = isFocus ? "#c4a24a" : mapPinColor(c, l, { filterTech, colorBy });
+        const color = isFocus ? "#e11d2e" : mapPinColor(c, l, { filterTech, colorBy });
         const row = { c, l, shared, techsHere, needs, isFocus, days: locScheduleKey(c, l), durationMin: svcsFor(c.id, l.id)[0]?.durationMin || l.durationMin || 20 };
         if (filterTech && assignedHere && !needs) {
           book.push(row);
@@ -4089,7 +4139,10 @@
         const shape = shared ? "diamond" : "dot";
         const selectedPin = state.mapPin && state.mapPin.cid === c.id && state.mapPin.lid === l.id;
         if (state.mapSched && locScheduleKey(c, l) !== state.mapSched && !isFocus) return;
-        pins.push(`<button type="button" class="pin prop-pin ${shape} ${shared ? "shared" : ""} ${on ? "picked" : ""} ${needs || isFocus ? "need" : ""} ${isFocus ? "client assign-focus" : ""} ${selectedPin ? "pin-open" : ""}" data-act="map-pin" data-cid="${c.id}" data-lid="${l.id}" data-drag="1" style="left:${l.x};top:${l.y};--pin-color:${color}" title="${esc(c.name)} · ${esc(l.name)}"></button>`);
+        const mark = isFocus
+          ? `<span class="prop-pin-mark" aria-hidden="true"></span>`
+          : `<span class="prop-pin-dot" aria-hidden="true"></span>`;
+        pins.push(`<button type="button" class="pin prop-pin ${shape} ${shared ? "shared" : ""} ${on ? "picked" : ""} ${needs && !isFocus ? "need" : ""} ${isFocus ? "client assign-focus" : ""} ${selectedPin ? "pin-open" : ""}" data-act="map-pin" data-cid="${c.id}" data-lid="${l.id}" data-drag="1" style="left:${l.x};top:${l.y};--pin-color:${color}" title="${esc(c.name)} · ${esc(l.name)}">${mark}</button>`);
       });
     });
 
@@ -4169,6 +4222,11 @@
     const sideList = filterTech
       ? stopList.filter((r) => !filterDay || patternDays(r.days).includes(filterDay) || locOnDay(r.c, r.l, filterDay))
       : [];
+    const selectDur = state.mapSelect.reduce((sum, key) => {
+      const [cid, lid] = key.split(":");
+      const loc = locBy(cid, lid);
+      return sum + (svcsFor(cid, lid)[0]?.durationMin || loc?.durationMin || 20);
+    }, 0);
 
     return `
       ${head("Visual Route Manager", "Master map shows every trapper. Click a trapper to drill into their book and day schedules. Shared properties are gray diamonds. Assign mode shows only the stop you are placing.")}
@@ -4184,13 +4242,10 @@
           <button class="legend-btn ${filterDay === todayDay() ? "on" : ""}" data-act="map-day" data-day="${todayDay()}">Today (${todayDay()})</button>
           ${DAYS.filter((d) => d !== todayDay()).map((d) => `<button class="legend-btn ${filterDay === d ? "on" : ""}" data-act="map-day" data-day="${d}">${d}</button>`).join("")}
           <button class="legend-btn ${!filterDay ? "on" : ""}" data-act="map-day" data-day="">All days</button>
-          ${btn("schedule.reassign", state.mapLasso ? "Lasso on" : "Lasso", "toggle-lasso", "", state.mapLasso ? "btn-sun" : "btn-ghost")}
+          ${btn("schedule.reassign", state.mapLasso ? "Box select on" : "Box select", "toggle-lasso", "", state.mapLasso ? "btn-sun" : "btn-ghost")}
         </div>
       </div>
-      ${state.mapLasso && state.mapSelect.length ? `
-        <div class="notice">Selected ${state.mapSelect.length} properties.
-          <div class="actions" style="margin-top:8px">${TECHS.map((t) => btn("schedule.reassign", "Move to " + t.name, "bulk-move", `data-tech="${t.id}"`, "btn-ghost")).join("")}</div>
-        </div>` : ""}
+      ${state.mapLasso && !state.mapSelect.length ? `<div class="notice">Drag a box on the map to select properties (Shift+drag to add). Then Clear or Assign.</div>` : ""}
 
       <div class="map-vrm${showBestFit ? " has-bestfit" : ""}">
         <aside class="map-vrm-side card" data-keep-scroll="map-side">
@@ -4211,7 +4266,7 @@
               `).join("")}
               <div class="vrm-row vrm-total"><span></span><span>Total</span><span>${totals.count}</span><span>${fmtClock(totals.durationMin)}</span></div>
             </div>
-            <p class="tiny section-gap"><i class="map-legend-diamond"></i> Gray diamond = shared by 2+ trappers</p>
+            <p class="tiny section-gap"><i class="map-legend-pin"></i> Bright red = assigning · Box select → Clear / Assign · <i class="map-legend-diamond"></i> shared</p>
           ` : `
             <div class="vrm-side-head">
               <button class="btn btn-ghost" data-act="map-tech" data-tech="">← All trappers</button>
@@ -4247,7 +4302,7 @@
         </aside>
 
         <div class="map-vrm-canvas-wrap">
-          <div class="map-canvas gmap map-vrm-canvas" id="map-canvas">
+          <div class="map-canvas gmap map-vrm-canvas${state.mapLasso ? " lasso-on" : ""}" id="map-canvas">
             <div class="map-bg gmap"></div>
             <div class="map-terrain" aria-hidden="true">
               <div class="map-water gulf"></div>
@@ -4266,6 +4321,15 @@
             ${routeLines.length ? `<svg class="route-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${routeLines.join("")}</svg>` : ""}
             ${pins.join("")}
             ${pinCard}
+            ${state.mapSelect.length ? `
+              <div class="map-select-panel" role="status">
+                <div class="map-select-row"><span>Selected</span><strong>${state.mapSelect.length}</strong></div>
+                <div class="map-select-row"><span>Duration</span><strong>${fmtClock(selectDur)}</strong></div>
+                <div class="map-select-actions">
+                  <button type="button" class="btn btn-ghost" data-act="clear-map-select">Clear</button>
+                  ${btn("schedule.reassign", "Assign", "open-bulk-assign", "", "btn-sun")}
+                </div>
+              </div>` : ""}
           </div>
         </div>
 
@@ -4348,7 +4412,7 @@
         <div class="card assign-panel">
           <h3>${esc(c.name)}</h3>
           <p class="tiny">${esc(c.id)} · ${covered.length} ${covered.length === 1 ? "property" : "properties"} on this Bill-To</p>
-          ${!(c.paid || c.municipal) ? `<div class="notice locked">Not paid yet. You can still set the standing technician and days; live dispatch waits for payment (BR-01).</div>` : `<div class="notice">${esc(loc?.name || "This property")} is on the map. Next stops for ${esc(state.assignDays)} are drawn from each tech’s home.</div>`}
+          ${!(c.paid || isMunicipal(c)) ? `<div class="notice locked">Not paid yet. You can still set the standing technician and days; live dispatch waits for payment (BR-01).</div>` : isMunicipal(c) ? `<div class="notice">Municipal PO — schedule without payment. Invoice after service against PO hours (${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"}).</div>` : `<div class="notice">${esc(loc?.name || "This property")} is on the map. Next stops for ${esc(state.assignDays)} are drawn from each tech’s home.</div>`}
           ${covered.length > 1 ? `
             <div class="field">
               <label>Property to catch iguanas</label>
@@ -4612,16 +4676,17 @@
       const ss = state.data.stops.filter((s) => s.customerId === c.id && !s.pending);
       const mins = ss.reduce((a, s) => a + (s.actualMin != null ? s.actualMin : 0), 0);
       const sched = ss.reduce((a, s) => a + (s.durationMin || 0), 0);
-      return [c.name, c.po || "—", (c.hoursUsed || 0) + " / " + (c.poCapHours || "—"), +(sched / 60).toFixed(1) + " hrs", +(mins / 60).toFixed(1) + " hrs"];
+      return [c.name, c.po || "—", (c.hoursUsed || 0) + " / " + (c.poCapHours || "—") + (muniNearLimit(c) ? " ⚠" : ""), +(sched / 60).toFixed(1) + " hrs", +(mins / 60).toFixed(1) + " hrs", muniHoursRemaining(c) == null ? "—" : muniHoursRemaining(c) + " hrs"];
     });
     return `
       ${head("Duration / hours report", state.role === "admin"
-        ? "Hours on the property by account. Drop these into the municipal invoice (name, PO, period). Rick confirms the field time; you run the report."
-        : "Catch under-servicing — scheduled vs clocked. Totals per trapper per day show who is light vs loaded (payroll is ~35% of revenue).")}
-      ${state.role === "admin" || state.role === "owner" ? `
+        ? "Municipal: clocked hours → invoice (name, PO, period). PO hours are the time limit — pay after service, not before."
+        : "Rick confirms field time here. Municipal rows show PO hours used / left — pass confirmed hours to Christy for the invoice.")}
+      ${state.role === "admin" || state.role === "owner" || state.role === "ops" ? `
         <div class="card" style="margin-bottom:16px">
-          <h3>Hours per account <span class="muted">for invoicing · PO running total</span></h3>
-          ${table(["Customer", "PO", "PO hours used", "Scheduled this week", "Clocked"], byAccount)}
+          <h3>Hours per account <span class="muted">municipal · PO running total</span></h3>
+          <p class="tiny">Coastal Parks and other PO accounts — confirm clocked hours, then Christy invoices.</p>
+          ${table(["Customer", "PO", "PO hours used", "Scheduled this week", "Clocked", "PO left"], byAccount)}
         </div>
       ` : ""}
       ${state.role === "admin" ? "" : `
@@ -5537,11 +5602,11 @@
     const canvas = document.getElementById("map-canvas");
     if (!canvas || state.page !== "map") return;
     canvas.querySelectorAll(".pin[data-drag]").forEach((pin) => {
-      pin.style.cursor = "grab";
+      pin.style.cursor = state.mapLasso ? "pointer" : "grab";
       pin.onmousedown = (e) => {
         if (state.mapLasso) {
           e.preventDefault();
-          toggleMapSelect(pin.dataset.cid, pin.dataset.lid);
+          e.stopPropagation();
           return;
         }
         e.preventDefault();
@@ -5572,6 +5637,67 @@
         document.addEventListener("mouseup", up);
       };
     });
+    bindMapBoxSelect(canvas);
+  }
+
+  function bindMapBoxSelect(canvas) {
+    if (!canvas) return;
+    canvas.onmousedown = null;
+    if (!state.mapLasso) return;
+    canvas.onmousedown = (e) => {
+      if (e.button !== 0) return;
+      if (e.target.closest(".pin.prop-pin, .map-select-panel, .map-float-card, .home-pin, button[data-act]")) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const start = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      let box = canvas.querySelector(".map-box-select");
+      if (!box) {
+        box = document.createElement("div");
+        box.className = "map-box-select";
+        canvas.appendChild(box);
+      }
+      const paint = (x, y) => {
+        const left = Math.min(start.x, x);
+        const top = Math.min(start.y, y);
+        box.style.left = left + "px";
+        box.style.top = top + "px";
+        box.style.width = Math.abs(x - start.x) + "px";
+        box.style.height = Math.abs(y - start.y) + "px";
+        box.hidden = false;
+      };
+      paint(start.x, start.y);
+      const move = (ev) => paint(ev.clientX - rect.left, ev.clientY - rect.top);
+      const up = (ev) => {
+        document.removeEventListener("mousemove", move);
+        document.removeEventListener("mouseup", up);
+        const endX = ev.clientX - rect.left;
+        const endY = ev.clientY - rect.top;
+        const left = Math.min(start.x, endX);
+        const top = Math.min(start.y, endY);
+        const right = Math.max(start.x, endX);
+        const bottom = Math.max(start.y, endY);
+        box.remove();
+        if (right - left < 6 && bottom - top < 6) return;
+        const keys = [];
+        canvas.querySelectorAll(".pin.prop-pin[data-cid][data-lid]").forEach((pin) => {
+          const pr = pin.getBoundingClientRect();
+          const cx = pr.left + pr.width / 2 - rect.left;
+          const cy = pr.top + pr.height / 2 - rect.top;
+          if (cx >= left && cx <= right && cy >= top && cy <= bottom) {
+            keys.push(`${pin.dataset.cid}:${pin.dataset.lid}`);
+          }
+        });
+        if (ev.shiftKey) {
+          const set = new Set(state.mapSelect.concat(keys));
+          state.mapSelect = [...set];
+        } else {
+          state.mapSelect = keys;
+        }
+        render();
+      };
+      document.addEventListener("mousemove", move);
+      document.addEventListener("mouseup", up);
+    };
   }
 
   function updateMiniPreview(input) {
@@ -5833,6 +5959,8 @@
       "open-record-pay": () => { if (ds.pay) state.payFocusId = ds.pay; openRecordPay(ds.id); },
       bestfit: () => openAssign(ds.id),
       "open-assign": () => { state.modal = null; openAssign(ds.id, ds.loc); },
+      "share-property": () => openShareProperty(ds.id, ds.loc),
+      "confirm-share-property": () => confirmShareProperty(ds.id, ds.loc),
       "compare-routes": () => openCompareRoutes(ds.id, ds.loc),
       "map-focus-assign": () => {
         state.mapClient = ds.id || null;
@@ -5901,11 +6029,18 @@
       },
       "map-pin": () => {
         if (!ds.cid || !ds.lid) return;
+        if (state.mapLasso) {
+          toggleMapSelect(ds.cid, ds.lid);
+          return;
+        }
         if (state.mapPin && state.mapPin.cid === ds.cid && state.mapPin.lid === ds.lid) state.mapPin = null;
         else state.mapPin = { cid: ds.cid, lid: ds.lid };
         render();
       },
       "clear-map-pin": () => { state.mapPin = null; render(); },
+      "clear-map-select": () => { state.mapSelect = []; if (state.modal) state.modal = null; render(); },
+      "open-bulk-assign": () => openBulkAssign(),
+      "confirm-bulk-assign": () => confirmBulkAssign(),
       "map-compare-tech": () => {
         const id = ds.tech;
         if (!id) return;
@@ -7019,7 +7154,7 @@
       toast("Only Administration creates invoices.");
       return;
     }
-    const munis = (state.data.customers || []).filter((c) => c.municipal || c.type === "municipal");
+    const munis = (state.data.customers || []).filter((c) => isMunicipal(c));
     const c = custBy(customerId) || munis[0];
     if (!c) {
       toast("No municipal customer on file.");
@@ -7027,20 +7162,29 @@
     }
     const locs = c.locations || [];
     const loc = locationId ? locBy(c.id, locationId) : locs[0];
+    const clocked = muniClockedHours(c, loc?.id);
+    const rate = muniHourlyRate(c);
+    const suggestHrs = clocked > 0 ? clocked : Math.min(8, muniHoursRemaining(c) ?? 8);
+    const suggestAmt = rate ? +(suggestHrs * rate).toFixed(2) : 0;
+    const left = muniHoursRemaining(c);
     state.modal = {
       html: `
         <h3>Manual municipal invoice</h3>
-        <p>Description, amount, PO #, and service period — separate from residential AutoPay flow.</p>
+        <p>Pay <strong>after</strong> service — not the residential pay-before flow. Include name, PO #, and service period (Christy / Tom).</p>
+        ${muniNearLimit(c) ? `<div class="notice locked">Near PO hour limit — ${muniHoursUsed(c)}/${muniPoCapHours(c)} used · ${left} hrs left.</div>` : `<div class="notice">PO ${esc(c.po || "—")} · ${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"} hrs used${left != null ? ` · ${left} remaining` : ""}.</div>`}
         <div class="field"><label>Bill-To</label>
           <select id="mi-cust">${munis.map((x) => `<option value="${x.id}" ${x.id === c.id ? "selected" : ""}>${esc(x.billTo || x.name)}</option>`).join("")}</select>
         </div>
-        <div class="field"><label>Location</label>
+        <div class="field"><label>Location / site</label>
           <select id="mi-loc">${(locs.length ? locs : [{ id: "", name: "—" }]).map((l) => `<option value="${l.id}" ${loc && l.id === loc.id ? "selected" : ""}>${esc(l.name || "—")}</option>`).join("")}</select>
         </div>
-        <div class="field"><label>Description</label><input id="mi-desc" value="Municipal service — ${esc(TODAY.slice(0, 7))}"></div>
-        <div class="field"><label>Amount</label><input id="mi-amt" type="number" step="0.01" value="0"></div>
+        <div class="field"><label>Description</label><input id="mi-desc" value="Municipal service — ${esc(muniSuggestPeriod(c))}"></div>
+        <div class="field"><label>Hours this period</label><input id="mi-hours" type="number" step="0.25" value="${suggestHrs}"></div>
+        <div class="field"><label>Rate $/hr</label><input id="mi-rate" type="number" step="0.01" value="${rate || ""}" placeholder="Optional"></div>
+        <div class="field"><label>Amount</label><input id="mi-amt" type="number" step="0.01" value="${suggestAmt}"></div>
         <div class="field"><label>PO #</label><input id="mi-po" value="${esc(c.po || "")}"></div>
-        <div class="field"><label>Service period</label><input id="mi-period" value="August 2026" placeholder="e.g. August 2026"></div>
+        <div class="field"><label>Service period</label><input id="mi-period" value="${esc(muniSuggestPeriod(c))}" placeholder="e.g. July 2026"></div>
+        <p class="tiny">Clocked on stops: ${clocked || 0} hrs. Amount ≈ hours × rate; adjust by hand when the contract is not hourly.</p>
         <div class="actions">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
           <button class="btn btn-primary" data-act="save-manual-invoice">Create invoice</button>
@@ -7059,21 +7203,35 @@
       return;
     }
     const lid = val("mi-loc") || c.locations?.[0]?.id || null;
-    const amt = Number(val("mi-amt"));
+    const hours = Number(val("mi-hours")) || 0;
+    const rate = Number(val("mi-rate")) || muniHourlyRate(c) || 0;
+    let amt = Number(val("mi-amt"));
+    if ((!Number.isFinite(amt) || amt === 0) && hours && rate) amt = +(hours * rate).toFixed(2);
+    const left = muniHoursRemaining(c);
+    if (left != null && hours > left + 0.001) {
+      toast(`Only ${left} PO hours left — lower hours or raise the PO cap.`);
+      return;
+    }
     const inv = {
       id: nid("INV"), customerId: cid, locationId: lid, amount: Number.isFinite(amt) ? amt : 0,
       status: "sent", sent: TODAY, paidOn: null, kind: "municipal",
       description: val("mi-desc") || "Municipal service",
       po: val("mi-po") || c.po || "",
       period: val("mi-period") || "",
+      hours,
+      hourlyRate: rate || null,
     };
     state.data.invoices.push(inv);
+    if (hours > 0) {
+      c.hoursUsed = +(muniHoursUsed(c) + hours).toFixed(2);
+      if (rate) c.hourlyRate = rate;
+    }
     state.data.comms.push({
       id: nid("CM"), customerId: cid, who: role().name, channel: "Office", date: TODAY,
-      text: `Manual municipal invoice ${inv.id}: ${inv.description} · ${money(inv.amount)} · PO ${inv.po} · ${inv.period}.`,
+      text: `Manual municipal invoice ${inv.id}: ${inv.description} · ${money(inv.amount)} · ${hours || "—"} hrs · PO ${inv.po} · ${inv.period}. Remaining PO hours: ${muniHoursRemaining(c) ?? "—"}.`,
     });
     state.modal = null;
-    toast(`Invoice ${inv.id} created · ${money(inv.amount)} · PO ${inv.po}.`);
+    toast(`Invoice ${inv.id} · ${money(inv.amount)} · PO ${inv.po} · ${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"} hrs on PO.`);
     render();
   }
 
@@ -7212,16 +7370,17 @@
       wide: true,
       html: `
         <h3>${continuing ? "Edit continuing service" : "Service detail"} · ${esc(loc.name)}</h3>
-        <p>Bill-To ${esc(c.billTo || c.name)}. ${continuing ? "Change trapper, schedule, or dates here — or reassign on the map." : "This service is no longer continuing."}</p>
+        <p>Bill-To ${esc(c.billTo || c.name)}. <strong>Reassign</strong> moves this service to another trapper (Johnny unavailable → Bobby). <strong>Share</strong> adds a second trapper on the same property with their own days — do not copy the stop.</p>
         <div class="preview">
           <strong>${esc(svc.id)}</strong> · ${svcStatusBadge(svc)}
           <div class="tiny">${esc(loc.address)}</div>
+          ${locIsShared(c, loc) ? `<div class="tiny">Shared property · ${locTechs(c, loc).map(techName).join(" / ")}</div>` : ""}
         </div>
         <div class="setup-grid">
           <div class="field"><label>Service type</label>
             <select id="es-type" ${continuing ? "" : "disabled"}>${SERVICE_TYPES.map((t) => `<option value="${t.id}" ${t.id === svc.type ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
           </div>
-          <div class="field"><label>Standing trapper</label>
+          <div class="field"><label>Standing trapper (reassign = change this)</label>
             <select id="es-trapper" ${continuing ? "" : "disabled"}>
               <option value="">Unassigned</option>
               ${TECHS.map((t) => `<option value="${t.id}" ${t.id === svc.techId ? "selected" : ""}>${esc(t.name.toUpperCase())} · ${esc(t.home)}</option>`).join("")}
@@ -7248,6 +7407,7 @@
           <button class="btn btn-ghost" data-act="close-modal">Close</button>
           ${continuing && canEditService() ? `
             <button class="btn btn-ghost" data-act="open-assign" data-id="${c.id}" data-loc="${loc.id}">Reassign on map</button>
+            <button class="btn btn-ghost" data-act="share-property" data-id="${c.id}" data-loc="${loc.id}">Share · add trapper</button>
             ${can("service.stop") ? btn("service.stop", "Stop service", "stop-service", `data-id="${svc.id}"`) : ""}
             ${btn("service.edit", "Save changes", "save-edit-service", `data-id="${svc.id}"`)}
           ` : ""}
@@ -7458,7 +7618,125 @@
       openCreateService(c.id, loc?.id);
       return;
     }
-    goToAssignMap(c.id, loc?.id, "Click a technician’s home to see every property on their book.");
+    goToAssignMap(c.id, loc?.id, "Reassign: click a trapper home, then Assign — this moves the property (does not share).");
+  }
+
+  function openShareProperty(customerId, locationId) {
+    if (!(can("schedule.assign") || can("service.create") || can("service.edit") || state.role === "owner")) {
+      toast("Only Operations can share a property.");
+      return;
+    }
+    const c = custBy(customerId);
+    const loc = locBy(customerId, locationId);
+    if (!c || !loc) return;
+    const existing = svcsFor(c.id, loc.id).filter(svcIsContinuing);
+    if (!existing.length) {
+      toast("Create and assign the first service before sharing.");
+      openCreateService(c.id, loc.id);
+      return;
+    }
+    const taken = locTechs(c, loc);
+    const primary = existing[0];
+    const freeTechs = TECHS.filter((t) => !taken.includes(t.id));
+    if (!freeTechs.length) {
+      toast("Every trapper is already on this property.");
+      return;
+    }
+    const defaultSched = SERVICE_SCHEDULES.find((s) => s.days !== primary.days) || SERVICE_SCHEDULES[1] || SERVICE_SCHEDULES[0];
+    state.modal = {
+      wide: true,
+      html: `
+        <h3>Share property · add trapper</h3>
+        <p><strong>${esc(loc.name)}</strong> stays with ${esc(taken.map(techName).join(" / "))}. Adding another trapper creates a <strong>second service</strong> on different days — do not copy the stop.</p>
+        <div class="preview">
+          <div class="tiny">Already on this pin</div>
+          ${existing.map((s) => `<div><strong>${esc(techName(s.techId))}</strong> · ${esc(s.days || "—")} · ${s.durationMin || 20}m</div>`).join("")}
+        </div>
+        <div class="notice">Use <strong>Reassign</strong> instead if Johnny is unavailable and Bobby should take the whole property.</div>
+        <div class="setup-grid">
+          <div class="field req"><label>Additional trapper</label>
+            <select id="share-tech">${freeTechs.map((t, i) => `<option value="${t.id}" ${i === 0 ? "selected" : ""}>${esc(t.name)} · ${esc(t.home)}</option>`).join("")}</select>
+          </div>
+          <div class="field req"><label>Their schedule (different days)</label>
+            <select id="share-sched">${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}" ${s.id === defaultSched.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
+          </div>
+          <div class="field"><label>Duration (min)</label>
+            <input id="share-dur" type="number" value="${esc(primary.durationMin || loc.durationMin || 20)}">
+          </div>
+          <div class="field"><label>Service type</label>
+            <select id="share-type">${SERVICE_TYPES.map((t) => `<option value="${t.id}" ${t.id === primary.type ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
+          </div>
+        </div>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="confirm-share-property" data-id="${c.id}" data-loc="${loc.id}">Add trapper · share pin</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function confirmShareProperty(customerId, locationId) {
+    if (!(can("schedule.assign") || can("service.create") || can("service.edit") || state.role === "owner")) return;
+    const c = custBy(customerId);
+    const loc = locBy(customerId, locationId);
+    if (!c || !loc) return;
+    const techId = val("share-tech");
+    const sched = SERVICE_SCHEDULES.find((s) => s.id === val("share-sched")) || SERVICE_SCHEDULES[0];
+    const typeId = val("share-type") || svcsFor(c.id, loc.id).find(svcIsContinuing)?.type || "12mon-res";
+    const durationMin = Number(val("share-dur")) || 20;
+    if (!techId) {
+      toast("Pick the additional trapper.");
+      return;
+    }
+    if (locTechs(c, loc).includes(techId)) {
+      toast(`${techName(techId)} is already on this property — pick someone else, or reassign instead.`);
+      return;
+    }
+    const primary = svcsFor(c.id, loc.id).find(svcIsContinuing);
+    if (!Array.isArray(state.data.services)) state.data.services = [];
+    const svc = {
+      id: nid("SVC"),
+      customerId: c.id,
+      locationId: loc.id,
+      type: typeId,
+      status: "live",
+      techId,
+      days: sched.days,
+      durationMin,
+      generated: true,
+      schedule: sched.id,
+      target: primary?.target || "IGUANA",
+      charge: primary?.charge || "Production",
+      start: primary?.start || TODAY,
+      expires: primary?.expires || primary?.renewal || null,
+      renewal: primary?.renewal || primary?.expires || null,
+      shared: true,
+      active: true,
+      opsNote: `Shared with ${locTechs(c, loc).map(techName).concat(techName(techId)).filter((n, i, a) => a.indexOf(n) === i).join(" / ")} — separate service, do not copy stop.`,
+    };
+    state.data.services.push(svc);
+    loc.shared = true;
+    loc.backupId = techId;
+    if (c.paid || c.municipal) {
+      patternDays(sched.days).forEach((d) => {
+        state.data.stops.push({
+          id: nid("S"), customerId: c.id, locationId: loc.id,
+          techId, day: d, time: nextSlot(techId, d),
+          durationMin, type: "service",
+          status: "scheduled", actualMin: null, removals: null,
+        });
+      });
+    }
+    state.data.comms.push({
+      id: nid("CM"), customerId: c.id, who: role().name, channel: "Office", date: TODAY,
+      text: `Shared ${loc.name}: added ${techName(techId)} on ${sched.days} (${durationMin}m). Existing trapper(s) kept — gray diamond on the map.`,
+    });
+    state.modal = null;
+    state.page = "customer";
+    state.selectedCustomer = c.id;
+    toast(`Shared ${loc.name} · ${techName(techId)} added on ${sched.days}. Pin is a gray diamond.`);
+    render();
   }
 
   function openCompareRoutes(id, locId) {
@@ -8509,6 +8787,156 @@
     const key = `${cid}:${lid}`;
     if (state.mapSelect.includes(key)) state.mapSelect = state.mapSelect.filter((k) => k !== key);
     else state.mapSelect = state.mapSelect.concat(key);
+    render();
+  }
+
+  function openBulkAssign() {
+    if (!can("schedule.reassign") || !state.mapSelect.length) {
+      toast("Select properties on the map first (Box select).");
+      return;
+    }
+    const n = state.mapSelect.length;
+    const selectDur = state.mapSelect.reduce((sum, key) => {
+      const [cid, lid] = key.split(":");
+      const loc = locBy(cid, lid);
+      return sum + (svcsFor(cid, lid)[0]?.durationMin || loc?.durationMin || 20);
+    }, 0);
+    state.modal = {
+      wide: true,
+      html: `
+        <h3>Assign ${n} selected ${n === 1 ? "property" : "properties"}</h3>
+        <p class="tiny">Selected duration ${fmtClock(selectDur)}. Choose schedule and trapper — same Clear / Assign flow as Visual Route Manager.</p>
+        <div class="setup-grid">
+          <div class="field req"><label>Action</label>
+            <select id="bulk-mode">
+              <option value="move" selected>Reassign · move stops to this trapper</option>
+              <option value="share">Share · add this trapper (second service, different days)</option>
+            </select>
+          </div>
+          <div class="field req"><label>Trapper</label>
+            <select id="bulk-tech">${TECHS.map((t, i) => `<option value="${t.id}" ${i === 0 ? "selected" : ""}>${esc(t.name)} · ${esc(t.home)}</option>`).join("")}</select>
+          </div>
+          <div class="field req"><label>Schedule</label>
+            <select id="bulk-sched">${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}">${esc(s.label)}</option>`).join("")}</select>
+          </div>
+        </div>
+        <div class="notice">Reassign moves the stop. Share keeps the current trapper and adds another service — do not copy the stop.</div>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="clear-map-select">Clear</button>
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="confirm-bulk-assign">Assign</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function confirmBulkAssign() {
+    if (!can("schedule.reassign") || !state.mapSelect.length) return;
+    const mode = val("bulk-mode") || "move";
+    const techId = val("bulk-tech");
+    const sched = SERVICE_SCHEDULES.find((s) => s.id === val("bulk-sched")) || SERVICE_SCHEDULES[0];
+    if (!techId) {
+      toast("Pick a trapper.");
+      return;
+    }
+    if (mode === "share") {
+      let n = 0;
+      let skipped = 0;
+      state.mapSelect.forEach((key) => {
+        const [cid, lid] = key.split(":");
+        const c = custBy(cid);
+        const loc = locBy(cid, lid);
+        if (!c || !loc) return;
+        const existing = svcsFor(cid, lid).filter(svcIsContinuing);
+        if (!existing.length || locTechs(c, loc).includes(techId)) {
+          skipped += 1;
+          return;
+        }
+        if (existing.some((s) => s.days === sched.days)) {
+          skipped += 1;
+          return;
+        }
+        const primary = existing[0];
+        if (!Array.isArray(state.data.services)) state.data.services = [];
+        const svc = {
+          id: nid("SVC"),
+          customerId: cid,
+          locationId: lid,
+          type: primary.type || "12mon-res",
+          status: "live",
+          techId,
+          days: sched.days,
+          durationMin: primary.durationMin || loc.durationMin || 20,
+          generated: true,
+          schedule: sched.id,
+          target: primary.target || "IGUANA",
+          charge: primary.charge || "Production",
+          start: primary.start || TODAY,
+          expires: primary.expires || primary.renewal || null,
+          renewal: primary.renewal || primary.expires || null,
+          shared: true,
+          active: true,
+          opsNote: `Shared via box select — separate service for ${techName(techId)}.`,
+        };
+        state.data.services.push(svc);
+        loc.shared = true;
+        loc.backupId = techId;
+        if (c.paid || c.municipal) {
+          patternDays(sched.days).forEach((d) => {
+            state.data.stops.push({
+              id: nid("S"), customerId: cid, locationId: lid,
+              techId, day: d, time: nextSlot(techId, d),
+              durationMin: svc.durationMin, type: "service",
+              status: "scheduled", actualMin: null, removals: null,
+            });
+          });
+        }
+        n += 1;
+      });
+      state.mapSelect = [];
+      state.mapLasso = false;
+      state.modal = null;
+      toast(n
+        ? `Shared ${n} ${n === 1 ? "property" : "properties"} with ${techName(techId)} on ${sched.days}.${skipped ? ` Skipped ${skipped}.` : ""}`
+        : `Nothing shared — ${skipped} skipped (need an existing service, free trapper, and different days).`);
+      render();
+      return;
+    }
+    let n = 0;
+    state.mapSelect.forEach((key) => {
+      const [cid, lid] = key.split(":");
+      const c = custBy(cid);
+      const loc = locBy(cid, lid);
+      if (!c || !loc || loc.shared) return;
+      const prev = loc.techId;
+      loc.techId = techId;
+      loc.days = sched.days;
+      svcsFor(cid, lid).forEach((svc) => {
+        if (svc.shared) return;
+        svc.techId = techId;
+        svc.days = sched.days;
+        svc.schedule = sched.id;
+        state.data.stops = state.data.stops.filter((s) => !(s.customerId === cid && s.locationId === lid && s.status === "scheduled" && s.type !== "oneoff" && (!prev || s.techId === prev)));
+        if ((c.paid || c.municipal) && svc.generated !== false) {
+          patternDays(sched.days).forEach((d) => {
+            state.data.stops.push({
+              id: nid("S"), customerId: cid, locationId: lid,
+              techId, day: d, time: nextSlot(techId, d),
+              durationMin: svc.durationMin || 20, type: "service",
+              status: "scheduled", actualMin: null, removals: null,
+            });
+          });
+          svc.generated = true;
+          svc.status = "live";
+        }
+      });
+      n += 1;
+    });
+    state.mapSelect = [];
+    state.mapLasso = false;
+    state.modal = null;
+    toast(`Assigned ${n} properties to ${techName(techId)} · ${sched.days}.`);
     render();
   }
 
