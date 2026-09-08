@@ -713,9 +713,9 @@
         { id: "P-9180", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-08-26", memo: "Declined — Harbor Oaks monthly installment 5", invoiceMarked: false, failed: true, linkPay: true, posted: true, status: "FAILED" },
         { id: "P-9260", invoiceId: "INV-4419", customerId: "C-1042", locationId: "L-1042a", amount: 2000, method: "Website", last4: "2291", source: "website", date: "2026-02-22", memo: "Website checkout · Diane Walsh", invoiceMarked: true, linkPay: true },
         { id: "P-9230", invoiceId: "INV-4531", customerId: "C-1077", locationId: "L-1077a", amount: 300, method: "Card", last4: "7712", source: "portal", date: "2026-08-26", memo: "Portal link · Rita Gomez — Christy marked paid", invoiceMarked: true, linkPay: true },
-        { id: "P-9231", invoiceId: "INV-4510", customerId: "C-1091", locationId: "L-1091a", amount: 2000, method: "Card", last4: "1091", source: "portal", date: "2026-08-27", memo: "Portal renewal link · Sarah Chen — on register, mark invoice paid", invoiceMarked: false, linkPay: true },
-        { id: "P-9288", invoiceId: "INV-4688", customerId: "C-1188", locationId: "L-1188a", amount: 1200, method: "Portal", last4: "1188", source: "portal", date: "2026-08-27", memo: "Portal link · Nina Patel Residence — on register, mark invoice paid", invoiceMarked: false, linkPay: true },
-        { id: "P-9289", invoiceId: "INV-4689", customerId: "C-1188", locationId: "L-1188b", amount: 2000, method: "Check", last4: "9901", source: "check", date: "2026-08-27", memo: "Check #9901 · team entered · Nina Canal house — mark invoice paid", invoiceMarked: false, linkPay: false },
+        { id: "P-9231", invoiceId: "INV-4510", customerId: "C-1091", locationId: "L-1091a", amount: 2000, method: "Card", last4: "1091", source: "portal", date: "2026-08-27", memo: "Portal renewal link · Sarah Chen — on register, post payment", invoiceMarked: false, linkPay: true },
+        { id: "P-9288", invoiceId: "INV-4688", customerId: "C-1188", locationId: "L-1188a", amount: 1200, method: "Portal", last4: "1188", source: "portal", date: "2026-08-27", memo: "Portal link · Nina Patel Residence — on register, post payment", invoiceMarked: false, linkPay: true },
+        { id: "P-9289", invoiceId: "INV-4689", customerId: "C-1188", locationId: "L-1188b", amount: 2000, method: "Check", last4: "9901", source: "check", date: "2026-08-27", memo: "Check #9901 · team entered · Nina Canal house — post payment", invoiceMarked: false, linkPay: false },
         { id: "P-9310", invoiceId: "INV-4710", customerId: "C-1210", locationId: "L-1210a", amount: 2000, method: "Card", last4: "1210", source: "portal", date: "2026-08-21", memo: "Portal · Jony Morales Boca — marked paid", invoiceMarked: true, linkPay: true },
         { id: "P-9311", invoiceId: "INV-4711", customerId: "C-1210", locationId: "L-1210b", amount: 1200, method: "ACH", last4: "", source: "ach", date: "2026-08-21", memo: "ACH · Jony Morales Deerfield — marked paid", invoiceMarked: true, linkPay: true },
         { id: "P-9340", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Zelle", last4: "", source: "EXTERNAL", date: "2026-08-27", memo: "Zelle replacement · Harbor Oaks month 5 — awaiting allocation", invoiceMarked: false, linkPay: false, status: "POSTED" },
@@ -938,7 +938,7 @@
     oneoffDraft: null,
     oneoffDay: null,
     renewPick: [],
-    payFilter: "month",
+    payFilter: "all",
     paySrcFilter: "all",
     payFocusId: null,
     payInvoice: null,
@@ -1379,13 +1379,22 @@
     state.modal = {
       html: `
         <h3>Create task</h3>
-        <p>${locationLocked ? `Create work for ${esc(selectedLoc?.name || "this location")}. The task stays on this property.` : "Assign work to Tom, Rick, or Christy."}</p>
-        <div class="field"><label>Customer (Bill-To)</label>
-          <select id="tk-cust" data-act="task-cust-change" ${locationLocked ? "disabled" : ""}>${customers.map((x) => `<option value="${x.id}" ${x.id === selected ? "selected" : ""}>${esc(x.billTo || x.name)} · ${esc(x.id)}</option>`).join("")}</select>
-        </div>
-        <div class="field"><label>${locationLocked ? "Location" : "Property (optional)"}</label>
-          <select id="tk-loc" ${locationLocked ? "disabled" : ""}>${locationLocked ? "" : `<option value="">Whole Bill-To</option>`}${locs.map((l) => `<option value="${l.id}" ${l.id === locationId ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select>
-        </div>
+        ${locationLocked ? `
+          <div class="task-location-context">
+            <div><span>Bill-To</span><strong>${esc(c?.billTo || c?.name || selected)}</strong></div>
+            <div><span>Location</span><strong>${esc(selectedLoc?.name || "Location")}</strong><small>${esc(selectedLoc?.address || "No address")}</small></div>
+          </div>
+          <input id="tk-cust" type="hidden" value="${esc(selected)}">
+          <input id="tk-loc" type="hidden" value="${esc(locationId)}">
+        ` : `
+          <p>Assign work to Tom, Rick, or Christy.</p>
+          <div class="field"><label>Customer (Bill-To)</label>
+            <select id="tk-cust" data-act="task-cust-change">${customers.map((x) => `<option value="${x.id}" ${x.id === selected ? "selected" : ""}>${esc(x.billTo || x.name)} · ${esc(x.id)}</option>`).join("")}</select>
+          </div>
+          <div class="field"><label>Property (optional)</label>
+            <select id="tk-loc"><option value="">Whole Bill-To</option>${locs.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}</select>
+          </div>
+        `}
         <div class="field"><label>Assign to</label>
           <select id="tk-assignee">${TASK_ASSIGNEES.map((a) => `<option value="${a.id}" ${a.id === defaultAssignee ? "selected" : ""}>${esc(a.label)}</option>`).join("")}</select>
         </div>
@@ -1455,6 +1464,10 @@
     if (!can("task.complete")) return;
     const t = (state.data.tasks || []).find((x) => x.id === id);
     if (!t) return;
+    if (t.assignee !== state.role) {
+      toast(`Only ${taskAssigneeLabel(t.assignee)} can mark this task done.`);
+      return;
+    }
     t.status = "done";
     t.completedAt = TODAY;
     toast("Task marked done.");
@@ -1465,25 +1478,117 @@
     if (!can("task.complete")) return;
     const t = (state.data.tasks || []).find((x) => x.id === id);
     if (!t) return;
+    if (t.assignee !== state.role) {
+      toast(`Only ${taskAssigneeLabel(t.assignee)} can reopen this task.`);
+      return;
+    }
     t.status = "open";
     t.completedAt = null;
     toast("Task reopened.");
     render();
   }
 
+  function canManageTaskRecord(t) {
+    return !!(t && can("task.create") && (t.createdBy === state.role || state.role === "owner"));
+  }
+
+  function openEditTask(id) {
+    const t = (state.data.tasks || []).find((x) => x.id === id);
+    if (!canManageTaskRecord(t)) {
+      toast("Only the task creator can edit this task.");
+      return;
+    }
+    const c = custBy(t.customerId);
+    const loc = t.locationId ? locBy(t.customerId, t.locationId) : null;
+    state.modal = {
+      html: `
+        <h3>Edit task</h3>
+        <div class="task-location-context">
+          <div><span>Bill-To</span><strong>${esc(c?.billTo || c?.name || "—")}</strong></div>
+          <div><span>Location</span><strong>${esc(loc?.name || "Whole Bill-To")}</strong>${loc ? `<small>${esc(loc.address || "No address")}</small>` : ""}</div>
+        </div>
+        <div class="field"><label>Assign to</label>
+          <select id="et-assignee">${TASK_ASSIGNEES.map((a) => `<option value="${a.id}" ${a.id === t.assignee ? "selected" : ""}>${esc(a.label)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Title</label><input id="et-title" value="${esc(t.title || "")}"></div>
+        <div class="field"><label>Notes</label><textarea id="et-notes" rows="3">${esc(t.notes || "")}</textarea></div>
+        <div class="field"><label>Due</label><input id="et-due" type="date" value="${esc(t.due || TODAY)}"></div>
+        <div class="field"><label>Priority</label>
+          <select id="et-priority">
+            <option value="normal" ${t.priority === "normal" ? "selected" : ""}>Normal</option>
+            <option value="high" ${t.priority === "high" ? "selected" : ""}>High</option>
+            <option value="urgent" ${t.priority === "urgent" ? "selected" : ""}>Urgent</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="save-task-edit" data-id="${t.id}">Save changes</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function saveTaskEdit(id) {
+    const t = (state.data.tasks || []).find((x) => x.id === id);
+    if (!canManageTaskRecord(t)) return;
+    const title = (val("et-title") || "").trim();
+    if (!title) {
+      toast("Enter a task title.");
+      return;
+    }
+    t.assignee = val("et-assignee") || t.assignee;
+    t.title = title;
+    t.notes = (val("et-notes") || "").trim();
+    t.due = val("et-due") || TODAY;
+    t.priority = val("et-priority") || "normal";
+    state.modal = null;
+    toast("Task updated.");
+    render();
+  }
+
+  function openRemoveTask(id) {
+    const t = (state.data.tasks || []).find((x) => x.id === id);
+    if (!canManageTaskRecord(t)) {
+      toast("Only the task creator can remove this task.");
+      return;
+    }
+    state.modal = {
+      html: `
+        <h3>Remove task?</h3>
+        <p><strong>${esc(t.title)}</strong> will be removed from this location.</p>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="confirm-remove-task" data-id="${t.id}">Remove task</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function removeTask(id) {
+    const t = (state.data.tasks || []).find((x) => x.id === id);
+    if (!canManageTaskRecord(t)) return;
+    state.data.tasks = state.data.tasks.filter((x) => x.id !== id);
+    state.modal = null;
+    toast("Task removed.");
+    render();
+  }
+
   function taskRowActions(t) {
-    if (!can("task.complete")) return "—";
+    if (!can("task.complete") || t.assignee !== state.role) return "";
     if (t.status === "open") {
       return `<button class="btn btn-sun" data-act="complete-task" data-id="${t.id}">Done</button>`;
     }
     return `<button class="btn btn-ghost" data-act="reopen-task" data-id="${t.id}">Reopen</button>`;
   }
 
-  function taskListHtml(list, emptyMsg) {
+  function taskListHtml(list, emptyMsg, options = {}) {
     if (!list.length) return `<p class="muted">${esc(emptyMsg || "No tasks.")}</p>`;
     return list.map((t) => {
       const c = custBy(t.customerId);
       const loc = t.locationId ? locBy(t.customerId, t.locationId) : null;
+      const canManage = options.manage && canManageTaskRecord(t);
       const doneBadge = t.status === "done" ? `<span class="badge badge-ok">Done</span>` : `<span class="badge badge-sea">Open</span>`;
       return `<div class="fit-row ${t.status === "open" && (t.priority === "high" || t.priority === "urgent") ? "queue-new" : ""}">
         <div>
@@ -1491,14 +1596,14 @@
           ${taskPriorityBadge(t.priority)}
           <strong>${esc(t.title)}</strong>
           <div class="tiny">
-            ${c ? `<button class="btn btn-ghost linkish" data-act="open-customer" data-id="${c.id}">${esc(c.billTo || c.name)}</button>` : "—"}
-            ${loc ? ` · ${esc(loc.name)}` : ""}
-            · Due ${esc(t.due || "—")} · To ${esc(taskAssigneeLabel(t.assignee))} · From ${esc(taskAssigneeLabel(t.createdBy))}
+            ${options.hideCustomer ? "" : `${c ? `<button class="btn btn-ghost linkish" data-act="open-customer" data-id="${c.id}">${esc(c.billTo || c.name)}</button>` : "—"}${loc ? ` · ${esc(loc.name)}` : ""} · `}
+            Due ${esc(t.due || "—")} · To ${esc(taskAssigneeLabel(t.assignee))} · From ${esc(taskAssigneeLabel(t.createdBy))}
           </div>
           ${t.notes ? `<div class="tiny">${esc(t.notes)}</div>` : ""}
         </div>
         <div class="actions">
-          ${c ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Customer</button>` : ""}
+          ${!options.hideCustomer && c ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Customer</button>` : ""}
+          ${canManage ? `<button class="btn btn-ghost" data-act="edit-task" data-id="${t.id}">Edit</button><button class="btn btn-ghost" data-act="remove-task" data-id="${t.id}">Remove</button>` : ""}
           ${taskRowActions(t)}
         </div>
       </div>`;
@@ -1863,10 +1968,11 @@
     });
     return best;
   }
-  function miniMapHtml({ existing = [], preview = [], caption, drag = false, mapId = "mini-map", title = "Map preview", showHomes = true } = {}) {
+  function miniMapHtml({ existing = [], preview = [], caption, drag = false, mapId = "mini-map", title = "Map preview", showHomes = true, selectedLabel = "" } = {}) {
     const homes = showHomes ? TECHS.map((t) => `<div class="pin home-pin mini" style="left:${t.x};top:${t.y}" title="${esc(t.name)} home"><div class="pin-dot" style="background:${t.color}"></div></div>`) : [];
-    const old = existing.map((p) => `<div class="pin mini" style="left:${p.x};top:${p.y}"><div class="pin-dot" style="background:${p.color || "#8a8680"}"></div><span>${esc(p.label || "")}</span></div>`);
-    const next = preview.map((p) => `<div class="pin mini client ${p.elId || "preview"} ${p.elId === "mini-preview2" ? "ghost" : ""}" id="${p.elId || "mini-preview"}" ${drag ? `data-drag-mini="1" data-x="${p.xId || "al-x"}" data-y="${p.yId || "al-y"}" data-fill-city="${p.fillCity || ""}" data-fill-street="${p.fillStreet || ""}" data-fill-zip="${p.fillZip || ""}" data-fill-lat="${p.fillLat || ""}" data-fill-lng="${p.fillLng || ""}" data-cap="${p.capId || "mini-cap"}"${p.keepLabel ? ' data-keep-label="1"' : ""}` : ""} style="left:${p.x};top:${p.y}"><div class="pin-dot"></div><span>${esc(p.label || "New location")}</span></div>`);
+    const pinAction = (p) => p.action ? `data-act="${esc(p.action)}" data-id="${esc(p.customerId || "")}" data-loc="${esc(p.locationId || "")}" role="button" tabindex="0" aria-label="Select ${esc(p.label || "location")}"` : "";
+    const old = existing.map((p) => `<div class="pin mini ${p.action ? "map-selectable-pin" : ""}" ${pinAction(p)} style="left:${p.x};top:${p.y}"><div class="pin-dot" style="background:${p.color || "#8a8680"}"></div><span>${esc(p.label || "")}</span></div>`);
+    const next = preview.map((p) => `<div class="pin mini client ${p.elId || "preview"} ${p.elId === "mini-preview2" ? "ghost" : ""} ${p.action ? "map-selectable-pin is-selected" : ""}" id="${p.elId || "mini-preview"}" ${pinAction(p)} ${drag ? `data-drag-mini="1" data-x="${p.xId || "al-x"}" data-y="${p.yId || "al-y"}" data-fill-city="${p.fillCity || ""}" data-fill-street="${p.fillStreet || ""}" data-fill-zip="${p.fillZip || ""}" data-fill-lat="${p.fillLat || ""}" data-fill-lng="${p.fillLng || ""}" data-cap="${p.capId || "mini-cap"}"${p.keepLabel ? ' data-keep-label="1"' : ""}` : ""} style="left:${p.x};top:${p.y}"><div class="pin-dot"></div><span>${esc(p.label || "New location")}</span></div>`);
     const capId = preview[0]?.capId || "mini-cap";
     return `
       <div class="mini-map-box">
@@ -1879,7 +1985,7 @@
           ${old.join("")}
           ${next.join("")}
         </div>
-        <p class="tiny" id="${esc(capId)}">${esc(caption || "Type a city to move the pin. Drag or click the map to place it.")}</p>
+        <p class="tiny map-location-caption" id="${esc(capId)}">${selectedLabel ? `<span class="badge badge-sea">Selected</span> <strong>${esc(selectedLabel)}</strong>${caption ? " · " : ""}` : ""}${esc(caption || (selectedLabel ? "" : "Type a city to move the pin. Drag or click the map to place it."))}</p>
       </div>`;
   }
   function distMiles(ax, ay, bx, by) {
@@ -3957,6 +4063,7 @@
       const techId = svc?.techId || l.techId || c.techId || "";
       const status = locationStatusKey(c, l);
       return {
+        createdAt: Number(l.createdAt || 0),
         search: [c.name, c.billTo, c.id, l.name, l.address, c.type, service, techName(techId)].join(" "),
         status,
         type: c.type || "",
@@ -3971,7 +4078,7 @@
           `<button class="icon-btn table-icon-btn" data-act="open-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}" title="View location" aria-label="View ${esc(c.name)} ${esc(l.name || "property")}">${ICONS.eye}</button>`,
         ],
       };
-    }));
+    })).sort((a, b) => b.createdAt - a.createdAt);
     const statuses = [...new Set(rows.map((row) => row.status).filter(Boolean))];
     const types = [...new Set(rows.map((row) => row.type).filter(Boolean))];
     return `
@@ -4014,23 +4121,27 @@
   }
 
   function customerLocationsCard(c) {
+    const selectedId = locBy(c.id, state.selectedLocation)?.id || c.locations?.[0]?.id || "";
     return `
       <div class="card customer-location-list">
         <div class="customer-location-head">
           <div><h3>Locations</h3><p class="tiny">${(c.locations || []).length} service propert${(c.locations || []).length === 1 ? "y" : "ies"}</p></div>
+          ${can("location.add") ? `<button class="btn btn-primary" data-act="add-location" data-id="${esc(c.id)}">${ICONS.plus} Add property</button>` : ""}
         </div>
-        ${(c.locations || []).map((l) => {
-          const svc = svcFor(c.id, l.id);
-          return `
-            <div class="customer-location-row">
-              <div>
-                <strong>${esc(l.name || "Property")}</strong>
-                <div class="tiny">${esc(l.address || "No address")}</div>
-                <div class="tiny">${svc ? esc(svcTypeLabel(svc.type)) : esc(progBy(locPlan(c, l).programId)?.name || "No service")} · ${locationStatus(c, l)}</div>
-              </div>
-              <button class="icon-btn" data-act="open-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}" title="Open location" aria-label="Open ${esc(l.name || "location")}">${ICONS.eye}</button>
-            </div>`;
-        }).join("") || `<p class="muted">No locations yet.</p>`}
+        <div class="customer-location-scroll" data-keep-scroll="customer-locations">
+          ${(c.locations || []).map((l) => {
+            const svc = svcFor(c.id, l.id);
+            return `
+              <div class="customer-location-row ${l.id === selectedId ? "is-selected" : ""}">
+                <button type="button" class="customer-location-select" data-act="select-customer-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}" aria-label="Show ${esc(l.name || "location")} on map">
+                  <strong>${esc(l.name || "Property")}</strong>
+                  <div class="tiny">${esc(l.address || "No address")}</div>
+                  <div class="tiny">${svc ? esc(svcTypeLabel(svc.type)) : esc(progBy(locPlan(c, l).programId)?.name || "No service")} · ${locationStatus(c, l)}</div>
+                </button>
+                <button class="icon-btn" data-act="open-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}" title="Open location" aria-label="Open ${esc(l.name || "location")}">${ICONS.eye}</button>
+              </div>`;
+          }).join("") || `<p class="muted">No locations yet.</p>`}
+        </div>
       </div>`;
   }
 
@@ -4070,7 +4181,7 @@
           ${customerLocationsCard(c)}
         </div>
         <div class="card customer-map-card">
-          ${locationPreviewCard(c)}
+          ${locationPreviewCard(c, state.selectedLocation)}
         </div>
       </div>
     `;
@@ -4085,6 +4196,14 @@
     const plan = locPlan(c, l);
     const prog = plan.programId ? progBy(plan.programId) : null;
     const invoices = locInvoices(c.id, l.id);
+    const locationServices = (state.data.services || [])
+      .filter((s) => s.customerId === c.id && s.locationId === l.id)
+      .slice()
+      .sort((a, b) => String(b.start || "").localeCompare(String(a.start || "")));
+    const locationPayments = (state.data.payments || [])
+      .filter((p) => p.customerId === c.id && p.locationId === l.id)
+      .slice()
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
     const locTasks = tasksForCustomer(c.id).filter((t) => t.locationId === l.id);
     const locDocs = docsForCustomer(c.id).filter((d) => d.locationId === l.id);
     const visits = (state.data.stops || [])
@@ -4092,6 +4211,8 @@
       .slice()
       .sort((a, b) => String(b.day || "").localeCompare(String(a.day || "")) || String(a.time || "").localeCompare(String(b.time || "")));
     const gps = l.lat != null && l.lng != null ? `${Number(l.lat).toFixed(4)}, ${Number(l.lng).toFixed(4)}` : (l.gps || approxGps(l));
+    const needsQuote = locNeedsQuote(c, l);
+    const readyToInvoice = !needsQuote && canInvoiceLocation(c, l);
     return `
       <button class="btn btn-ghost" data-act="open-customer" data-id="${esc(c.id)}">← ${esc(c.billTo || c.name)}</button>
       <div class="cust-hero">
@@ -4100,6 +4221,8 @@
           <p class="muted">${esc(c.name)} · ${esc(l.address || "No address")} · ${locationStatus(c, l)}</p>
         </div>
         <div class="actions">
+          ${needsQuote ? btn("quote.send", "Send quote", "send-quote", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
+          ${readyToInvoice ? btn("invoice.create", "Send invoice", "invoice-one-loc", `data-id="${c.id}" data-loc="${l.id}"`, "btn-sun") : ""}
           ${can("location.add") || canEditField("address") || state.role === "owner" ? `<button class="btn btn-ghost" data-act="edit-one-loc" data-id="${c.id}" data-loc="${l.id}">Edit location</button>` : ""}
           ${locNeedsService(c, l) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
           ${locNeedsTech(c, l) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
@@ -4121,34 +4244,69 @@
             </dl>
           </div>
           <div class="card">
-            <h3>Service & dispatch</h3>
+            <h3>Service history</h3>
             <dl class="kv section-gap">
-              <dt>Service</dt><dd>${svc ? esc(svcTypeLabel(svc.type)) : "No service yet"}</dd>
-              <dt>Trapper</dt><dd>${esc(svc?.techId || l.techId || c.techId ? techName(svc?.techId || l.techId || c.techId) : "Unassigned")}</dd>
-              <dt>Schedule</dt><dd>${esc(svc?.days || l.days || c.days || "—")}</dd>
-              <dt>Duration</dt><dd>${Number(svc?.durationMin || l.durationMin || c.durationMin || 0)} min</dd>
-              <dt>Program</dt><dd>${esc(prog?.name || "—")}${can("payment.viewAmount") && plan.amount ? ` · ${money(plan.amount)}` : ""}</dd>
-              <dt>Plan dates</dt><dd>${esc(plan.start || "—")} → ${esc(plan.expires || "—")}</dd>
+              <dt>Current service</dt><dd>${svc ? esc(svcTypeLabel(svc.type)) : "No service yet"}</dd>
+              <dt>Current trapper</dt><dd>${esc(svc?.techId || l.techId || c.techId ? techName(svc?.techId || l.techId || c.techId) : "Unassigned")}</dd>
+              <dt>Current schedule</dt><dd>${esc(svc?.days || l.days || c.days || "—")}</dd>
             </dl>
+            ${locationServices.length ? `
+              <table class="mini-table location-history-table">
+                <thead><tr><th>Service</th><th>Trapper</th><th>Schedule</th><th>Dates</th><th>Status</th></tr></thead>
+                <tbody>${locationServices.map((s) => `
+                  <tr>
+                    <td>${esc(svcTypeLabel(s.type))}<div class="tiny">${Number(s.durationMin || 0)} min</div></td>
+                    <td>${esc(s.techId ? techName(s.techId) : "Unassigned")}</td>
+                    <td>${esc(s.days || "—")}</td>
+                    <td>${esc(s.start || "—")} → ${esc(s.expires || s.cancelDate || "—")}</td>
+                    <td>${svcStatusBadge(s)}</td>
+                  </tr>`).join("")}</tbody>
+              </table>
+            ` : `<p class="muted">No service history yet.</p>`}
           </div>
           <div class="card">
-            <h3>Location tasks <span class="muted">${locTasks.filter((t) => t.status === "open").length} open</span></h3>
-            ${taskListHtml(locTasks, "No tasks for this location.")}
+            <h3>Tasks <span class="muted">${locTasks.filter((t) => t.status === "open").length} open</span></h3>
+            ${taskListHtml(locTasks, "No tasks for this location.", { hideCustomer: true, manage: true })}
           </div>
         </div>
         <div class="stack">
           <div class="card customer-map-card">
             ${miniMapHtml({
               preview: [{ x: l.x, y: l.y, label: l.name, elId: "location-detail-pin" }],
-              caption: `${l.name} · ${l.address || gps}`,
+              caption: l.address || gps,
               mapId: "location-detail-map",
               title: "Location map",
               showHomes: false,
+              selectedLabel: l.name,
             })}
           </div>
           <div class="card">
-            <h3>Billing at this location</h3>
-            <p class="tiny">${invoices.length ? invoices.map((i) => `${esc(i.id)} · ${esc(invoiceFinStatus(i))} · ${money(i.amount)}`).join("<br>") : "No invoices yet."}</p>
+            <h3>Billing history</h3>
+            <dl class="kv section-gap">
+              <dt>Program</dt><dd>${esc(prog?.name || "—")}${can("payment.viewAmount") && plan.amount ? ` · ${money(plan.amount)}` : ""}</dd>
+              <dt>Plan dates</dt><dd>${esc(plan.start || "—")} → ${esc(plan.expires || "—")}</dd>
+            </dl>
+            ${invoices.length || locationPayments.length ? `
+              <table class="mini-table location-history-table">
+                <thead><tr><th>Date</th><th>Record</th><th>Amount</th><th>Method</th><th>Status</th></tr></thead>
+                <tbody>
+                  ${invoices.map((i) => `<tr>
+                    <td>${esc(i.date || i.due || "—")}</td>
+                    <td>${esc(i.id)}<div class="tiny">Invoice</div></td>
+                    <td>${can("payment.viewAmount") ? money(i.amount) : "—"}</td>
+                    <td>—</td>
+                    <td>${statusBadge(invoiceFinStatus(i))}</td>
+                  </tr>`).join("")}
+                  ${locationPayments.map((p) => `<tr>
+                    <td>${esc(p.date || "—")}</td>
+                    <td>${esc(p.id)}<div class="tiny">Payment</div></td>
+                    <td>${can("payment.viewAmount") ? money(p.amount) : "—"}</td>
+                    <td>${esc(p.method || p.source || "—")}</td>
+                    <td>${p.failed ? statusBadge("failed") : payNeedsMark(p) ? statusBadge("pending") : statusBadge("paid")}</td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+            ` : `<p class="muted">No billing history yet.</p>`}
           </div>
           <div class="card">
             <h3>Recent visits</h3>
@@ -4449,12 +4607,17 @@
     `;
   }
 
-  function locationPreviewCard(c) {
-    const locs = (c.locations || []).filter((l) => l.covered !== false);
+  function locationPreviewCard(c, selectedLocationId) {
+    const locs = c.locations || [];
+    const selected = locs.find((l) => l.id === selectedLocationId) || locs[0] || null;
+    const others = locs.filter((l) => l.id !== selected?.id);
     return miniMapHtml({
-      existing: locs.slice(1).map((l) => ({ x: l.x, y: l.y, label: l.name, color: locPinColor(c, l) })),
-      preview: locs[0] ? [{ x: locs[0].x, y: locs[0].y, label: locs[0].name, elId: "cust-pin-0" }] : [],
-      caption: locs.map((l) => `${l.name} · ${l.address}`).join(" · ") || "No pin yet",
+      existing: others.map((l) => ({ x: l.x, y: l.y, label: l.name, color: locPinColor(c, l), action: "select-customer-location", customerId: c.id, locationId: l.id })),
+      preview: selected ? [{ x: selected.x, y: selected.y, label: selected.name, elId: "cust-selected-pin", action: "select-customer-location", customerId: c.id, locationId: selected.id }] : [],
+      caption: selected ? (selected.address || "No address") : "No pin yet",
+      selectedLabel: selected?.name || "",
+      title: "Customer locations",
+      mapId: "customer-locations-map",
       showHomes: false,
     });
   }
@@ -5689,11 +5852,7 @@
     const rows = list.map((p) => {
       const c = p.customerId ? custBy(p.customerId) : null;
       const loc = p.locationId ? locBy(p.customerId, p.locationId) : c?.locations?.[0];
-      const inv = p.invoiceId ? (state.data.invoices || []).find((i) => i.id === p.invoiceId) : null;
-      const channel = String(p.source || "").toUpperCase() || (payIsLink(p) ? "ONLINE" : "EXTERNAL");
-      const ref = p.last4 ? (String(p.last4).length <= 4 ? "····" + p.last4 : p.last4) : (p.checkNo || "—");
       const needs = payNeedsMark(p);
-      const allocAmt = paymentAllocatedAmount(p.id);
       let act = "";
       if (isOps) {
         const need = c && loc && locNeedsService(c, loc);
@@ -5701,42 +5860,34 @@
           ? (need ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${loc.id}"`) : `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Bill-To</button>`)
           : "—";
       } else if (p.failed) {
-        act = c ? `<button class="btn btn-sun" data-act="open-pay-row" data-id="${p.id}">Open Bill-To</button>` : "—";
+        act = "—";
       } else if (needs) {
-        act = `<button class="btn btn-sun" data-act="open-pay-row" data-id="${p.id}">Open · allocate</button>`;
+        act = `<button class="btn btn-sun" data-act="mark-invoice-paid" data-id="${p.id}">Post payment</button>`;
       } else {
-        act = c ? `<button class="btn btn-ghost" data-act="open-pay-row" data-id="${p.id}">Open Bill-To</button>` : "—";
-      }
-      if (!isOps && can("payment.post")) {
-        act += ` <button class="btn btn-ghost" data-act="edit-memo" data-id="${p.id}">Memo</button>`;
+        act = "—";
       }
       const status = p.failed
         ? statusBadge("failed")
         : needs
-          ? `<span class="badge badge-warn">Awaiting allocation</span>`
-          : `<span class="badge badge-ok">Allocated</span>`;
+          ? `<span class="badge badge-warn">Needs posting</span>`
+          : `<span class="badge badge-ok">Posted</span>`;
       return [
         p.date,
         c ? `<button class="btn btn-ghost linkish" data-act="open-pay-row" data-id="${p.id}">${esc(c.billTo || c.name)}</button>` : "—",
-        p.invoiceId || "—",
-        loc ? esc(loc.name) : "—",
-        can("payment.viewAmount") || isOps ? money(p.amount) : "—",
-        can("payment.viewAmount") || isOps ? money(allocAmt) : "—",
-        inv && (can("payment.viewAmount") || isOps) ? money(invoiceBalance(inv)) : "—",
         esc(p.method || "—"),
-        esc(ref),
-        esc(channel),
+        p.invoiceId || "—",
+        can("payment.viewAmount") || isOps ? money(p.amount) : "—",
         status,
-        act,
+        `<div class="payment-row-actions">${act}</div>`,
       ];
     });
     return `
       ${head("Payment register", isOps
         ? "When Christy’s done and the balance is $0, open the Bill-To and create the service."
-        : "Record payment posts and allocates. Portal lines may still need Allocate on the property. You can edit memos after save.")}
+        : "All client payments appear here. Post each received payment to its invoice; a full payment marks the invoice paid.")}
       ${isOps
         ? `<div class="notice">You don’t allocate invoices. When balance is zero: open Bill-To → create service → assign on the map.</div>`
-        : `<div class="notice">Online, AutoPay, and external payments land here. Portal lines sometimes still need Allocate on the property.</div>`}
+        : `<div class="notice">Online, AutoPay, checks, ACH, Zelle, and other client payments land here. Click <strong>Post payment</strong> to apply it to the linked invoice.</div>`}
       <div class="seg" style="margin-bottom:8px">
         ${filters.map(([id, lab]) => `<button class="${filter === id ? "on" : ""}" data-act="pay-filter" data-filter="${id}">${lab}</button>`).join("")}
       </div>
@@ -5744,7 +5895,7 @@
         ${srcFilters.map(([id, lab]) => `<button class="${srcFilter === id ? "on" : ""}" data-act="pay-src-filter" data-filter="${id}">${lab}</button>`).join("")}
       </div>
       <p class="tiny" style="margin-bottom:10px">${list.length} payment${list.length === 1 ? "" : "s"} · ${esc(payFilterLabel(filter))}${!isOps ? ` · ${btn("payment.post", "Record payment", "new-pay", "", "btn-ghost")}` : ""}</p>
-      ${table(["Date", "Bill-To", "Invoice", "Property", "Amount", "Allocated", "Inv bal", "MOP", "Ref", "Source", "Status", ""], rows)}
+      ${table(["Date", "Bill-To", "MOP", "Invoice no.", "Amount paid", "Status", ""], rows, "payment-register-table")}
     `;
   }
 
@@ -5789,6 +5940,68 @@
     }
     state.selectedCustomer = p.customerId;
     state.page = "customer";
+    render();
+  }
+
+  function openMarkInvoicePaid(payId) {
+    if (!can("payment.post")) return;
+    const p = (state.data.payments || []).find((x) => x.id === payId);
+    const inv = p?.invoiceId ? (state.data.invoices || []).find((i) => i.id === p.invoiceId) : null;
+    if (!p || !inv || p.failed) {
+      toast("This payment cannot be applied to an invoice.");
+      return;
+    }
+    if (!payNeedsMark(p)) {
+      toast("This payment is already allocated.");
+      return;
+    }
+    const c = custBy(inv.customerId);
+    const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
+    const available = Math.max(0, Number(p.amount || 0) - paymentAllocatedAmount(p.id));
+    const balance = invoiceBalance(inv);
+    const paysInFull = available + 0.001 >= balance;
+    state.modal = {
+      html: `
+        <h3>Post payment?</h3>
+        <div class="task-location-context">
+          <div><span>Bill-To</span><strong>${esc(c?.billTo || c?.name || "—")}</strong></div>
+          <div><span>Location</span><strong>${esc(loc?.name || "—")}</strong><small>${esc(loc?.address || "")}</small></div>
+        </div>
+        <dl class="kv">
+          <dt>Invoice</dt><dd>${esc(inv.id)}</dd>
+          <dt>Payment received</dt><dd>${money(available)}</dd>
+          <dt>Invoice balance</dt><dd>${money(balance)}</dd>
+          <dt>Result</dt><dd>${paysInFull ? `<span class="badge badge-ok">Paid in full</span>` : `<span class="badge badge-warn">Partial payment</span>`}</dd>
+        </dl>
+        <div class="actions section-gap">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="confirm-mark-invoice-paid" data-id="${p.id}">Post payment</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function markInvoicePaidFromRegister(payId) {
+    if (!can("payment.post")) return;
+    const p = (state.data.payments || []).find((x) => x.id === payId);
+    const inv = p?.invoiceId ? (state.data.invoices || []).find((i) => i.id === p.invoiceId) : null;
+    if (!p || !inv || p.failed || !payNeedsMark(p)) return;
+    const available = Math.max(0, Number(p.amount || 0) - paymentAllocatedAmount(p.id));
+    if (!available) return;
+    allocatePaymentToInvoice(p, inv, available);
+    const paid = invoiceFinStatus(inv) === "PAID";
+    state.data.comms.unshift({
+      id: nid("CM"),
+      customerId: inv.customerId,
+      who: role()?.name || "Christy Brown",
+      channel: "Office",
+      date: TODAY,
+      text: `${p.method || "Payment"} allocated to ${inv.id}. ${paid ? "Invoice marked paid." : `Remaining balance ${money(invoiceBalance(inv))}.`}`,
+    });
+    state.modal = null;
+    state.payFocusId = null;
+    toast(paid ? `${inv.id} marked paid. Rick can continue with service.` : `${money(available)} allocated. ${money(invoiceBalance(inv))} remains.`);
     render();
   }
 
@@ -5874,14 +6087,16 @@
     const src = String(p.source || "").toUpperCase() || (payIsLink(p) ? "ONLINE" : "EXTERNAL");
     return `<div class="fit-row">
       <div>
-        <span class="badge ${p.failed ? "badge-bad" : needs ? "badge-warn" : "badge-ok"}">${p.failed ? "Declined" : needs ? "Awaiting allocation" : "Allocated"}</span>
+        <span class="badge ${p.failed ? "badge-bad" : needs ? "badge-warn" : "badge-ok"}">${p.failed ? "Declined" : needs ? "Needs posting" : "Posted"}</span>
         ${c
           ? `<button class="btn btn-ghost linkish" data-act="open-pay-row" data-id="${p.id}">${esc(c.billTo || c.name)}</button>`
           : `<strong>${esc(p.memo || "—")}</strong>`}
         <div class="tiny">${esc(p.date)} · ${esc(src)} · ${esc(p.method || "")}${p.last4 ? " · ····" + esc(p.last4) : ""} · ${money(p.amount)} · alloc ${money(paymentAllocatedAmount(p.id))} · ${p.invoiceId ? esc(p.invoiceId) + " · " : ""}${esc(p.memo || "")}</div>
       </div>
       ${c
-        ? `<button class="btn ${needs ? "btn-sun" : "btn-ghost"}" data-act="open-pay-row" data-id="${p.id}">${needs ? "Open · allocate" : "Open Bill-To"}</button>`
+        ? needs && can("payment.post")
+          ? `<button class="btn btn-sun" data-act="mark-invoice-paid" data-id="${p.id}">Post payment</button>`
+          : `<button class="btn btn-ghost" data-act="open-pay-row" data-id="${p.id}">Open Bill-To</button>`
         : ""}
     </div>`;
   }
@@ -6483,9 +6698,9 @@
   function stat(k, v, s, cls = "") {
     return `<div class="stat ${cls}"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="s">${esc(s)}</div></div>`;
   }
-  function table(headers, rows) {
+  function table(headers, rows, className = "") {
     if (!rows.length) return `<p class="muted">Nothing to show.</p>`;
-    return `<div class="table-wrap card" style="padding:8px 10px"><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+    return `<div class="table-wrap card ${esc(className)}" style="padding:8px 10px"><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
   }
   function renderToast() {
     return state.toast ? `<div class="toast">${esc(state.toast)}</div>` : "";
@@ -6550,6 +6765,13 @@
       if (String(el.dataset.act || "").startsWith("map-") || el.dataset.act === "focus-tech" || el.dataset.act === "focus-client") {
         e.preventDefault();
       }
+      act(el.dataset.act, el.dataset);
+    };
+    $app.onkeydown = (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const el = e.target.closest('[role="button"][data-act]');
+      if (!el) return;
+      e.preventDefault();
       act(el.dataset.act, el.dataset);
     };
     $app.onchange = (e) => {
@@ -6953,6 +7175,11 @@
       "nav-toggle": () => toggleNavGroup(ds.group),
       "switch-role-btn": () => switchRole(ds.role),
       "open-customer": () => { state.selectedCustomer = ds.id; state.selectedLocation = null; state.page = "customer"; state.payFocusId = null; render(); },
+      "select-customer-location": () => {
+        state.selectedCustomer = ds.id;
+        state.selectedLocation = ds.loc;
+        render();
+      },
       "open-location": () => {
         state.selectedCustomer = ds.id;
         state.selectedLocation = ds.loc;
@@ -6961,6 +7188,8 @@
         render();
       },
       "open-pay-row": () => openPayRow(ds.id),
+      "mark-invoice-paid": () => openMarkInvoicePaid(ds.id),
+      "confirm-mark-invoice-paid": () => markInvoicePaidFromRegister(ds.id),
       "pay-filter": () => { state.payFilter = ds.filter || "month"; render(); },
       "pay-src-filter": () => { state.paySrcFilter = ds.filter || "all"; render(); },
       "open-pay": () => { state.payView = true; state.payInvoice = ds.inv || "INV-4510"; render(); },
@@ -6984,8 +7213,8 @@
         }
       },
       "intake-type": () => syncCompanyField(),
-      "send-quote": () => openQuote(ds.id),
-      "confirm-quote": () => confirmQuote(ds.id),
+      "send-quote": () => openQuote(ds.id, ds.loc),
+      "confirm-quote": () => confirmQuote(ds.id, ds.loc),
       "convert-invoice": () => convertInvoice(ds.id),
       "open-convert": () => openConvertInvoice(ds.id),
       "confirm-convert": () => convertInvoice(ds.id),
@@ -7170,6 +7399,10 @@
       "new-pay": () => openNewPay(ds.id),
       "new-task": () => openCreateTask(ds.id, ds.loc),
       "save-task": () => saveTask(),
+      "edit-task": () => openEditTask(ds.id),
+      "save-task-edit": () => saveTaskEdit(ds.id),
+      "remove-task": () => openRemoveTask(ds.id),
+      "confirm-remove-task": () => removeTask(ds.id),
       "complete-task": () => completeTask(ds.id),
       "reopen-task": () => reopenTask(ds.id),
       "task-filter": () => { state.taskFilter = ds.filter || "mine"; render(); },
@@ -7466,6 +7699,7 @@
       covered: true,
       requestService: true,
       requestedAt: Date.now(),
+      createdAt: Date.now(),
       manualPin: true,
       lifecycle: "inquiry",
     };
@@ -7522,14 +7756,16 @@
       if (instructions) existing.notes = instructions;
       if (internal) existing.opsNote = internal;
       const fallback = type === "hoa" ? (company || "HOA property") : "Residence";
-      locsRaw.forEach((raw, idx) => {
-        existing.locations.push(makeLocation(raw, locsRaw.length > 1 ? `${fallback} ${idx + 1}` : fallback));
-      });
+      const newLocations = locsRaw.map((raw, idx) =>
+        makeLocation(raw, locsRaw.length > 1 ? `${fallback} ${idx + 1}` : fallback)
+      );
+      existing.locations.unshift(...newLocations);
       const inbound = (state.data.inbound || []).find((n) => n.id === state.inboundId);
       if (inbound) inbound.used = true;
       state.inboundId = null;
       state.locCount = 1;
       state.selectedCustomer = existing.id;
+      state.selectedLocation = newLocations[0]?.id || null;
       state.page = "customer";
       toast(`Added ${locsRaw.length} propert${locsRaw.length > 1 ? "ies" : "y"} under ${existing.billTo || existing.name}. Same Bill-To — next send a quote, then invoice after they choose a plan.`);
       render();
@@ -7540,7 +7776,7 @@
       makeLocation(raw, type === "hoa" ? (company || `Property ${idx + 1}`) : (raw.name || (idx === 0 ? "Residence" : `Property ${idx + 1}`)))
     );
     const id = nid("C");
-    state.data.customers.push({
+    state.data.customers.unshift({
       id,
       name: displayName,
       firstName: first,
@@ -7572,6 +7808,7 @@
       source: radioVal("nc-channel") || "Call",
       inboundChannel: radioVal("nc-channel") || "Call",
       prospect: !!document.getElementById("nc-prospect")?.checked,
+      createdAt: Date.now(),
       acceptSms: !!document.getElementById("nc-sms")?.checked,
       acceptEmail: !!document.getElementById("nc-mail")?.checked,
       locations,
@@ -7584,17 +7821,21 @@
     state.locCount = 1;
     state.modal = null;
     state.selectedCustomer = id;
+    state.selectedLocation = locations[0]?.id || null;
     state.page = "customer";
     toast(`Customer saved. ${displayName} · ${locations.length} propert${locations.length > 1 ? "ies" : "y"} · one Bill-To. Next: send one quote with the programs, wait for their choice, then invoice.`);
     render();
   }
 
-  function openQuote(customerId) {
+  function openQuote(customerId, locationId) {
     const c = custBy(customerId);
-    const locs = (c.locations || []).filter((l) => l.covered !== false && locNeedsQuote(c, l));
+    const target = locationId ? locBy(customerId, locationId) : null;
+    const locs = target
+      ? [target].filter((l) => l.covered !== false)
+      : (c.locations || []).filter((l) => l.covered !== false && locNeedsQuote(c, l));
     const use = locs.length ? locs : (c.locations || []).filter((l) => l.covered !== false);
     const n = use.length;
-    const options = PROGRAMS.filter((x) => c.type === "hoa" ? true : x.id !== "hoa2")
+    const options = allPrograms().filter((x) => c.type === "hoa" ? true : x.id !== "hoa2")
       .map((x) => `<li>${esc(x.name)} — ${money(programAmount(x))}${x.prepaid != null ? ` prepaid (list ${money(x.list)})` : ""} · ${esc(x.freq)}</li>`)
       .join("");
     const propList = use.map((l, i) => `<li><strong>${esc(l.name)}</strong> — ${esc(l.address)}</li>`).join("");
@@ -7609,7 +7850,7 @@
       wide: true,
       html: `
         <h3>Send quote</h3>
-        <p>One letter to Bill-To ${esc(c.billTo || c.name)}. Lists the programs once. ${n > 1 ? `Mentions all ${n} properties and asks same vs different.` : "Asks which program they want."} No plan is locked yet.</p>
+        <p>${target ? `Quote for <strong>${esc(target.name)}</strong>, sent to Bill-To ${esc(c.billTo || c.name)}.` : `One letter to Bill-To ${esc(c.billTo || c.name)}. Lists the programs once. ${n > 1 ? `Mentions all ${n} properties and asks same vs different.` : "Asks which program they want."}`} No plan is locked yet.</p>
         <div class="invoice-sheet">
           <div class="demo-flag">Iguana Control</div>
           <h3>Hello ${esc(c.billTo || c.name)},</h3>
@@ -7622,19 +7863,27 @@
         </div>
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="close-modal">Back</button>
-          <button class="btn btn-primary" data-act="confirm-quote" data-id="${c.id}">Send quote</button>
+          <button class="btn btn-primary" data-act="confirm-quote" data-id="${c.id}" ${target ? `data-loc="${target.id}"` : ""}>Send quote</button>
         </div>
       `,
     };
     render();
   }
 
-  function confirmQuote(id) {
+  function confirmQuote(id, locationId) {
     const c = custBy(id);
-    const locs = (c.locations || []).filter((l) => l.covered !== false && locNeedsQuote(c, l));
+    const target = locationId ? locBy(id, locationId) : null;
+    const locs = target
+      ? [target].filter((l) => l.covered !== false)
+      : (c.locations || []).filter((l) => l.covered !== false && locNeedsQuote(c, l));
     const use = locs.length ? locs : (c.locations || []).filter((l) => l.covered !== false);
     const locationIds = use.map((l) => l.id);
-    const existing = state.data.quotes.find((x) => x.customerId === id && x.sent && !x.programId && Array.isArray(x.locationIds));
+    const existing = state.data.quotes.find((x) =>
+      x.customerId === id
+      && x.sent
+      && !x.programId
+      && (target ? quoteCoversLoc(x, target.id) : Array.isArray(x.locationIds))
+    );
     if (existing) {
       existing.sent = true;
       existing.date = TODAY;
@@ -7661,12 +7910,16 @@
     const n = locationIds.length;
     state.data.comms.push({
       id: nid("CM"), customerId: id, who: role().name, channel: "Email", date: TODAY,
-      text: n > 1
+      text: target
+        ? `Sent quote to ${c.billTo || c.name} for ${target.name} — waiting on their program choice.`
+        : n > 1
         ? `Sent one quote to ${c.billTo || c.name} with program options for ${n} properties — asked same plan on all vs different per property.`
         : `Sent one quote to ${c.billTo || c.name} with program options — waiting on their choice.`,
     });
     state.modal = null;
-    toast(n > 1
+    toast(target
+      ? `Quote sent for ${target.name}. Wait for their plan choice, then send the invoice here.`
+      : n > 1
       ? `One quote sent for ${n} properties. Wait for same-vs-different, then create invoices.`
       : "Quote sent. Wait for their plan choice, then create the invoice.");
     render();
@@ -7788,8 +8041,9 @@
       text: `Contract + invoice ${inv.id} for ${loc.name} (${billingPlanLabel(loc)})${wantAutopay ? " · AutoPay ON — overnight charge posts without Christy marking the register" : " · AutoPay OFF — Christy allocates from the register"}. Waiting on payment — Ops sets up service when the balance is zero.`,
     });
     state.modal = null;
-    state.page = "customer";
+    state.page = "location";
     state.selectedCustomer = c.id;
+    state.selectedLocation = loc.id;
     toast(`Invoice ${inv.id} sent · ${cmt?.billingFrequency === "monthly" ? "period 1 of " + cmt.periods : "upfront"}${wantAutopay ? " · AutoPay ON" : ""}.`);
     render();
   }
@@ -9081,7 +9335,7 @@
             <input type="hidden" id="el-x" value="${pct(loc.x)}">
             <input type="hidden" id="el-y" value="${pct(loc.y)}">
             <div class="actions">
-              <button class="btn btn-ghost" data-act="edit-locations" data-id="${c.id}">Back</button>
+              <button class="btn btn-ghost" data-act="close-modal">Back</button>
               <button class="btn btn-primary" data-act="save-one-loc" data-id="${c.id}" data-loc="${loc.id}">Save location</button>
             </div>
           </div>
@@ -9139,8 +9393,11 @@
     loc.gps = `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
     loc.manualPin = true;
     state.modal = null;
+    state.selectedCustomer = cid;
+    state.selectedLocation = lid;
+    state.page = "location";
+    persist();
     toast(`${loc.name} updated · ${loc.gps}`);
-    openEditLocations(cid);
   }
 
   function openAddLocation(id) {
@@ -9221,12 +9478,15 @@
       covered: true,
       requestService: true,
       requestedAt: Date.now(),
+      createdAt: Date.now(),
       manualPin: true,
       lifecycle: "inquiry",
     };
-    c.locations.push(loc);
+    c.locations.unshift(loc);
     state.data.comms.push({ id: nid("CM"), customerId: id, who: role().name, channel: "Phone", date: TODAY, text: `Added property ${loc.name} — ${loc.address} · ${loc.gps}. Quote next; invoice after they choose a plan.` });
     state.modal = null;
+    state.selectedLocation = loc.id;
+    persist();
     toast(`${loc.name} added · ${loc.gps}. Next: send a quote for this property.`);
     render();
   }
@@ -9584,7 +9844,7 @@
         </div>
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="close-modal">Leave unmatched</button>
-          ${btn("payment.post", "This is that client — mark invoice paid", "apply-mail", `data-id="${m.id}"`)}
+          ${btn("payment.post", "This is that client — post payment", "apply-mail", `data-id="${m.id}"`)}
         </div>
       `,
     };
