@@ -46,6 +46,8 @@
     phone: svg(["M7 2h10v20H7z", "M11 18h2"]),
     plus: svg(["M12 5v14", "M5 12h14"]),
     eye: svg(["M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z", "M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6"]),
+    search: svg(["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.35-4.35"]),
+    pencil: svg(["M12 20h9", "M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"]),
   };
 
   const ROLES = {
@@ -117,6 +119,7 @@
     { id: "quotes", label: "Quotes", group: "Customers", icon: "mail", roles: ["sales", "owner", "admin"] },
 
     { id: "schedule", label: "Schedule", group: "Operations", icon: "cal", roles: ["owner", "ops"] },
+    { id: "ready-schedule", label: "Ready to schedule", group: "Operations", icon: "list", roles: ["owner", "ops"] },
     { id: "optimizer", label: "Multi-Day Optimizer", group: "Operations", icon: "route", roles: ["owner", "ops"] },
     { id: "map", label: "Map & routing", group: "Operations", icon: "map", roles: ["owner", "ops"] },
     { id: "trappers", label: "Trappers", group: "Operations", icon: "people", roles: ["owner", "ops", "admin"] },
@@ -224,6 +227,12 @@
     { id: "WK-MOTH", label: "WK - MO TH", days: "Mon/Thu" },
     { id: "WK-WEFR", label: "WK - WE FR", days: "Wed/Fri" },
     { id: "WK-FR", label: "WK - FR", days: "Fri" },
+  ];
+  const SERVICE_FREQUENCIES = [
+    { id: "WEEKLY", label: "Weekly" },
+    { id: "BI-WEEKLY", label: "Every 2 weeks" },
+    { id: "MONTHLY", label: "Monthly" },
+    { id: "ONE-TIME", label: "One-time" },
   ];
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const TARGETS = ["IGUANA", "TEGU", "IGUANA / TEGU"];
@@ -928,6 +937,8 @@
     mapPin: null,
     mapSched: null,
     mapCompare: [],
+    mapActionMode: null,
+    mapReturnPage: null,
     assignId: null,
     assignLocId: null,
     assignFocus: null,
@@ -935,6 +946,7 @@
     setupId: null,
     setupLocId: null,
     setupDraft: null,
+    setupEditId: null,
     oneoffDraft: null,
     oneoffDay: null,
     renewPick: [],
@@ -2526,32 +2538,101 @@
       return { t, miles: extraMiles, homeMiles, mins: extraMin, already, route };
     }).sort((a, b) => a.miles - b.miles || a.homeMiles - b.homeMiles);
   }
-  function fitCardsHtml(ranked, picked, target) {
-    const pick = picked || ranked[0]?.t.id;
+  function fitCardsHtml(ranked, picked, target, multi) {
+    const picks = Array.isArray(picked) ? picked : (picked ? [picked] : []);
+    const suggested = ranked[0]?.t.id;
     const tgt = target ? ` data-target="${esc(target)}"` : "";
-    return ranked.map((r, i) => `
-      <button class="bestfit-card ${r.t.id === pick ? "pick" : ""}" type="button" data-act="sv-pick-fit" data-tech="${r.t.id}"${tgt}>
-        <strong>${i === 0 ? "Suggested · " : ""}${esc(r.t.name)}</strong> · ${esc(r.t.home)}
-        <div class="tiny">${r.already ? "Already in this pocket · 0 extra min" : `${r.miles} mi extra · ~${r.mins} min drive from nearest stop`} · ${r.homeMiles} mi from home</div>
-        ${r.route.length ? `<div class="tiny">${r.route.map((s) => `${s.day} ${s.time} ${s.name}`).join(" → ")}</div>` : `<div class="tiny">Open day on this pattern.</div>`}
-      </button>
-    `).join("");
+    const act = multi ? "sv-toggle-fit" : "sv-pick-fit";
+    return ranked.map((r, i) => {
+      const on = multi ? picks.includes(r.t.id) : (picks[0] ? picks[0] === r.t.id : r.t.id === suggested);
+      return `
+        <button class="bestfit-card ${on ? "pick" : ""}" type="button" data-act="${act}" data-tech="${r.t.id}"${tgt}>
+          <strong>${i === 0 ? "Suggested · " : ""}${esc(r.t.name)}</strong> · ${esc(r.t.home)}${multi && on ? ` <span class="tiny">· selected</span>` : ""}
+          <div class="tiny">${r.already ? "Already in this pocket · 0 extra min" : `${r.miles} mi extra · ~${r.mins} min drive from nearest stop`} · ${r.homeMiles} mi from home</div>
+          ${r.route.length ? `<div class="tiny">${r.route.map((s) => `${s.day} ${s.time} ${s.name}`).join(" → ")}</div>` : `<div class="tiny">Open day on this pattern.</div>`}
+        </button>
+      `;
+    }).join("");
+  }
+  function trapperFitButton(target, label) {
+    return `<button type="button" class="icon-btn trapper-fit-btn" data-act="sv-best-fit" data-target="${esc(target)}" title="${esc(label || "Best fit")}" aria-label="${esc(label || "Best fit")}">${ICONS.search}</button>`;
+  }
+  function formatVisitDate(iso) {
+    if (!iso) return "—";
+    const d = new Date(`${iso}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return iso;
+    const weekday = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getDay()];
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${weekday}, ${mm}/${dd}/${d.getFullYear()}`;
+  }
+  function isoShift(iso, days) {
+    if (!iso) return "";
+    const d = new Date(`${iso}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return "";
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+  function defaultNextVisitIso(firstIso, expires) {
+    if (!firstIso) return "";
+    let next = isoShift(firstIso, 2);
+    const wd = weekdayFromIso(next);
+    if (wd === "Sat") next = isoShift(next, 2);
+    else if (wd === "Sun") next = isoShift(next, 1);
+    if (expires && next > expires) next = expires;
+    if (next && next <= firstIso) {
+      next = isoShift(firstIso, 1);
+      const wd2 = weekdayFromIso(next);
+      if (wd2 === "Sat") next = isoShift(next, 2);
+      else if (wd2 === "Sun") next = isoShift(next, 1);
+      if (expires && next > expires) next = expires;
+    }
+    return next;
+  }
+  function weekdayFromIso(iso) {
+    if (!iso) return "";
+    const d = new Date(`${iso}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return "";
+    return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
+  }
+  function selectedSetupTrappers() {
+    const rows = Array.from(document.querySelectorAll(".service-trapper-row[data-tech]"));
+    if (rows.length) return rows.map((el) => el.dataset.tech);
+    return (state.setupDraft?.trappers || []).filter((id) => TECHS.some((t) => t.id === id));
+  }
+  function selectedTrapperDays(fallbackDays) {
+    const techs = selectedSetupTrappers();
+    const days = [...new Set(techs.flatMap((id) => DAYS.filter((day) => {
+      const el = document.getElementById(`sv-day-${id}-${day}`);
+      if (el) return el.checked;
+      return (state.setupDraft?.techDays?.[id] || []).includes(day);
+    })))];
+    return days.length ? days : (fallbackDays || patternDays(state.assignDays || "Tue/Thu"));
   }
   function fillSetupDates() {
-    const start = val("sv-start") || val("sv-idate");
+    const start = val("sv-start") || val("sv-first");
     const exp = expiryFrom(start, val("sv-type"));
     const el = document.getElementById("sv-expires");
     const hid = document.getElementById("sv-renewal");
     if (el) el.value = exp;
     if (hid) hid.value = exp;
+    syncNextVisitFromFirst();
+  }
+  function syncNextVisitFromFirst() {
+    const first = val("sv-first");
+    const expires = val("sv-expires");
+    const firstEl = document.getElementById("sv-first");
+    const nextEl = document.getElementById("sv-next");
+    if (firstEl && expires) firstEl.max = expires;
+    if (!nextEl || !first) return;
+    nextEl.min = isoShift(first, 1) || first;
+    if (expires) nextEl.max = expires;
+    nextEl.value = defaultNextVisitIso(first, expires);
   }
   function applyServiceTypeDefaults() {
     const t = allServiceTypes().find((x) => x.id === val("sv-type"));
     if (!t) return;
     setInput("sv-dur", fmtDur(t.duration));
-    setInput("sv-idur", fmtDur(t.duration));
-    setInput("sv-price", Number(t.price || 0).toFixed(2));
-    setInput("sv-iprice", Number(t.price || 0).toFixed(2));
     const desc = document.getElementById("sv-desc");
     if (desc) desc.value = t.desc || t.label;
     const freq = document.getElementById("sv-freq");
@@ -2575,17 +2656,20 @@
     const c = custBy(state.setupId);
     const loc = c?.locations.find((l) => l.id === val("sv-loc")) || locBy(state.setupId, state.setupLocId);
     if (!c || !loc) return;
-    const sched = SERVICE_SCHEDULES.find((s) => s.id === val("sv-sched")) || SERVICE_SCHEDULES[0];
-    state.assignDays = sched.days;
+    const pickedTechs = selectedSetupTrappers();
+    const pickedDays = pickedTechs.length
+      ? DAYS.filter((day) => checked(`sv-day-${pickedTechs[0]}-${day}`))
+      : patternDays(state.assignDays || loc.days || "Tue/Thu");
+    state.assignDays = (pickedDays.length ? pickedDays : patternDays(loc.days || "Tue/Thu")).join("/");
     state.setupLocId = loc.id;
-    const ranked = bestFitFor(c, loc, sched.days);
+    const ranked = bestFitFor(c, loc, state.assignDays);
     const box = document.getElementById("sv-fit");
     if (box) {
-      box.innerHTML = fitCardsHtml(
-        ranked,
-        val("sv-trapper") || val("sv-initial") || ranked[0]?.t.id,
-        "standing"
-      );
+      const multi = state.bestFitTarget === "standing";
+      const picked = multi
+        ? (state.bestFitPicks || [])
+        : (val("sv-itech") || state.setupDraft?.initialTech || "");
+      box.innerHTML = fitCardsHtml(ranked, picked, state.bestFitTarget || "initial", multi);
     }
     const pin = document.getElementById("sv-pin");
     if (pin && loc) {
@@ -2607,27 +2691,31 @@
   function captureCreateServiceDraft() {
     if (state.page !== "create-service") return state.setupDraft || null;
     if (!document.getElementById("sv-type") && !document.getElementById("sv-loc")) return state.setupDraft || null;
+    const trappers = selectedSetupTrappers();
+    const techDays = {};
+    trappers.forEach((techId) => {
+      const hasDayControls = !!document.querySelector(`[data-tech-day="${techId}"]`);
+      techDays[techId] = hasDayControls
+        ? DAYS.filter((day) => checked(`sv-day-${techId}-${day}`))
+        : (state.setupDraft?.techDays?.[techId] || patternDays(state.assignDays || "Tue/Thu"));
+    });
     state.setupDraft = {
       loc: val("sv-loc") || state.setupLocId,
       type: val("sv-type"),
       desc: val("sv-desc"),
-      qty: val("sv-qty"),
-      price: val("sv-price"),
-      // tax: checked("sv-tax"),
       createInitial: document.getElementById("sv-create-initial") ? checked("sv-create-initial") : true,
-      idate: val("sv-idate"),
+      initialTech: val("sv-itech"),
+      first: val("sv-first"),
+      next: val("sv-next"),
       freq: val("sv-freq"),
       itime: val("sv-itime"),
-      ampm: val("sv-ampm"),
-      idur: val("sv-idur"),
-      iprice: val("sv-iprice"),
-      initial: val("sv-initial"),
-      sched: val("sv-sched"),
       dur: val("sv-dur"),
       start: val("sv-start"),
       expires: val("sv-expires"),
       target: val("sv-target"),
-      trapper: val("sv-trapper"),
+      trappers,
+      techDays,
+      skipMonths: Array.from(document.querySelectorAll("[data-skip-month]:checked")).map((el) => el.value),
       notes: val("sv-notes"),
       notifyEmail: document.getElementById("sv-notify-email") ? checked("sv-notify-email") : true,
       notifyText: document.getElementById("sv-notify-text") ? checked("sv-notify-text") : true,
@@ -2637,21 +2725,23 @@
   function pickSetupTrapper(techId, target) {
     captureCreateServiceDraft();
     if (!state.setupDraft) state.setupDraft = {};
-    const which = target || state.bestFitTarget || "";
-    if (which === "initial") state.setupDraft.initial = techId;
-    else if (which === "standing") {
-      state.setupDraft.trapper = techId;
-      if (!state.setupDraft.initial) state.setupDraft.initial = techId;
+    const t = techBy(techId);
+    if (target === "initial") {
+      state.setupDraft.createInitial = true;
+      state.setupDraft.initialTech = techId;
+      state.toast = t ? `${t.name} does the first visit` : "First-visit trapper selected";
     } else {
-      state.setupDraft.initial = techId;
-      state.setupDraft.trapper = techId;
+      if (!Array.isArray(state.setupDraft.trappers)) state.setupDraft.trappers = [];
+      if (!state.setupDraft.trappers.includes(techId)) state.setupDraft.trappers.push(techId);
+      if (!state.setupDraft.techDays) state.setupDraft.techDays = {};
+      if (!state.setupDraft.techDays[techId]?.length) {
+        state.setupDraft.techDays[techId] = patternDays(state.assignDays || "Tue/Thu");
+      }
+      state.toast = t ? `${t.name} added for next visits · set their weekdays` : "Trapper selected";
     }
     state.modal = null;
     state.bestFitTarget = null;
-    const t = techBy(techId);
-    const label = which === "initial" ? "initial trapper" : which === "standing" ? "standing trapper" : "trapper";
-    const msg = t ? `${t.name} · ${label}` : "Trapper selected";
-    state.toast = msg;
+    const msg = state.toast;
     render();
     setTimeout(() => {
       if (state.toast === msg) {
@@ -2660,9 +2750,17 @@
       }
     }, 2800);
   }
+  function removeSetupTrapper(techId) {
+    captureCreateServiceDraft();
+    if (!state.setupDraft) return;
+    state.setupDraft.trappers = (state.setupDraft.trappers || []).filter((id) => id !== techId);
+    if (state.setupDraft.techDays) delete state.setupDraft.techDays[techId];
+    render();
+  }
   function openSetupBestFit(target) {
     captureCreateServiceDraft();
-    state.bestFitTarget = target || "standing";
+    const nextTarget = target || "standing";
+    state.bestFitTarget = nextTarget;
     const c = custBy(state.setupId || state.selectedCustomer);
     const locId = state.setupDraft?.loc || val("sv-loc") || state.setupLocId;
     const loc = c?.locations.find((l) => l.id === locId) || locBy(state.setupId, state.setupLocId);
@@ -2670,38 +2768,88 @@
       toast("Pick a property first.");
       return;
     }
-    const schedId = state.setupDraft?.sched || val("sv-sched");
-    const sched = SERVICE_SCHEDULES.find((s) => s.id === schedId) || SERVICE_SCHEDULES[0];
-    state.assignDays = sched?.days || state.assignDays;
-    const ranked = bestFitFor(c, loc, sched?.days || state.assignDays);
-    const current = state.bestFitTarget === "initial"
-      ? (state.setupDraft?.initial || "")
-      : (state.setupDraft?.trapper || "");
-    const label = state.bestFitTarget === "initial" ? "Initial trapper" : "Standing trapper";
+    const firstTech = state.setupDraft?.trappers?.[0] || "";
+    const firstDays = firstTech ? state.setupDraft?.techDays?.[firstTech] : null;
+    state.assignDays = (firstDays?.length ? firstDays : patternDays(state.assignDays || loc.days || "Tue/Thu")).join("/");
+    if (nextTarget === "standing") {
+      state.bestFitPicks = [...(state.setupDraft?.trappers || [])];
+    } else {
+      state.bestFitPicks = state.setupDraft?.initialTech ? [state.setupDraft.initialTech] : [];
+    }
+    showBestFitModal(loc, bestFitFor(c, loc, state.assignDays));
+  }
+  function showBestFitModal(loc, ranked) {
+    const target = state.bestFitTarget || "standing";
+    const multi = target === "standing";
+    const picks = state.bestFitPicks || [];
     state.modal = {
+      wide: true,
       html: `
-        <h3>Best fit · ${esc(label)}</h3>
-        <p>${esc(loc.name)} · ${esc(sched?.label || loc.days || "")}. Closest by extra miles and drive time — pick one.</p>
-        <div class="bestfit" id="sv-fit">${fitCardsHtml(ranked, current || ranked[0]?.t.id, state.bestFitTarget)}</div>
+        <h3>Best fit</h3>
+        <p>${esc(loc?.name || "Property")}. Ranked by extra miles and extra drive time. ${
+          multi
+            ? "Select every trapper who should cover the next visits, then add them."
+            : "Pick who does the first visit."
+        }</p>
+        <div class="bestfit" id="sv-fit">${fitCardsHtml(ranked, multi ? picks : (picks[0] || ""), target, multi)}</div>
         <div class="actions" style="margin-top:12px">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          ${multi ? `<button class="btn btn-primary" data-act="sv-apply-fit">${picks.length ? `Add ${picks.length} trapper${picks.length === 1 ? "" : "s"}` : "Done"}</button>` : ""}
         </div>
       `,
     };
     render();
   }
-  function pushLiveStops(svc, c, loc) {
-    const days = patternDays(svc.days);
-    const initial = svc.initialTechId && svc.initialTechId !== svc.techId ? svc.initialTechId : null;
-    days.forEach((d, i) => {
-      const tech = i === 0 && initial ? initial : svc.techId;
-      state.data.stops.push({
-        id: nid("S"), customerId: c.id, locationId: loc.id,
-        techId: tech, day: d, time: nextSlot(tech, d),
-        durationMin: svc.durationMin, type: "service",
-        status: "scheduled", actualMin: null, removals: null,
-      });
+  function toggleBestFitPick(techId) {
+    if (state.bestFitTarget === "initial") {
+      pickSetupTrapper(techId, "initial");
+      return;
+    }
+    const list = Array.isArray(state.bestFitPicks) ? state.bestFitPicks.slice() : [];
+    state.bestFitPicks = list.includes(techId) ? list.filter((id) => id !== techId) : list.concat(techId);
+    const c = custBy(state.setupId || state.selectedCustomer);
+    const loc = c?.locations.find((l) => l.id === (state.setupDraft?.loc || state.setupLocId)) || locBy(state.setupId, state.setupLocId);
+    if (!c || !loc) return;
+    showBestFitModal(loc, bestFitFor(c, loc, state.assignDays));
+  }
+  function applyBestFitPicks() {
+    captureCreateServiceDraft();
+    if (!state.setupDraft) state.setupDraft = {};
+    const picks = (state.bestFitPicks || []).filter((id) => TECHS.some((t) => t.id === id));
+    const prevDays = state.setupDraft.techDays || {};
+    state.setupDraft.trappers = picks;
+    state.setupDraft.techDays = {};
+    picks.forEach((id) => {
+      state.setupDraft.techDays[id] = prevDays[id]?.length
+        ? prevDays[id]
+        : patternDays(state.assignDays || "Tue/Thu");
     });
+    state.modal = null;
+    state.bestFitTarget = null;
+    state.bestFitPicks = [];
+    toast(picks.length
+      ? `${picks.map(techName).join(" / ")} on next visits`
+      : "No standing trappers selected");
+    render();
+  }
+  function addLiveStop(c, loc, techId, day, durationMin) {
+    if (!c || !loc || !techId || !DAYS.includes(day)) return;
+    const exists = (state.data.stops || []).some((s) =>
+      s.customerId === c.id && s.locationId === loc.id && s.techId === techId && s.day === day && !s.pending
+    );
+    if (exists) return;
+    state.data.stops.push({
+      id: nid("S"), customerId: c.id, locationId: loc.id,
+      techId, day, time: nextSlot(techId, day),
+      durationMin, type: "service",
+      status: "scheduled", actualMin: null, removals: null,
+    });
+  }
+  function pushLiveStops(svc, c, loc) {
+    patternDays(svc.days).forEach((d) => addLiveStop(c, loc, svc.techId, d, svc.durationMin));
+    if (svc.createInitial && svc.initialTechId) {
+      addLiveStop(c, loc, svc.initialTechId, weekdayFromIso(svc.initialDate), svc.initialDuration || svc.durationMin);
+    }
     svc.generated = true;
     svc.status = "live";
   }
@@ -3202,7 +3350,7 @@
 
   function pageTitle() {
     if (state.page === "add-customer") return "Add customer";
-    if (state.page === "create-service") return "Service setup";
+    if (state.page === "create-service") return state.setupEditId ? "Edit service" : "Service setup";
     if (state.page === "create-oneoff") return "Live call-in";
     if (state.page === "location" && state.selectedCustomer && state.selectedLocation) return locBy(state.selectedCustomer, state.selectedLocation)?.name || "Location";
     if (state.page === "customer" && state.selectedCustomer) return custBy(state.selectedCustomer)?.name || "Customer";
@@ -3235,6 +3383,7 @@
       locations: viewLocations,
       quotes: viewQuotes,
       schedule: viewSchedule,
+      "ready-schedule": viewReadySchedule,
       optimizer: viewOptimizer,
       map: viewMap,
       trappers: viewTrappers,
@@ -3384,15 +3533,21 @@
     const needSvc = opsServiceQueue();
     const needTech = opsAssignQueue();
     const failedMonthly = opsFailedMonthlyQueue();
-    const paid = state.data.payments.filter((p) => p.posted && !p.failed).slice()
-      .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)))
-      .slice(0, 14);
+    const customerCount = state.data.customers.filter((c) => c.status !== "lapsed").length;
+    const locationCount = state.data.customers.reduce((sum, c) => sum + (c.locations || []).filter((l) => l.covered !== false).length, 0);
+    const scheduledCount = state.data.stops.filter((s) => s.status === "scheduled" && !s.pending).length;
     const retrieve = (state.data.traps || []).filter((t) => t.status === "out" || t.status === "missing");
     const mine = myOpenTasks();
     return `
-      ${head("Dispatch board", "New paid account → set up service once. Monthly AutoPay keeps the same trapper. Card declines → call them, stop service if they won’t pay.")}
+      ${head("Dispatch board", "Paid locations appear in Ready to schedule. Create the service there, then assign the trapper on the map.")}
+      <div class="grid-4 dashboard-summary">
+        ${dashboardStat("Ready to schedule", needSvc.length, "Paid locations waiting for service", "ready-schedule", needSvc.length ? "alert" : "good")}
+        ${dashboardStat("Customers", customerCount, "Active Bill-To accounts", "customers")}
+        ${dashboardStat("Locations", locationCount, "Covered properties", "locations")}
+        ${dashboardStat("Scheduled stops", scheduledCount, "On active routes", "schedule", "good")}
+      </div>
       ${mine.length ? `
-        <div class="card" style="margin-bottom:16px">
+        <div class="card section-gap" style="margin-bottom:16px">
           <h3>My tasks <span class="muted">${mine.length} open · from Tom / Christy</span></h3>
           ${taskListHtml(mine.slice(0, 5))}
           <div class="actions" style="margin-top:10px">
@@ -3420,47 +3575,6 @@
           `).join("")}
         </div>
       ` : ""}
-      <div class="card" style="margin-bottom:16px">
-        <h3>1 · Payment register <span class="muted">who paid · MOP · invoice · bill-to</span></h3>
-        <p class="tiny">First payment on a new property → create service once. Later monthly AutoPay lines → already on route (no re-assign).</p>
-        ${paid.map((p) => {
-          const c = p.customerId ? custBy(p.customerId) : null;
-          const loc = p.locationId && c
-            ? (c.locations.find((l) => l.id === p.locationId) || c.locations[0])
-            : (c?.locations.find((l) => locNeedsService(c, l)) || c?.locations.find((l) => locNeedsTech(c, l)) || c?.locations[0]);
-          const setup = c && loc && locNeedsService(c, loc);
-          const assign = c && loc && locNeedsTech(c, loc);
-          const monthly = c && loc && (paymentIsMonthlyInstallment(p) || (locIsMonthlyPlan(c, loc) && svcFor(c.id, loc.id)));
-          const live = c && loc && svcFor(c.id, loc.id) && svcIsContinuing(svcFor(c.id, loc.id));
-          let badge = `<span class="badge badge-ok">On route</span> `;
-          let action = c ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Open location</button>` : `<span class="badge badge-mute">Christy has not matched this line</span>`;
-          if (setup) {
-            badge = `<span class="badge badge-warn">Needs setup</span> `;
-            action = btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${loc.id}"`);
-          } else if (assign) {
-            badge = `<span class="badge badge-sea">Needs technician</span> `;
-            action = btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${loc.id}"`);
-          } else if (monthly && live) {
-            badge = `<span class="badge badge-sea">Monthly · service live</span> `;
-            action = `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">View (no re-setup)</button>`;
-          }
-          return `<div class="fit-row ${setup || assign ? "queue-new" : ""}">
-            <div>
-              ${badge}
-              <strong>${esc(c?.name || p.memo || "Unmatched")}</strong>
-              <div class="tiny">${esc(p.date)} · ${esc(p.method)} · ${esc(p.invoiceId || "—")} · ${money(p.amount)} · ${esc(loc?.address || "—")}${monthly && live ? " · installment — trapper already assigned" : ""}</div>
-            </div>
-            ${action}
-          </div>`;
-        }).join("")}
-        ${needSvc.filter((row) => !paid.some((p) => p.customerId === row.c.id && p.locationId === row.l.id)).map((row) => `
-          <div class="fit-row queue-new">
-            <div><span class="badge badge-warn">Paid / handed over</span> <strong>${esc(row.c.name)}</strong> · ${esc(row.l.name)}<div class="tiny">${esc(row.l.address)} — create the service once, then assign on the map</div></div>
-            ${btn("service.create", "Create service", "open-service", `data-id="${row.c.id}" data-loc="${row.l.id}"`)}
-          </div>
-        `).join("")}
-        <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="nav" data-page="payments">Full register</button></div>
-      </div>
       ${needTech.length ? `
         <div class="card" style="margin-bottom:16px">
           <h3>2 · Assign on the map <span class="muted">first-time service only</span></h3>
@@ -3506,6 +3620,48 @@
           }).join("")}
           <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="nav" data-page="workload">Full workload</button></div>
         </div>
+      </div>
+    `;
+  }
+
+  function viewReadySchedule() {
+    const ready = opsServiceQueue();
+    return `
+      ${head("Ready to schedule", `${ready.length} ${ready.length === 1 ? "location is" : "locations are"} paid and waiting for service setup.`)}
+      <div class="card ready-schedule-card">
+        <div class="customer-location-head">
+          <div>
+            <h3>Locations waiting for service</h3>
+            <p class="tiny">A location enters this list after its first invoice is fully paid. Monthly payments do not create another service.</p>
+          </div>
+          <span class="badge ${ready.length ? "badge-warn" : "badge-ok"}">${ready.length} ready</span>
+        </div>
+        ${ready.length ? ready.map(({ c, l }) => {
+          const latestPayment = state.data.payments
+            .filter((p) => p.customerId === c.id && p.locationId === l.id && p.posted && !p.failed)
+            .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)))[0];
+          const program = programById(locPlan(c, l).programId);
+          return `
+            <div class="fit-row queue-new ready-schedule-row">
+              <div>
+                <span class="badge badge-warn">${isMunicipal(c) ? "Municipal · service first" : "Paid · ready"}</span>
+                <strong>${esc(l.name)}</strong>
+                <div class="tiny">${esc(c.billTo || c.name)} · ${esc(l.address || "No address")}</div>
+                <div class="tiny">${esc(program?.name || "Program not selected")}${latestPayment ? ` · Paid ${esc(latestPayment.date)} · ${esc(latestPayment.method || "Payment")}` : ""}</div>
+              </div>
+              <div class="actions">
+                <button class="btn btn-ghost" data-act="open-location" data-id="${c.id}" data-loc="${l.id}">View location</button>
+                ${btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`)}
+              </div>
+            </div>
+          `;
+        }).join("") : `
+          <div class="ready-empty">
+            <span class="badge badge-ok">Up to date</span>
+            <h3>No locations are waiting</h3>
+            <p class="muted">Newly paid locations will appear here automatically.</p>
+          </div>
+        `}
       </div>
     `;
   }
@@ -3775,8 +3931,12 @@
   }
 
   function viewCreateService() {
-    if (!can("service.create")) {
+    const editing = !!state.setupEditId;
+    if (!editing && !can("service.create")) {
       return `<div class="forbidden"><h2>Your login doesn’t include this screen</h2><p>This login can’t create services.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
+    }
+    if (editing && !canEditService()) {
+      return `<div class="forbidden"><h2>Your login doesn’t include this screen</h2><p>This login can’t edit services.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
     }
     const c = custBy(state.setupId || state.selectedCustomer);
     if (!c) return `<p>Customer not found.</p><button class="btn btn-ghost" data-act="nav" data-page="customers">← Customers</button>`;
@@ -3784,22 +3944,38 @@
     const d = state.setupDraft || {};
     const selected = d.loc || state.setupLocId || locs.find((l) => locNeedsService(c, l))?.id || locs[0]?.id;
     const loc = locs.find((l) => l.id === selected) || locs[0];
-    const code = d.type || defaultServiceCode(c, loc);
+    const code = defaultServiceCode(c, loc);
     const st = allServiceTypes().find((t) => t.id === code) || SERVICE_TYPES[0];
     const plan = locPlan(c, loc);
     const start = d.start || plan.start || TODAY;
-    const expires = d.expires || expiryFrom(start, code) || plan.expires || "";
-    const sched = SERVICE_SCHEDULES.find((s) => s.id === (d.sched || ""))
-      || SERVICE_SCHEDULES.find((s) => s.days === (loc?.days || c.days || "Tue/Thu"))
-      || SERVICE_SCHEDULES.find((s) => s.id === "WK-TUTH")
-      || SERVICE_SCHEDULES[0];
-    state.assignDays = sched.days;
+    const expires = plan.expires || expiryFrom(start, code) || "";
+    const frequencyRaw = d.freq || st.freq || "WEEKLY";
+    const frequency = SERVICE_FREQUENCIES.some((item) => item.id === frequencyRaw)
+      ? frequencyRaw
+      : String(frequencyRaw).includes("2") ? "BI-WEEKLY"
+        : String(frequencyRaw).includes("MONTH") ? "MONTHLY"
+          : String(frequencyRaw).includes("ONE") ? "ONE-TIME" : "WEEKLY";
+    const baseDays = patternDays(loc?.days || c.days || "Tue/Thu");
+    const selectedTechIds = Array.isArray(d.trappers) ? d.trappers.filter((id) => TECHS.some((t) => t.id === id)) : [];
+    const techDays = d.techDays || {};
+    const fitDays = selectedTechIds.length ? (techDays[selectedTechIds[0]] || baseDays) : baseDays;
+    state.assignDays = fitDays.join("/");
     state.setupId = c.id;
     state.setupLocId = loc?.id;
-    const price = d.price != null && d.price !== "" ? d.price : Number(st.price || 0).toFixed(2);
-    const iprice = d.iprice != null && d.iprice !== "" ? d.iprice : price;
     const createInitial = d.createInitial !== false;
-    const ranked = loc ? bestFitFor(c, loc, sched.days) : [];
+    const initialTech = TECHS.some((t) => t.id === d.initialTech) ? d.initialTech : "";
+    const firstVisitIso = (() => {
+      let first = d.first || d.idate || TODAY;
+      if (expires && first > expires) first = start && start <= expires ? start : expires;
+      return first;
+    })();
+    const nextVisitIso = (() => {
+      const picked = d.next;
+      if (picked && picked > firstVisitIso && (!expires || picked <= expires)) return picked;
+      return defaultNextVisitIso(firstVisitIso, expires);
+    })();
+    const availableTechs = TECHS.filter((t) => !selectedTechIds.includes(t.id));
+    const ranked = loc ? bestFitFor(c, loc, state.assignDays) : [];
     const pinX = loc?.x || "50%";
     const pinY = loc?.y || "50%";
     const otherPins = locs.filter((l) => l.id !== loc?.id).map((l) => ({
@@ -3808,93 +3984,111 @@
     const gps = loc?.lat != null
       ? `${Number(loc.lat).toFixed(4)}, ${Number(loc.lng).toFixed(4)}`
       : (loc?.gps || "");
-    const techOpts = (sel) => `<option value="">— select or use Best fit —</option>${TECHS.map((t) => `<option value="${t.id}" ${sel === t.id ? "selected" : ""}>${esc(t.name.toUpperCase())} · ${esc(t.home)}</option>`).join("")}`;
     return `
       <div class="create-svc">
         <button class="btn btn-ghost" data-act="cancel-create-service">← ${esc(c.name)}</button>
         ${isMunicipal(c) ? `<div class="notice">Municipal — create &amp; schedule without payment. Christy invoices after the service period against PO hours (${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"}).</div>` : ""}
         <div class="create-svc-head">
           <div>
-            <h2>Service setup</h2>
-            <p class="muted">${esc(loc?.name || "Property")} · Bill-To ${esc(c.billTo || c.name)} · pin the property, pick best fit, then save</p>
+            <h2>${editing ? "Edit service" : "Service setup"}</h2>
+            <p class="muted">${esc(loc?.name || "Property")} · Bill-To ${esc(c.billTo || c.name)} · ${editing ? "Update the first visit, next visit, and who covers the route." : "pick who does the first visit, then who covers the next visits."}</p>
           </div>
         </div>
         <div class="create-svc-layout">
         <div class="create-svc-form">
           <div class="create-svc-section">
             <div class="create-svc-kicker">Property</div>
-            <div class="field req"><label>Location</label>
-              <select id="sv-loc" data-act="sv-loc">${locs.map((l) => `<option value="${l.id}" ${l.id === selected ? "selected" : ""}>${esc(l.name)} · ${esc(l.address)}</option>`).join("")}</select>
+            <input type="hidden" id="sv-loc" value="${esc(loc?.id || "")}">
+            <div class="locked-service-context">
+              <div><span>Location</span><strong>${esc(loc?.name || "Property")}</strong><small>${esc(loc?.address || "")}</small></div>
+              <div><span>Bill-To</span><strong>${esc(c.billTo || c.name)}</strong><small>${esc(c.id)}</small></div>
             </div>
           </div>
 
           <div class="create-svc-section">
-            <div class="create-svc-kicker">Service</div>
-            <div class="create-svc-line">
-              <div class="field req"><label>Service</label>
-                <select id="sv-type" data-act="sv-code">${allServiceTypes().map((t) => `<option value="${t.id}" ${t.id === code ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
+            <div class="create-svc-kicker">Paid service plan</div>
+            <input type="hidden" id="sv-type" value="${esc(code)}">
+            <input type="hidden" id="sv-desc" value="${esc(st.desc || st.label)}">
+            <div class="locked-plan">
+              <div>
+                <span class="badge badge-ok">Paid · locked</span>
+                <strong>${esc(st.code)} · ${esc(st.label)}</strong>
+                <small>${esc(st.desc || "")}</small>
               </div>
-              <div class="field"><label>Description</label><input id="sv-desc" value="${esc(d.desc || st.desc || st.label)}" readonly></div>
-              <div class="field narrow"><label>Qty</label><input id="sv-qty" type="number" min="1" step="1" value="${esc(d.qty || "1")}"></div>
-              <div class="field narrow"><label>Price</label><input id="sv-price" type="number" step="0.01" value="${esc(price)}"></div>
-              <!-- <div class="field chk-field"><label class="chk"><input type="checkbox" id="sv-tax" ${d.tax ? "checked" : ""}> Tax</label></div> -->
+              <p class="tiny">The client chose this plan before payment. Rick can schedule it, but cannot change the plan.</p>
             </div>
           </div>
 
           <div class="create-svc-section">
             <label class="chk create-svc-toggle"><input type="checkbox" id="sv-create-initial" data-act="sv-toggle-initial" ${createInitial ? "checked" : ""}> Create initial service</label>
+            <p class="tiny">Who does the first stop. The trappers below take the next visit — same person or someone else.</p>
             <div id="sv-initial-block" class="create-svc-initial" ${createInitial ? "" : "hidden"}>
               <div class="create-svc-2">
-                <div class="field"><label>Initial service date</label><input id="sv-idate" type="date" value="${esc(d.idate || start)}" data-act="sv-start"></div>
-                <div class="field"><label>Frequency</label><input id="sv-freq" value="${esc(d.freq || st.freq || "WEEKLY")}" readonly></div>
+                <div class="field req"><label>First visit</label><input id="sv-first" type="date" value="${esc(firstVisitIso)}" ${editing ? "" : `min="${esc(TODAY)}"`} ${expires ? `max="${esc(expires)}"` : ""} data-act="sv-first"></div>
+                <div class="field req"><label>Next visit</label><input id="sv-next" type="date" value="${esc(nextVisitIso)}" min="${esc(isoShift(firstVisitIso, 1) || firstVisitIso)}" ${expires ? `max="${esc(expires)}"` : ""}><div class="tiny">Usually two or three days after the first stop.</div></div>
               </div>
-              <div class="create-svc-3">
-                <div class="field"><label>Initial time</label><input id="sv-itime" type="time" value="${esc(d.itime || "12:30")}"></div>
-                <div class="field"><label>AM / PM</label>
-                  <select id="sv-ampm"><option ${(d.ampm || "PM") === "AM" ? "selected" : ""}>AM</option><option ${(d.ampm || "PM") === "PM" ? "selected" : ""}>PM</option></select>
-                </div>
-                <div class="field"><label>Initial duration</label><input id="sv-idur" value="${esc(d.idur || fmtDur(st.duration))}" placeholder="00:10"></div>
-              </div>
-              <div class="create-svc-2">
-                <div class="field"><label>Initial service price</label><input id="sv-iprice" type="number" step="0.01" value="${esc(iprice)}"></div>
-                <div class="field">
-                  <label>Initial trapper</label>
-                  <div class="create-svc-trapper">
-                    <select id="sv-initial">${techOpts(d.initial || "")}</select>
-                    <button type="button" class="btn btn-ghost" data-act="sv-best-fit" data-target="initial">Best fit</button>
-                  </div>
-                  <div class="tiny">First visit — can differ from standing trapper</div>
+              <div class="field"><label>Time</label><input id="sv-itime" type="time" value="${esc(d.itime || "12:30")}"></div>
+              <div class="field req"><label>Who visits first</label>
+                <div class="trapper-field-row">
+                  <select id="sv-itech" data-act="sv-itech">
+                    <option value="">Select a trapper…</option>
+                    ${TECHS.map((t) => `<option value="${t.id}" ${t.id === initialTech ? "selected" : ""}>${esc(t.name)} · ${esc(t.home)}${ranked[0]?.t.id === t.id ? " · suggested" : ""}</option>`).join("")}
+                  </select>
+                  ${trapperFitButton("initial", "Best fit for first visit")}
                 </div>
               </div>
             </div>
           </div>
 
           <div class="create-svc-section">
-            <div class="create-svc-kicker">Standing schedule</div>
+            <div class="create-svc-kicker">Next visits</div>
             <div class="create-svc-2">
-              <div class="field req"><label>Schedule</label>
-                <select id="sv-sched" data-act="sv-sched">${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}" ${s.id === sched.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
+              <div class="field req"><label>Frequency</label>
+                <select id="sv-freq">${SERVICE_FREQUENCIES.map((item) => `<option value="${item.id}" ${item.id === frequency ? "selected" : ""}>${esc(item.label)}</option>`).join("")}</select>
               </div>
               <div class="field req"><label>Duration</label><input id="sv-dur" value="${esc(d.dur || fmtDur(st.duration))}" placeholder="00:10"></div>
             </div>
-            <div class="create-svc-3">
-              <div class="field"><label>Charge</label><input value="Production" readonly><div class="tiny">Always production</div></div>
+            <div class="create-svc-2">
               <div class="field req"><label>Start date</label><input id="sv-start" type="date" value="${esc(start)}" data-act="sv-start"></div>
-              <div class="field req"><label>Renewal date</label><input id="sv-expires" type="date" value="${esc(expires)}"><div class="tiny">Auto from program + start</div></div>
+              <div class="field"><label>Renewal / expiration</label><input id="sv-expires" type="date" value="${esc(expires)}" readonly><div class="tiny">Filled from the paid term. Rick does not type this.</div></div>
             </div>
             <input type="hidden" id="sv-renewal" value="${esc(expires)}">
-            <div class="create-svc-2">
-              <div class="field"><label>Targets</label>
-                <select id="sv-target">${TARGETS.map((t) => `<option ${t === (d.target || "IGUANA") ? "selected" : ""}>${t}</option>`).join("")}</select>
+            <div class="field req">
+              <label>Trappers for next visits</label>
+              <p class="tiny">Add who covers the route after the first visit. Use the search icon to pick more than one from best fit.</p>
+              <div class="trapper-field-row">
+                <select id="sv-add-trapper" data-act="sv-add-trapper">
+                  <option value="">${selectedTechIds.length ? "Add another trapper…" : "Select a trapper…"}</option>
+                  ${availableTechs.map((t) => `<option value="${t.id}">${esc(t.name)} · ${esc(t.home)}</option>`).join("")}
+                </select>
+                ${trapperFitButton("standing", "Best fit for next visits")}
               </div>
-              <div class="field">
-                <label>Standing trapper</label>
-                <div class="create-svc-trapper">
-                  <select id="sv-trapper">${techOpts(d.trapper || "")}</select>
-                  <button type="button" class="btn btn-ghost" data-act="sv-best-fit" data-target="standing">Best fit</button>
-                </div>
-                <div class="tiny">Continual route tech — pick from Best fit on the map</div>
+              <div class="service-trapper-schedule">
+                ${selectedTechIds.map((techId, index) => {
+                  const t = techBy(techId);
+                  if (!t) return "";
+                  const pickedDays = techDays[t.id] || baseDays;
+                  return `
+                    <div class="service-trapper-row is-selected" data-tech="${t.id}">
+                      <div class="service-trapper-meta">
+                        <i class="dot" style="background:${t.color}"></i>
+                        <span><strong>${esc(t.name)}</strong><small>${index === 0 ? "Primary" : "Shared"} · ${esc(t.home)}</small></span>
+                      </div>
+                      <div class="service-weekdays">${DAYS.map((day) => `<label class="weekday-check"><input type="checkbox" id="sv-day-${t.id}-${day}" data-tech-day="${t.id}" value="${day}" ${pickedDays.includes(day) ? "checked" : ""}><span>${day}</span></label>`).join("")}</div>
+                      <button type="button" class="btn btn-ghost trapper-remove" data-act="sv-remove-trapper" data-tech="${t.id}">Remove</button>
+                    </div>
+                  `;
+                }).join("")}
               </div>
+            </div>
+            <div class="field">
+              <label>Targets</label>
+              <select id="sv-target">${TARGETS.map((t) => `<option ${t === (d.target || "IGUANA") ? "selected" : ""}>${t}</option>`).join("")}</select>
+            </div>
+            <div class="field">
+              <label>Skip months</label>
+              <div class="skip-months">${MONTHS.map((month) => `<label class="weekday-check skip-month-check"><input type="checkbox" data-skip-month value="${month}" ${(d.skipMonths || []).includes(month) ? "checked" : ""}><span>${month}</span></label>`).join("")}</div>
+              <div class="tiny">No routine visits in checked months.</div>
             </div>
           </div>
 
@@ -3912,7 +4106,9 @@
 
           <div class="actions create-svc-actions">
             <button class="btn btn-ghost" data-act="cancel-create-service">Cancel</button>
-            ${btn("service.create", "Save — then assign on map", "save-service", `data-id="${c.id}"`)}
+            ${editing
+              ? btn("service.edit", "Save service", "save-service", `data-id="${c.id}"`)
+              : btn("service.create", "Create service", "save-service", `data-id="${c.id}"`)}
           </div>
         </div>
         <aside class="create-svc-map">
@@ -3941,11 +4137,6 @@
           <input type="hidden" id="sv-y" value="${esc(String(pinY).replace("%", ""))}">
           <input type="hidden" id="sv-lat" value="${esc(loc?.lat != null ? loc.lat : "")}">
           <input type="hidden" id="sv-lng" value="${esc(loc?.lng != null ? loc.lng : "")}">
-          <div class="create-svc-map-fit">
-            <div class="create-svc-kicker">Best fit for this pin</div>
-            <p class="tiny">Closest by extra drive on ${esc(sched.label)}. Click to set standing trapper (and initial if empty).</p>
-            <div class="bestfit" id="sv-fit">${fitCardsHtml(ranked, d.trapper || ranked[0]?.t.id, "standing")}</div>
-          </div>
         </aside>
         </div>
       </div>
@@ -4226,7 +4417,8 @@
           ${can("location.add") || canEditField("address") || state.role === "owner" ? `<button class="btn btn-ghost" data-act="edit-one-loc" data-id="${c.id}" data-loc="${l.id}">Edit location</button>` : ""}
           ${locNeedsService(c, l) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
           ${locNeedsTech(c, l) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
-          ${live && ["ops", "owner"].includes(state.role) ? btn("schedule.reassign", "Reassign trapper", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost") : ""}
+          ${live && ["ops", "owner"].includes(state.role) ? btn("schedule.reassign", "Reassign trapper", "open-assign", `data-id="${c.id}" data-loc="${l.id}" data-return="location"`, "btn-ghost") : ""}
+          ${live && ["ops", "owner"].includes(state.role) ? `<button class="btn btn-ghost" data-act="share-on-map" data-id="${c.id}" data-loc="${l.id}">Share with trapper</button>` : ""}
           ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Create task", "new-task", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost") : ""}
         </div>
       </div>
@@ -4247,15 +4439,21 @@
             <h3>Service history</h3>
             <dl class="kv section-gap">
               <dt>Current service</dt><dd>${svc ? esc(svcTypeLabel(svc.type)) : "No service yet"}</dd>
-              <dt>Current trapper</dt><dd>${esc(svc?.techId || l.techId || c.techId ? techName(svc?.techId || l.techId || c.techId) : "Unassigned")}</dd>
-              <dt>Current schedule</dt><dd>${esc(svc?.days || l.days || c.days || "—")}</dd>
+              <dt>Assigned trappers</dt><dd>${locationServices.filter(svcIsContinuing).length ? `<div class="location-trapper-list">${locationServices.filter(svcIsContinuing).map((service) => `<span class="location-trapper-chip"><i class="dot" style="background:${techBy(service.techId)?.color || "#888"}"></i><strong>${esc(techName(service.techId))}</strong> · ${esc(service.days || "—")} · ${service.shared ? "Shared" : "Primary"}</span>`).join("")}</div>` : "Unassigned"}</dd>
             </dl>
             ${locationServices.length ? `
               <table class="mini-table location-history-table">
                 <thead><tr><th>Service</th><th>Trapper</th><th>Schedule</th><th>Dates</th><th>Status</th></tr></thead>
                 <tbody>${locationServices.map((s) => `
                   <tr>
-                    <td>${esc(svcTypeLabel(s.type))}<div class="tiny">${Number(s.durationMin || 0)} min</div></td>
+                    <td>
+                      <div class="svc-history-name">
+                        <div>${esc(svcTypeLabel(s.type))}<div class="tiny">${Number(s.durationMin || 0)} min</div></div>
+                        ${canEditService() && svcIsContinuing(s)
+                          ? `<button class="icon-btn table-icon-btn" data-act="edit-service" data-id="${esc(s.id)}" title="Edit service" aria-label="Edit ${esc(svcTypeLabel(s.type))}">${ICONS.pencil}</button>`
+                          : ""}
+                      </div>
+                    </td>
                     <td>${esc(s.techId ? techName(s.techId) : "Unassigned")}</td>
                     <td>${esc(s.days || "—")}</td>
                     <td>${esc(s.start || "—")} → ${esc(s.expires || s.cancelDate || "—")}</td>
@@ -4747,7 +4945,7 @@
         <button class="${state.schedView === "month" ? "on" : ""}" data-act="sched-view" data-view="month">Monthly</button>
       </div>`;
     return `
-      ${head("Schedule", "This week’s board. Monthly shows standing routes. Stops show up after you assign on the map.")}
+      ${head("Schedule", "This week’s board. Monthly shows standing routes. New services land here as soon as Rick saves them.")}
       ${writeBar("schedule.reassign", "Reassign")}
       ${genQ.length ? `<div class="notice">${genQ.length} assigned service(s) are not on this board yet. ${btn("schedule.generate", "Generate now", "generate-schedule")}</div>` : ""}
       ${toggle}
@@ -5127,9 +5325,11 @@
     const focusCid = state.mapClient;
     const focusLid = state.mapLoc;
     const assignMode = !!(focusCid && focusLid);
+    const shareMode = assignMode && state.mapActionMode === "share";
     const compareIds = state.mapCompare || [];
     const focusCust = focusCid ? custBy(focusCid) : null;
     const focusLoc = focusCust?.locations.find((l) => l.id === focusLid) || null;
+    const focusTechs = focusCust && focusLoc ? locTechs(focusCust, focusLoc) : [];
     const ranked = (focusCust && focusLoc) ? bestFitFor(focusCust, focusLoc, state.assignDays) : [];
     const showBestFit = !!(focusCust && focusLoc && (svcFor(focusCust.id, focusLoc.id) || locNeedsTech(focusCust, focusLoc)));
     const selectedTech = filterTech ? techBy(filterTech) : null;
@@ -5240,6 +5440,12 @@
         const currentSched = SERVICE_SCHEDULES.find((s) => s.days === sched || s.id === svc?.schedule) || SERVICE_SCHEDULES[0];
         const canReassign = can("schedule.reassign") || state.role === "owner";
         const canShare = can("schedule.assign") || can("service.create") || can("service.edit") || state.role === "owner";
+        const changeTechs = shareMode ? TECHS.filter((t) => !techs.includes(t.id)) : TECHS;
+        const selectedChangeTech = changeTechs.some((t) => t.id === state.mapTech)
+          ? state.mapTech
+          : (shareMode ? changeTechs[0]?.id : primaryTech);
+        const shareSched = SERVICE_SCHEDULES.find((candidate) => !svcsFor(pc.id, pl.id).some((existing) => svcIsContinuing(existing) && existing.days === candidate.days));
+        const selectedSched = shareMode ? (shareSched || currentSched) : currentSched;
         pinCard = `
           <div class="map-float-card map-pin-card${flipX ? " flip-x" : ""}${flipY ? " flip-y" : ""}" style="left:${pl.x};top:${pl.y}">
             <button type="button" class="map-float-close" data-act="clear-map-pin" aria-label="Close">×</button>
@@ -5256,20 +5462,21 @@
               <span>${dur}</span>
               <span>${svc ? esc(svcTypeLabel(svc.type)) : "No service yet"}</span>
             </div>
-            ${canReassign ? `
+            ${canReassign && changeTechs.length ? `
               <div class="map-pin-assign">
-                <div class="map-pin-label">Change on map</div>
+                <div class="map-pin-label">${shareMode ? "Add nearby trapper" : "Change on map"}</div>
                 <div class="field"><label>Trapper</label>
-                  <select id="pin-tech">${TECHS.map((t) => `<option value="${t.id}" ${t.id === primaryTech ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select>
+                  <select id="pin-tech">${changeTechs.map((t) => `<option value="${t.id}" ${t.id === selectedChangeTech ? "selected" : ""}>${esc(t.name)} · ${esc(t.home)}</option>`).join("")}</select>
                 </div>
                 <div class="field"><label>Schedule</label>
-                  <select id="pin-sched">${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}" ${s.id === currentSched.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
+                  <select id="pin-sched">${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}" ${s.id === selectedSched.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
                 </div>
                 <div class="actions map-pin-assign-actions">
-                  <button type="button" class="btn btn-sun" data-act="pin-map-assign" data-mode="move" data-cid="${pc.id}" data-lid="${pl.id}">Reassign</button>
-                  ${canShare && svc ? `<button type="button" class="btn btn-ghost" data-act="pin-map-assign" data-mode="share" data-cid="${pc.id}" data-lid="${pl.id}">Share</button>` : ""}
+                  ${shareMode
+                    ? `<button type="button" class="btn btn-sun" data-act="pin-map-assign" data-mode="share" data-cid="${pc.id}" data-lid="${pl.id}">Share with trapper</button>`
+                    : `<button type="button" class="btn btn-sun" data-act="pin-map-assign" data-mode="move" data-cid="${pc.id}" data-lid="${pl.id}">Reassign</button>${canShare && svc ? `<button type="button" class="btn btn-ghost" data-act="pin-map-assign" data-mode="share" data-cid="${pc.id}" data-lid="${pl.id}">Share</button>` : ""}`}
                 </div>
-                <p class="tiny">Reassign moves this stop. Share adds another trapper on different days.</p>
+                <p class="tiny">${shareMode ? "The current trappers stay assigned. This adds another trapper on different days." : "Reassign moves the primary service. Share keeps it and adds another trapper."}</p>
               </div>
             ` : ""}
             <div class="actions" style="margin-top:10px">
@@ -5294,7 +5501,7 @@
     return `
       ${head("Map & routing", "Click a pin to change trapper or schedule. Box select several, then Assign. Gray diamonds = shared.")}
       ${writeBar("schedule.assign", "Assign")}
-      ${assignMode ? `<div class="notice">Assigning <strong>${esc(focusCust.name)} · ${esc(focusLoc.name)}</strong> only — other waiting stops are hidden until you finish this one.</div>` : ""}
+      ${assignMode ? `<div class="notice">${shareMode ? "Sharing" : "Reassigning"} <strong>${esc(focusCust.name)} · ${esc(focusLoc.name)}</strong>. Compare nearby trapper homes and routes, then open the red property pin.</div>` : ""}
       <div class="map-toolbar">
         <div class="actions">
           <span class="tiny">Color by</span>
@@ -5413,7 +5620,11 @@
                   </button>
                   <div class="bestfit-actions">
                     <button type="button" class="btn btn-ghost" data-act="map-compare-tech" data-tech="${r.t.id}">${compareIds.includes(r.t.id) ? "In compare" : "Compare drive"}</button>
-                    ${btn("schedule.assign", "Assign", "map-assign", `data-id="${focusCust.id}" data-loc="${focusLoc.id}" data-tech="${r.t.id}"`, "btn-sun")}
+                    ${shareMode
+                      ? (focusTechs.includes(r.t.id)
+                        ? `<button type="button" class="btn btn-ghost" disabled>Already assigned</button>`
+                        : `<button type="button" class="btn btn-sun" data-act="map-tech" data-tech="${r.t.id}">Choose</button>`)
+                      : btn("schedule.assign", "Assign", "map-assign", `data-id="${focusCust.id}" data-loc="${focusLoc.id}" data-tech="${r.t.id}"`, "btn-sun")}
                   </div>
                 </div>
               `).join("")}
@@ -6698,6 +6909,9 @@
   function stat(k, v, s, cls = "") {
     return `<div class="stat ${cls}"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="s">${esc(s)}</div></div>`;
   }
+  function dashboardStat(k, v, s, page, cls = "") {
+    return `<button type="button" class="stat dashboard-stat ${cls}" data-act="nav" data-page="${esc(page)}"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="s">${esc(s)} <span aria-hidden="true">→</span></div></button>`;
+  }
   function table(headers, rows, className = "") {
     if (!rows.length) return `<p class="muted">Nothing to show.</p>`;
     return `<div class="table-wrap card ${esc(className)}" style="padding:8px 10px"><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
@@ -6859,12 +7073,18 @@
       }
       if (el.dataset.act === "oo-refresh" || el.dataset.act === "oo-addr") refreshOneoffFit();
       if (el.dataset.act === "sv-toggle-initial") {
-        const block = document.getElementById("sv-initial-block");
-        if (block) block.hidden = !el.checked;
+        captureCreateServiceDraft();
         if (state.setupDraft) state.setupDraft.createInitial = el.checked;
+        render();
+      }
+      if (el.dataset.act === "sv-itech") {
+        captureCreateServiceDraft();
+        if (state.setupDraft) state.setupDraft.initialTech = el.value;
+        refreshSetupFit();
       }
       if (el.dataset.act === "sv-start") fillSetupDates();
-      if (el.dataset.act === "sv-sched") refreshSetupFit();
+      if (el.dataset.act === "sv-first") syncNextVisitFromFirst();
+      if (el.dataset.act === "sv-add-trapper" && el.value) pickSetupTrapper(el.value, "standing");
       if (el.dataset.act === "sv-loc") {
         captureCreateServiceDraft();
         state.setupLocId = el.value;
@@ -7265,14 +7485,17 @@
       "save-manual-invoice": () => saveManualInvoice(),
       "open-record-pay": () => { if (ds.pay) state.payFocusId = ds.pay; openRecordPay(ds.id); },
       bestfit: () => openAssign(ds.id),
-      "open-assign": () => { state.modal = null; openAssign(ds.id, ds.loc); },
-      "share-property": () => openShareProperty(ds.id, ds.loc),
+      "open-assign": () => { state.modal = null; openAssign(ds.id, ds.loc, ds.return); },
+      "share-on-map": () => openShareOnMap(ds.id, ds.loc),
+      "share-property": () => openShareOnMap(ds.id, ds.loc),
       "confirm-share-property": () => confirmShareProperty(ds.id, ds.loc),
       "compare-routes": () => openCompareRoutes(ds.id, ds.loc),
       "map-focus-assign": () => {
         state.mapClient = ds.id || null;
         state.mapLoc = ds.loc || null;
-        state.mapPin = null;
+        state.mapPin = state.mapClient && state.mapLoc && state.mapReturnPage === "location"
+          ? { cid: state.mapClient, lid: state.mapLoc }
+          : null;
         render();
       },
       "map-assign": () => mapAssign(ds.id, ds.tech, ds.loc),
@@ -7280,10 +7503,19 @@
       "open-service": () => openCreateService(ds.id, ds.loc),
       "save-service": () => saveCreateService(ds.id || state.setupId),
       "cancel-create-service": () => {
+        const cid = state.setupId || state.selectedCustomer;
+        const locId = state.setupLocId || state.selectedLocation;
+        const editing = !!state.setupEditId;
         state.setupDraft = null;
-        state.page = "customer";
-        state.selectedCustomer = state.setupId || state.selectedCustomer;
+        state.setupEditId = null;
         state.modal = null;
+        state.selectedCustomer = cid;
+        if (editing && locId) {
+          state.selectedLocation = locId;
+          state.page = "location";
+        } else {
+          state.page = "customer";
+        }
         render();
       },
       "edit-service": () => openEditService(ds.id),
@@ -7334,7 +7566,9 @@
         } else {
           state.mapColorBy = "schedule";
         }
-        state.mapPin = null;
+        state.mapPin = state.mapClient && state.mapLoc && state.mapReturnPage === "location"
+          ? { cid: state.mapClient, lid: state.mapLoc }
+          : null;
         render();
       },
       "map-color": () => {
@@ -7381,6 +7615,9 @@
       "clear-map-compare": () => { state.mapCompare = []; render(); },
       "map-day": () => { state.mapDay = ds.day || null; state.mapSched = null; render(); },
       "sv-pick-fit": () => pickSetupTrapper(ds.tech, ds.target),
+      "sv-toggle-fit": () => toggleBestFitPick(ds.tech),
+      "sv-apply-fit": () => applyBestFitPicks(),
+      "sv-remove-trapper": () => removeSetupTrapper(ds.tech),
       "sv-best-fit": () => openSetupBestFit(ds.target || "standing"),
       "toggle-lasso": () => { state.mapLasso = !state.mapLasso; if (!state.mapLasso) state.mapSelect = []; render(); },
       "toggle-pin": () => toggleMapSelect(ds.cid, ds.lid),
@@ -8602,35 +8839,108 @@
     state.setupLocId = selected || null;
     state.selectedCustomer = c.id;
     state.setupDraft = null;
+    state.setupEditId = null;
     state.page = "create-service";
     state.modal = null;
     render();
   }
 
+  function draftFromLocationServices(c, loc, focusSvc) {
+    const live = svcsFor(c.id, loc.id).filter(svcIsContinuing);
+    const primary = live.find((s) => !s.shared)
+      || live[0]
+      || (focusSvc && focusSvc.locationId === loc.id ? focusSvc : null)
+      || live[0];
+    const source = primary || focusSvc;
+    const list = live.length ? live : (source ? [source] : []);
+    const trappers = list.map((s) => s.techId).filter((id) => TECHS.some((t) => t.id === id));
+    const techDays = {};
+    list.forEach((s) => {
+      if (s.techId) techDays[s.techId] = patternDays(s.days || loc.days || "Tue/Thu");
+    });
+    const first = source?.initialDate || TODAY;
+    const expires = source?.expires || source?.renewal || loc.expires || "";
+    return {
+      loc: loc.id,
+      type: source?.type || defaultServiceCode(c, loc),
+      desc: source?.description || "",
+      createInitial: source?.createInitial === true || !!source?.initialTechId,
+      initialTech: source?.initialTechId || "",
+      first,
+      next: source?.nextService || defaultNextVisitIso(first, expires),
+      freq: source?.freq || "WEEKLY",
+      itime: source?.initialTime || "12:30",
+      dur: fmtDur(source?.durationMin || loc.durationMin || 20),
+      start: source?.start || loc.start || TODAY,
+      expires,
+      target: source?.target || "IGUANA",
+      trappers,
+      techDays,
+      skipMonths: source?.skipMonths || [],
+      notes: source?.instructions || loc.notes || c.notes || "",
+      notifyEmail: source?.notifyEmail !== false,
+      notifyText: source?.notifyText !== false,
+    };
+  }
+
   function saveCreateService(id) {
-    if (!can("service.create")) return;
+    const editing = !!state.setupEditId;
+    if (editing ? !canEditService() : !can("service.create")) return;
     const c = custBy(id || state.setupId);
     const locId = val("sv-loc") || state.setupLocId;
     const loc = c?.locations.find((l) => l.id === locId);
     if (!c || !loc) return;
-    if (svcFor(c.id, loc.id)) {
+    if (!editing && svcFor(c.id, loc.id)) {
       state.modal = null;
       goToAssignMap(c.id, loc.id, "Service already saved. Click a technician’s home to see their properties.");
       return;
     }
     const durationMin = parseDur(val("sv-dur"));
-    const start = val("sv-start") || val("sv-idate");
+    const start = val("sv-start") || val("sv-first");
     const type = val("sv-type") || defaultServiceCode(c, loc);
+    const plan = locPlan(c, loc);
     const expires = val("sv-expires") || expiryFrom(start, type);
     const renewal = expires;
-    if (!durationMin || !start || !expires) {
-      toast("Duration, start date, and renewal date are required.");
+    const firstVisit = val("sv-first") || start;
+    const nextVisit = val("sv-next") || "";
+    const createInitial = document.getElementById("sv-create-initial") ? checked("sv-create-initial") : true;
+    const initialTech = createInitial ? (val("sv-itech") || "") : "";
+    if (!durationMin || !start || !expires || !nextVisit) {
+      toast("Duration, start date, next visit, and renewal date are required.");
       return;
     }
-    const sched = SERVICE_SCHEDULES.find((s) => s.id === val("sv-sched")) || SERVICE_SCHEDULES[0];
-    const createInitial = checked("sv-create-initial");
-    const standing = val("sv-trapper") || null;
-    const initial = createInitial ? (val("sv-initial") || standing || null) : standing;
+    if (expires && firstVisit && firstVisit > expires) {
+      toast("First visit must be on or before the plan expiration.");
+      return;
+    }
+    if (expires && nextVisit > expires) {
+      toast("Next visit must be on or before the plan expiration.");
+      return;
+    }
+    if (firstVisit && nextVisit <= firstVisit) {
+      toast("Next visit should be two or three days after the first visit.");
+      return;
+    }
+    if (createInitial && (!firstVisit || !initialTech)) {
+      toast("Pick the first visit date and who visits first.");
+      return;
+    }
+    const draft = captureCreateServiceDraft() || {};
+    let selectedTechs = (draft.trappers || []).filter((techId) => TECHS.some((t) => t.id === techId));
+    if (!selectedTechs.length && initialTech) selectedTechs = [initialTech];
+    if (!selectedTechs.length) {
+      toast("Select at least one trapper for the next visits, or pick who visits first.");
+      return;
+    }
+    const assignments = selectedTechs.map((techId) => ({
+      techId,
+      days: (draft.techDays?.[techId] || []).filter((day) => DAYS.includes(day)),
+    })).map((assignment) => ({
+      ...assignment,
+      days: assignment.days.length ? assignment.days : patternDays(state.assignDays || loc.days || "Tue/Thu"),
+    }));
+    const primaryTech = assignments[0].techId;
+    const primaryDays = assignments[0].days.join("/");
     const notes = val("sv-notes");
     if (notes) loc.notes = notes;
     const px = Number(val("sv-x"));
@@ -8645,70 +8955,110 @@
     }
     const notifyEmail = checked("sv-notify-email");
     const notifyText = checked("sv-notify-text");
-    const svc = {
-      id: nid("SVC"), customerId: c.id, locationId: loc.id,
-      type, status: "new",
-      techId: null, initialTechId: initial, standingTechId: standing, days: sched.days,
-      durationMin, generated: false,
-      notify: notifyEmail || notifyText,
-      notifyEmail, notifyText, notifyDays: 2,
-      schedule: sched.id,
-      createInitial,
-      initialDate: createInitial ? (val("sv-idate") || start) : "",
-      initialTime: createInitial ? val("sv-itime") : "",
-      ampm: createInitial ? (val("sv-ampm") || "PM") : "AM",
-      initialDuration: createInitial ? parseDur(val("sv-idur") || val("sv-dur")) : durationMin,
-      description: val("sv-desc") || "",
-      qty: Number(val("sv-qty") || 1),
-      price: Number(val("sv-price") || 0),
-      initialPrice: createInitial ? Number(val("sv-iprice") || val("sv-price") || 0) : 0,
-      // tax: checked("sv-tax"),
-      locked: false,
-      unscheduled: false,
-      active: true,
-      timeWhen: "Anytime",
-      timeRange: "",
-      color: techBy(standing || initial)?.color || "#5ec8d8",
-      charge: "Production",
-      start, expires, renewal,
-      route: "",
-      target: val("sv-target") || "IGUANA",
-      measurement: 0,
-      po: c.po || "",
-      poExp: "",
-      division: "",
-      source: "",
-      skipMonths: [],
-      nextGen: start,
-      lastGen: "",
-      nextService: "",
-      lastService: "",
-      increaseDate: "",
-      increasePrice: true,
-      cancelDate: "",
-      cancelReason: "",
-      instructions: notes,
-      freq: val("sv-freq") || "",
-    };
     if (!state.data.services) state.data.services = [];
-    state.data.services.push(svc);
+    const initialTime = val("sv-itime") || "";
+    const initialHour = Number(initialTime.split(":")[0]);
+    const fillService = (svc, assignment, index, isNew) => {
+      const days = assignment.days.join("/");
+      const knownSchedule = SERVICE_SCHEDULES.find((item) => item.days === days);
+      Object.assign(svc, {
+        customerId: c.id, locationId: loc.id,
+        type, status: isNew ? "new" : (svc.status === "cancelled" ? "live" : (svc.status || "live")),
+        techId: assignment.techId,
+        initialTechId: index === 0 && createInitial ? initialTech : null,
+        standingTechId: assignment.techId,
+        days,
+        durationMin,
+        generated: true,
+        notify: notifyEmail || notifyText,
+        notifyEmail, notifyText, notifyDays: 2,
+        schedule: knownSchedule?.id || `CUSTOM-${assignment.days.join("-").toUpperCase()}`,
+        shared: index > 0,
+        createInitial: index === 0 && createInitial,
+        initialDate: index === 0 && createInitial ? firstVisit : "",
+        initialTime: index === 0 && createInitial ? initialTime : "",
+        ampm: index === 0 && createInitial ? (initialHour >= 12 ? "PM" : "AM") : "",
+        initialDuration: durationMin,
+        nextService: nextVisit,
+        description: val("sv-desc") || "",
+        active: true,
+        color: techBy(assignment.techId)?.color || "#5ec8d8",
+        charge: svc.charge || "Production",
+        start, expires, renewal,
+        target: val("sv-target") || "IGUANA",
+        skipMonths: draft.skipMonths || [],
+        instructions: notes,
+        freq: val("sv-freq") || "WEEKLY",
+      });
+      if (svc.status === "cancelled" || svc.cancelDate) {
+        svc.status = "live";
+        svc.cancelDate = "";
+        svc.cancelReason = "";
+      }
+    };
+    if (editing) {
+      const remaining = svcsFor(c.id, loc.id).filter(svcIsContinuing);
+      assignments.forEach((assignment, index) => {
+        const matchAt = remaining.findIndex((s) => s.techId === assignment.techId);
+        let svc = matchAt >= 0 ? remaining.splice(matchAt, 1)[0] : null;
+        if (!svc && index === 0 && remaining[0]) svc = remaining.shift();
+        const isNew = !svc;
+        if (isNew) {
+          svc = { id: nid("SVC") };
+          state.data.services.push(svc);
+        }
+        fillService(svc, assignment, index, isNew);
+      });
+      remaining.forEach((s) => {
+        s.status = "cancelled";
+        s.active = false;
+        s.cancelDate = TODAY;
+        s.cancelReason = "Removed in service edit";
+      });
+      state.data.stops = (state.data.stops || []).filter((st) => {
+        if (st.customerId !== c.id || st.locationId !== loc.id) return true;
+        if (st.type === "oneoff") return true;
+        if (st.status === "complete" || st.status === "noshow") return true;
+        return false;
+      });
+      svcsFor(c.id, loc.id).filter(svcIsContinuing).forEach((svc) => {
+        if (locPaid(c, loc) || isMunicipal(c)) pushLiveStops(svc, c, loc);
+      });
+    } else {
+      assignments.forEach((assignment, index) => {
+        const svc = { id: nid("SVC") };
+        fillService(svc, assignment, index, true);
+        state.data.services.push(svc);
+        if (locPaid(c, loc) || isMunicipal(c)) pushLiveStops(svc, c, loc);
+      });
+    }
     loc.requestService = false;
-    loc.days = sched.days;
+    loc.techId = primaryTech;
+    loc.backupId = assignments[1]?.techId || (initialTech && initialTech !== primaryTech ? initialTech : loc.backupId);
+    loc.days = primaryDays;
+    loc.shared = assignments.length > 1;
     if (!c.start) c.start = start;
     if (!c.expires) c.expires = expires;
-    c.days = sched.days;
+    if (!c.techId) c.techId = primaryTech;
+    c.days = primaryDays;
     c.durationMin = durationMin;
     if (c.status === "inquiry" && (c.paid || c.municipal)) c.status = "active";
     state.modal = null;
     state.setupDraft = null;
-    const who = standing || initial;
-    goToAssignMap(
-      c.id,
-      loc.id,
-      who
-        ? `${c.name} · ${loc.name} saved · ${techBy(who)?.name || "trapper"} suggested. Confirm on the map.`
-        : `${c.name} · ${loc.name} is saved. Click a technician’s home to assign this pin.`
-    );
+    state.setupEditId = null;
+    state.page = "location";
+    state.selectedCustomer = c.id;
+    state.selectedLocation = loc.id;
+    const names = [];
+    if (createInitial && initialTech) names.push(`${techName(initialTech)} (first visit)`);
+    assignments.forEach((assignment) => {
+      if (assignment.techId !== initialTech) names.push(techName(assignment.techId));
+      else if (!createInitial) names.push(techName(assignment.techId));
+    });
+    toast(editing
+      ? `Service updated for ${loc.name}.`
+      : `${loc.name} is on ${names.filter((n, i, a) => a.indexOf(n) === i).join(" / ")}’s route.`);
+    render();
   }
 
   function openEditService(svcId) {
@@ -8721,56 +9071,14 @@
     const c = custBy(svc.customerId);
     const loc = locBy(svc.customerId, svc.locationId);
     if (!c || !loc) return;
-    const sched = SERVICE_SCHEDULES.find((s) => s.id === svc.schedule || s.days === svc.days) || SERVICE_SCHEDULES[0];
-    const continuing = svcIsContinuing(svc);
-    state.modal = {
-      wide: true,
-      html: `
-        <h3>${continuing ? "Edit continuing service" : "Service detail"} · ${esc(loc.name)}</h3>
-        <p>Bill-To ${esc(c.billTo || c.name)}. <strong>Reassign</strong> moves this service to another trapper (Johnny unavailable → Bobby). <strong>Share</strong> adds a second trapper on the same property with their own days — do not copy the stop.</p>
-        <div class="preview">
-          <strong>${esc(svc.id)}</strong> · ${svcStatusBadge(svc)}
-          <div class="tiny">${esc(loc.address)}</div>
-          ${locIsShared(c, loc) ? `<div class="tiny">Shared property · ${locTechs(c, loc).map(techName).join(" / ")}</div>` : ""}
-        </div>
-        <div class="setup-grid">
-          <div class="field"><label>Service type</label>
-            <select id="es-type" ${continuing ? "" : "disabled"}>${allServiceTypes().map((t) => `<option value="${t.id}" ${t.id === svc.type ? "selected" : ""}>${esc(t.code)} · ${esc(t.label)}</option>`).join("")}</select>
-          </div>
-          <div class="field"><label>Standing trapper (reassign = change this)</label>
-            <select id="es-trapper" ${continuing ? "" : "disabled"}>
-              <option value="">Unassigned</option>
-              ${TECHS.map((t) => `<option value="${t.id}" ${t.id === svc.techId ? "selected" : ""}>${esc(t.name.toUpperCase())} · ${esc(t.home)}</option>`).join("")}
-            </select>
-          </div>
-          <div class="field"><label>Schedule</label>
-            <select id="es-sched" ${continuing ? "" : "disabled"}>${SERVICE_SCHEDULES.map((s) => `<option value="${s.id}" ${s.id === sched.id ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
-          </div>
-          <div class="field"><label>Duration (min)</label><input id="es-dur" type="number" value="${esc(svc.durationMin || 20)}" ${continuing ? "" : "disabled"}></div>
-          <div class="field"><label>Start</label><input id="es-start" type="date" value="${esc(svc.start || "")}" ${continuing ? "" : "disabled"}></div>
-          <div class="field"><label>Expires / renewal</label><input id="es-expires" type="date" value="${esc(svc.expires || svc.renewal || "")}" ${continuing ? "" : "disabled"}></div>
-          <div class="field"><label>Charge</label>
-            <select id="es-charge" ${continuing ? "" : "disabled"}>${CHARGE_MODES.map((m) => `<option ${m === (svc.charge || "Production") ? "selected" : ""}>${m}</option>`).join("")}</select>
-          </div>
-          <div class="field"><label>Target</label>
-            <select id="es-target" ${continuing ? "" : "disabled"}>${TARGETS.map((t) => `<option ${t === (svc.target || "IGUANA") ? "selected" : ""}>${t}</option>`).join("")}</select>
-          </div>
-          <div class="field chk-field"><label class="chk"><input type="checkbox" id="es-active" ${svc.active !== false && continuing ? "checked" : ""} ${continuing ? "" : "disabled"}> Active / continuing</label></div>
-          <div class="field"><label>Cancel date</label><input id="es-cancel" type="date" value="${esc(svc.cancelDate || "")}" ${continuing ? "" : "disabled"}></div>
-          <div class="field"><label>Cancel reason</label><input id="es-cancelr" value="${esc(svc.cancelReason || "")}" ${continuing ? "" : "disabled"} placeholder="optional"></div>
-          <div class="field"><label>Ops note</label><textarea id="es-note" rows="2" ${continuing ? "" : "disabled"} placeholder="Internal note on this service">${esc(svc.opsNote || "")}</textarea></div>
-        </div>
-        <div class="actions" style="margin-top:14px">
-          <button class="btn btn-ghost" data-act="close-modal">Close</button>
-          ${continuing && canEditService() ? `
-            <button class="btn btn-ghost" data-act="open-assign" data-id="${c.id}" data-loc="${loc.id}">Reassign on map</button>
-            <button class="btn btn-ghost" data-act="share-property" data-id="${c.id}" data-loc="${loc.id}">Share · add trapper</button>
-            ${can("service.stop") ? btn("service.stop", "Stop service", "stop-service", `data-id="${svc.id}"`) : ""}
-            ${btn("service.edit", "Save changes", "save-edit-service", `data-id="${svc.id}"`)}
-          ` : ""}
-        </div>
-      `,
-    };
+    state.setupId = c.id;
+    state.setupLocId = loc.id;
+    state.selectedCustomer = c.id;
+    state.selectedLocation = loc.id;
+    state.setupEditId = svc.id;
+    state.setupDraft = draftFromLocationServices(c, loc, svc);
+    state.page = "create-service";
+    state.modal = null;
     render();
   }
 
@@ -8944,7 +9252,7 @@
     render();
   }
 
-  function goToAssignMap(id, locId, message) {
+  function goToAssignMap(id, locId, message, options = {}) {
     const c = custBy(id);
     const loc = c?.locations.find((l) => l.id === locId) || c?.locations.find((l) => locNeedsTech(c, l)) || c?.locations[0];
     state.mapClient = id;
@@ -8954,6 +9262,8 @@
     state.mapPin = null;
     state.mapSched = null;
     state.mapColorBy = "tech";
+    state.mapActionMode = options.mode || "move";
+    state.mapReturnPage = options.returnPage || null;
     state.assignId = id;
     state.assignLocId = loc?.id || null;
     const svc = loc ? svcFor(c.id, loc.id) : null;
@@ -8966,7 +9276,7 @@
     render();
   }
 
-  function openAssign(id, locId) {
+  function openAssign(id, locId, returnPage) {
     const c = custBy(id);
     if (!c) return;
     const loc = c.locations.find((l) => l.id === locId) || c.locations.find((l) => locNeedsTech(c, l)) || c.locations[0];
@@ -8975,7 +9285,37 @@
       openCreateService(c.id, loc?.id);
       return;
     }
-    goToAssignMap(c.id, loc?.id, "Reassign: click a trapper home, then Assign — this moves the property (does not share).");
+    goToAssignMap(
+      c.id,
+      loc?.id,
+      "Reassign: compare nearby trappers on the map, choose one, then reassign the property.",
+      { mode: "move", returnPage: returnPage || null }
+    );
+  }
+
+  function openShareOnMap(customerId, locationId) {
+    if (!(can("schedule.assign") || can("service.create") || can("service.edit") || state.role === "owner")) {
+      toast("Only Operations can share a property.");
+      return;
+    }
+    const c = custBy(customerId);
+    const loc = locBy(customerId, locationId);
+    if (!c || !loc) return;
+    const existing = svcsFor(c.id, loc.id).filter(svcIsContinuing);
+    if (!existing.length) {
+      toast("Create and assign the first service before sharing.");
+      return;
+    }
+    if (locTechs(c, loc).length >= TECHS.length) {
+      toast("Every trapper is already on this property.");
+      return;
+    }
+    goToAssignMap(
+      c.id,
+      loc.id,
+      "Share: compare nearby trapper homes and routes. Choose a free trapper, open the red property pin, then click Share.",
+      { mode: "share", returnPage: "location" }
+    );
   }
 
   function openShareProperty(customerId, locationId) {
@@ -9090,8 +9430,9 @@
       text: `Shared ${loc.name}: added ${techName(techId)} on ${sched.days} (${durationMin}m). Existing trapper(s) kept — gray diamond on the map.`,
     });
     state.modal = null;
-    state.page = "customer";
+    state.page = "location";
     state.selectedCustomer = c.id;
+    state.selectedLocation = loc.id;
     toast(`Shared ${loc.name} · ${techName(techId)} added on ${sched.days}. Pin is a gray diamond.`);
     render();
   }
@@ -9201,6 +9542,7 @@
         ? `${techName(tech)} now has ${c.name} · ${loc.name}. Another property still needs a service created.`
         : `${techName(tech)} now has ${c.name} · ${loc.name} on the live route.`);
     }
+    finishMapActionReturn(`${c.id}:${loc.id}`);
     render();
   }
 
@@ -10523,6 +10865,22 @@
     applyMapAssign([`${cid}:${lid}`], { mode: mode || "move", techId, schedId });
   }
 
+  function finishMapActionReturn(key) {
+    if (state.mapReturnPage !== "location" || !key) return;
+    const [customerId, locationId] = key.split(":");
+    state.page = "location";
+    state.selectedCustomer = customerId;
+    state.selectedLocation = locationId;
+    state.mapClient = null;
+    state.mapLoc = null;
+    state.mapTech = null;
+    state.mapCompare = [];
+    state.mapPin = null;
+    state.mapSched = null;
+    state.mapActionMode = null;
+    state.mapReturnPage = null;
+  }
+
   function confirmBulkAssign() {
     if (!can("schedule.reassign") && state.role !== "owner") return;
     if (!state.mapSelect.length) return;
@@ -10600,6 +10958,7 @@
       toast(n
         ? `Shared ${n} ${n === 1 ? "property" : "properties"} with ${techName(techId)} · ${sched.days}.${skipped ? ` Skipped ${skipped}.` : ""}`
         : `Nothing shared — ${skipped} skipped (need a live service, free trapper, different days).`);
+      if (n) finishMapActionReturn(keys[0]);
       render();
       return;
     }
@@ -10670,6 +11029,7 @@
     state.mapPin = null;
     state.modal = null;
     toast(n ? `Assigned ${n} ${n === 1 ? "property" : "properties"} to ${techName(techId)} · ${sched.days}.` : "Nothing assigned.");
+    if (n) finishMapActionReturn(keys[0]);
     render();
   }
 
