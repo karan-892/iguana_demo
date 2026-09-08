@@ -23,7 +23,7 @@
   }
   const ICONS = {
     home: svg(["M3 10.5 12 3l9 7.5V21H3z", "M9 21v-8h6v8"]),
-    people: svg(["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8"]),
+    people: svg(["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8"]),
     cal: svg(["M4 6h16v14H4z", "M4 10h16", "M8 3v4", "M16 3v4"]),
     map: svg(["M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"]),
     bolt: svg(["M13 2 4 14h7l-1 8 9-12h-7z"]),
@@ -38,13 +38,14 @@
     chat: svg(["M4 5h16v10H8l-4 4z"]),
     memo: svg(["M5 4h10l4 4v12H5z", "M9 12h6"]),
     chart: svg(["M4 20V4", "M4 20h16", "M8 16v-5", "M12 16V8", "M16 16v-8"]),
-    users: svg(["M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2", "M9 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8"]),
+    users: svg(["M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2", "M9 10a4 4 0 1 0 0 8 4 4 0 0 0 0-8"]),
     list: svg(["M8 6h13", "M8 12h13", "M8 18h13", "M4 6v.01", "M4 12v.01", "M4 18v.01"]),
     trap: svg(["M12 3v4", "M8 21h8", "M7 11h10l-1 10H8z", "M9 11V8a3 3 0 0 1 6 0v3"]),
     mail: svg(["M3 6h18v12H3z", "M3 6l9 7 9-7"]),
     cog: svg(["M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6", "M4 12h2", "M18 12h2", "M12 4v2", "M12 18v2"]),
     phone: svg(["M7 2h10v20H7z", "M11 18h2"]),
     plus: svg(["M12 5v14", "M5 12h14"]),
+    eye: svg(["M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z", "M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6"]),
   };
 
   const ROLES = {
@@ -112,6 +113,7 @@
     { id: "dashboard", label: "Dashboard", group: "Home", icon: "home", roles: ["owner", "ops", "admin", "sales", "sysadmin"] },
 
     { id: "customers", label: "Customers", group: "Customers", icon: "people", roles: ["owner", "ops", "admin", "sales"] },
+    { id: "locations", label: "Locations / Properties", group: "Customers", icon: "map", roles: ["owner", "ops", "admin", "sales"] },
     { id: "quotes", label: "Quotes", group: "Customers", icon: "mail", roles: ["sales", "owner", "admin"] },
 
     { id: "schedule", label: "Schedule", group: "Operations", icon: "cal", roles: ["owner", "ops"] },
@@ -911,6 +913,7 @@
     role: session.role || null,
     page: session.page || "dashboard",
     selectedCustomer: session.selectedCustomer || null,
+    selectedLocation: session.selectedLocation || null,
     selectedStop: null,
     toast: null,
     modal: null,
@@ -951,6 +954,10 @@
     optimizerAnchors: {},
   };
   normalizeDemoData();
+  if (state.page === "location" && !locBy(state.selectedCustomer, state.selectedLocation)) {
+    state.selectedLocation = custBy(state.selectedCustomer)?.locations?.[0]?.id || null;
+    if (!state.selectedLocation) state.page = "customers";
+  }
 
   const $app = document.getElementById("app");
 
@@ -969,7 +976,7 @@
     return NAV.some((n) => n.id === id && (n.roles || []).includes(state.role));
   }
   function isRecordPage(id) {
-    return id === "customer" || id === "add-customer" || id === "create-service" || id === "create-oneoff";
+    return id === "customer" || id === "location" || id === "add-customer" || id === "create-service" || id === "create-oneoff";
   }
   function resolveWho(id) {
     if (ROLES[id]) return id;
@@ -1367,15 +1374,17 @@
     const c = custBy(selected);
     const locs = c?.locations || [];
     const defaultAssignee = state.role === "admin" ? "ops" : state.role === "ops" ? "admin" : "admin";
+    const locationLocked = !!locationId;
+    const selectedLoc = locationId ? locs.find((l) => l.id === locationId) : null;
     state.modal = {
       html: `
         <h3>Create task</h3>
-        <p>Assign work about a customer to Tom, Rick, or Christy. The task stays on that Bill-To.</p>
+        <p>${locationLocked ? `Create work for ${esc(selectedLoc?.name || "this location")}. The task stays on this property.` : "Assign work to Tom, Rick, or Christy."}</p>
         <div class="field"><label>Customer (Bill-To)</label>
-          <select id="tk-cust" data-act="task-cust-change">${customers.map((x) => `<option value="${x.id}" ${x.id === selected ? "selected" : ""}>${esc(x.billTo || x.name)} · ${esc(x.id)}</option>`).join("")}</select>
+          <select id="tk-cust" data-act="task-cust-change" ${locationLocked ? "disabled" : ""}>${customers.map((x) => `<option value="${x.id}" ${x.id === selected ? "selected" : ""}>${esc(x.billTo || x.name)} · ${esc(x.id)}</option>`).join("")}</select>
         </div>
-        <div class="field"><label>Property (optional)</label>
-          <select id="tk-loc"><option value="">Whole Bill-To</option>${locs.map((l) => `<option value="${l.id}" ${l.id === locationId ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select>
+        <div class="field"><label>${locationLocked ? "Location" : "Property (optional)"}</label>
+          <select id="tk-loc" ${locationLocked ? "disabled" : ""}>${locationLocked ? "" : `<option value="">Whole Bill-To</option>`}${locs.map((l) => `<option value="${l.id}" ${l.id === locationId ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select>
         </div>
         <div class="field"><label>Assign to</label>
           <select id="tk-assignee">${TASK_ASSIGNEES.map((a) => `<option value="${a.id}" ${a.id === defaultAssignee ? "selected" : ""}>${esc(a.label)}</option>`).join("")}</select>
@@ -1854,8 +1863,8 @@
     });
     return best;
   }
-  function miniMapHtml({ existing = [], preview = [], caption, drag = false, mapId = "mini-map", title = "Map preview" } = {}) {
-    const homes = TECHS.map((t) => `<div class="pin home-pin mini" style="left:${t.x};top:${t.y}" title="${esc(t.name)} home"><div class="pin-dot" style="background:${t.color}"></div></div>`);
+  function miniMapHtml({ existing = [], preview = [], caption, drag = false, mapId = "mini-map", title = "Map preview", showHomes = true } = {}) {
+    const homes = showHomes ? TECHS.map((t) => `<div class="pin home-pin mini" style="left:${t.x};top:${t.y}" title="${esc(t.name)} home"><div class="pin-dot" style="background:${t.color}"></div></div>`) : [];
     const old = existing.map((p) => `<div class="pin mini" style="left:${p.x};top:${p.y}"><div class="pin-dot" style="background:${p.color || "#8a8680"}"></div><span>${esc(p.label || "")}</span></div>`);
     const next = preview.map((p) => `<div class="pin mini client ${p.elId || "preview"} ${p.elId === "mini-preview2" ? "ghost" : ""}" id="${p.elId || "mini-preview"}" ${drag ? `data-drag-mini="1" data-x="${p.xId || "al-x"}" data-y="${p.yId || "al-y"}" data-fill-city="${p.fillCity || ""}" data-fill-street="${p.fillStreet || ""}" data-fill-zip="${p.fillZip || ""}" data-fill-lat="${p.fillLat || ""}" data-fill-lng="${p.fillLng || ""}" data-cap="${p.capId || "mini-cap"}"${p.keepLabel ? ' data-keep-label="1"' : ""}` : ""} style="left:${p.x};top:${p.y}"><div class="pin-dot"></div><span>${esc(p.label || "New location")}</span></div>`);
     const capId = preview[0]?.capId || "mini-cap";
@@ -2629,6 +2638,7 @@
         role: state.role,
         page: state.page,
         selectedCustomer: state.selectedCustomer,
+        selectedLocation: state.selectedLocation,
         inboundId: state.inboundId,
       });
     }
@@ -2873,6 +2883,7 @@
       FAILED: ["badge-bad", "Failed"],
       DRAFT: ["badge-mute", "Draft"],
       unassigned_done: ["badge-warn", "Waiting to drop"],
+      not_covered: ["badge-mute", "Not covered"],
     };
     const [cls, label] = map[status] || ["badge-mute", status];
     return `<span class="badge ${cls}">${esc(label)}</span>`;
@@ -3087,6 +3098,7 @@
     if (state.page === "add-customer") return "Add customer";
     if (state.page === "create-service") return "Service setup";
     if (state.page === "create-oneoff") return "Live call-in";
+    if (state.page === "location" && state.selectedCustomer && state.selectedLocation) return locBy(state.selectedCustomer, state.selectedLocation)?.name || "Location";
     if (state.page === "customer" && state.selectedCustomer) return custBy(state.selectedCustomer)?.name || "Customer";
     if (state.page === "assign" && state.assignId) return "Assign · " + (custBy(state.assignId)?.name || "technician");
     return NAV.find((n) => n.id === state.page)?.label || "Dashboard";
@@ -3105,7 +3117,8 @@
     if (state.page === "add-customer") return viewAddCustomer();
     if (state.page === "create-service") return viewCreateService();
     if (state.page === "create-oneoff") return viewCreateOneoff();
-    if (state.page === "customer") return viewCustomer();
+    if (state.page === "location") return viewLocation();
+    if (state.page === "customer") return viewCustomerAccount();
     if (!role()) return renderLogin();
     if (!canPage(state.page) && !isRecordPage(state.page)) {
       return `<div class="forbidden"><h2>Your login doesn’t include this screen</h2><p>${esc(role().name)} doesn’t have ${esc(state.page)}. Switch people from the top bar, or go home.</p><button class="btn btn-primary" data-act="nav" data-page="dashboard">Dashboard</button></div>`;
@@ -3113,6 +3126,7 @@
     const views = {
       dashboard: viewDashboard,
       customers: viewCustomers,
+      locations: viewLocations,
       quotes: viewQuotes,
       schedule: viewSchedule,
       optimizer: viewOptimizer,
@@ -3833,24 +3847,137 @@
   }
 
   function viewCustomers() {
-    const rows = visibleCustomers().map((c) => [
-      custBtn(c.id, c.id),
-      custBtn(c.id, c.name),
-      esc(c.type),
-      salesHide(locSummary(c)),
-      statusBadge(c.status),
-      scheduleHint(c),
-    ]);
+    const customers = visibleCustomers();
+    const rows = customers.map((c) => ({
+      search: [c.name, c.billTo, c.id, c.status].join(" "),
+      status: c.status,
+      cells: [
+        `<strong>${esc(c.name)}</strong>`,
+        statusBadge(c.status),
+        esc(c.billTo || c.name),
+        `${c.locations?.length || 0} ${c.locations?.length === 1 ? "location" : "locations"}`,
+        `<button class="icon-btn table-icon-btn" data-act="open-customer" data-id="${esc(c.id)}" title="View customer" aria-label="View ${esc(c.name)}">${ICONS.eye}</button>`,
+      ],
+    }));
+    const statuses = [...new Set(customers.map((c) => c.status).filter(Boolean))];
     return `
       ${head("Customers", state.role === "sales"
         ? "A call or message comes in. Add the customer. The quote comes later."
-        : "Bill-To + properties. One payer. Each property has its own plan, service, and invoice.")}
+        : "Bill-To accounts only. Open Locations / Properties for service addresses and dispatch.")}
       ${can("customer.create")
         ? `<div class="page-head" style="margin-top:0"><div></div><div class="actions">${btn("customer.create", "New customer", "new-customer")}</div></div>`
         : state.role === "ops"
           ? `<div class="notice locked">Ops doesn’t add customers. When Admin puts someone on the register paid, they show up here — assign them on the map.</div>`
           : writeBar("customer.create", "New customer")}
-      ${table(["ID", "Name", "Type", "Service address", "Status", "Dispatch"], rows)}
+      ${listFilterBar("customer", statuses)}
+      ${filterableTable(["Customer", "Status", "Bill-To", "Locations", ""], rows, "customer")}
+    `;
+  }
+
+  function listFilterBar(prefix, statuses, options = {}) {
+    return `
+      <div class="filter-bar list-filter-bar">
+        <input id="${prefix}-filter-search" data-list-filter="${prefix}" type="search" placeholder="${esc(options.placeholder || "Search name, Bill-To, or ID")}">
+        <select id="${prefix}-filter-status" data-list-filter="${prefix}">
+          <option value="">All statuses</option>
+          ${statuses.map((status) => `<option value="${esc(status)}">${statusBadge(status).replace(/<[^>]+>/g, "")}</option>`).join("")}
+        </select>
+        ${options.types ? `<select id="${prefix}-filter-type" data-list-filter="${prefix}"><option value="">All types</option>${options.types.map((type) => `<option value="${esc(type)}">${esc(type)}</option>`).join("")}</select>` : ""}
+        ${options.techs ? `<select id="${prefix}-filter-tech" data-list-filter="${prefix}"><option value="">All trappers</option>${TECHS.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select>` : ""}
+        <button class="btn btn-ghost" data-act="clear-list-filters" data-prefix="${prefix}">Clear</button>
+        <span class="tiny" id="${prefix}-filter-count"></span>
+      </div>`;
+  }
+
+  function filterableTable(headers, rows, prefix) {
+    if (!rows.length) return `<p class="muted">Nothing to show.</p>`;
+    return `
+      <div class="table-wrap card" style="padding:8px 10px" data-filter-table="${prefix}">
+        <table>
+          <thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
+          <tbody>${rows.map((row) => `
+            <tr
+              data-search="${esc(String(row.search || "").toLowerCase())}"
+              data-status="${esc(row.status || "")}"
+              data-type="${esc(row.type || "")}"
+              data-tech="${esc(row.tech || "")}"
+            >${row.cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody>
+        </table>
+        <p class="muted list-filter-empty" hidden>No matching records.</p>
+      </div>`;
+  }
+
+  function locationServiceLabel(c, l) {
+    const svc = svcFor(c.id, l.id);
+    if (svc) return esc(svcTypeLabel(svc.type));
+    const plan = locPlan(c, l);
+    const program = plan.programId ? progBy(plan.programId) : null;
+    return program ? esc(program.name) : `<span class="muted">No service</span>`;
+  }
+
+  function locationStatus(c, l) {
+    if (l.covered === false) return statusBadge("not_covered");
+    if (locNeedsService(c, l)) return statusBadge("paid");
+    if (locNeedsTech(c, l)) return statusBadge("active");
+    if (l.lifecycle) return statusBadge(l.lifecycle);
+    return statusBadge(c.status);
+  }
+
+  function locationStatusKey(c, l) {
+    if (l.covered === false) return "not_covered";
+    if (locNeedsService(c, l)) return "paid";
+    if (locNeedsTech(c, l)) return "active";
+    return l.lifecycle || c.status;
+  }
+
+  function locationDispatch(c, l) {
+    if (c.status === "lapsed" || l.covered === false) return `<span class="muted">Not dispatching</span>`;
+    if (locNeedsService(c, l)) {
+      return `<span class="badge badge-warn">Needs service setup</span>`;
+    }
+    if (locNeedsTech(c, l)) {
+      return `<span class="badge badge-sea">Needs trapper</span>`;
+    }
+    if (!locPaid(c, l) && !isMunicipal(c)) return statusBadge("waiting_payment");
+    const svc = svcFor(c.id, l.id);
+    const routeTechId = svc?.techId || l.techId || c.techId;
+    const routeDays = svc?.days || l.days || c.days;
+    if (routeTechId) {
+      return `<span class="badge badge-ok">On route</span><div class="tiny">${esc(techName(routeTechId))}${routeDays ? ` · ${esc(routeDays)}` : ""}</div>`;
+    }
+    if (isMunicipal(c)) return `<span class="badge badge-sea">PO · pay after service</span>`;
+    return `<span class="muted">No dispatch yet</span>`;
+  }
+
+  function viewLocations() {
+    const customers = visibleCustomers();
+    const rows = customers.flatMap((c) => (c.locations || []).map((l) => {
+      const svc = svcFor(c.id, l.id);
+      const service = svc ? svcTypeLabel(svc.type) : (progBy(locPlan(c, l).programId)?.name || "");
+      const techId = svc?.techId || l.techId || c.techId || "";
+      const status = locationStatusKey(c, l);
+      return {
+        search: [c.name, c.billTo, c.id, l.name, l.address, c.type, service, techName(techId)].join(" "),
+        status,
+        type: c.type || "",
+        tech: techId,
+        cells: [
+          `<strong>${esc(l.name || "Property")}</strong><div class="tiny">${esc(c.name)}</div>`,
+          esc(c.type || "—"),
+          locationServiceLabel(c, l),
+          `<span>${esc(l.address || "No address")}</span>`,
+          locationStatus(c, l),
+          locationDispatch(c, l),
+          `<button class="icon-btn table-icon-btn" data-act="open-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}" title="View location" aria-label="View ${esc(c.name)} ${esc(l.name || "property")}">${ICONS.eye}</button>`,
+        ],
+      };
+    }));
+    const statuses = [...new Set(rows.map((row) => row.status).filter(Boolean))];
+    const types = [...new Set(rows.map((row) => row.type).filter(Boolean))];
+    return `
+      ${head("Locations / Properties", "Every service address in one list. Service setup and dispatch actions belong to the property, not the Bill-To account.")}
+      ${listFilterBar("location", statuses, { types, techs: true, placeholder: "Search customer, property, address, or service" })}
+      ${filterableTable(["Location", "Type", "Service", "Service address", "Status", "Dispatch", ""], rows, "location")}
     `;
   }
 
@@ -3884,6 +4011,155 @@
     if (locs.length > 1 && paidN && paidN < locs.length) return `<span class="badge badge-warn">${paidN}/${locs.length} properties paid</span>`;
     if (paidN === locs.length && locs.length) return `<span class="badge badge-ok">Paid — eligible</span>`;
     return `<span class="badge badge-bad">Awaiting payment</span>`;
+  }
+
+  function customerLocationsCard(c) {
+    return `
+      <div class="card customer-location-list">
+        <div class="customer-location-head">
+          <div><h3>Locations</h3><p class="tiny">${(c.locations || []).length} service propert${(c.locations || []).length === 1 ? "y" : "ies"}</p></div>
+        </div>
+        ${(c.locations || []).map((l) => {
+          const svc = svcFor(c.id, l.id);
+          return `
+            <div class="customer-location-row">
+              <div>
+                <strong>${esc(l.name || "Property")}</strong>
+                <div class="tiny">${esc(l.address || "No address")}</div>
+                <div class="tiny">${svc ? esc(svcTypeLabel(svc.type)) : esc(progBy(locPlan(c, l).programId)?.name || "No service")} · ${locationStatus(c, l)}</div>
+              </div>
+              <button class="icon-btn" data-act="open-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}" title="Open location" aria-label="Open ${esc(l.name || "location")}">${ICONS.eye}</button>
+            </div>`;
+        }).join("") || `<p class="muted">No locations yet.</p>`}
+      </div>`;
+  }
+
+  function viewCustomerAccount() {
+    const c = custBy(state.selectedCustomer);
+    if (!c) return `<p>Not found.</p>`;
+    const typeLabel = { residential: "Residential", commercial: "Commercial", hoa: "HOA", municipal: "Municipal" };
+    const canEditCust = canEditField("name");
+    return `
+      <button class="btn btn-ghost" data-act="nav" data-page="customers">← Customers</button>
+      <div class="cust-hero">
+        <div>
+          <h2 style="font-family:var(--display);font-size:28px;margin:8px 0 4px">${esc(c.billTo || c.name)}</h2>
+          <p class="muted">${esc(c.id)} · Bill-To account · ${statusBadge(c.status)}</p>
+        </div>
+      </div>
+      <div class="customer-overview-grid">
+        <div class="stack customer-overview-left">
+          <div class="panel-box customer-billto-card">
+            ${canEditCust ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-billto" data-id="${c.id}">Edit Bill-To</button>` : ""}
+            <div class="panel-kicker">Bill-To details</div>
+            <dl class="kv panel-kv">
+              <dt>Customer</dt><dd>${esc(c.name)}</dd>
+              <dt>Bill-To</dt><dd>${esc(c.billTo || c.name)}</dd>
+              <dt>Type</dt><dd>${esc(typeLabel[c.billToType || c.type] || c.type || "—")}</dd>
+              <dt>Phone</dt><dd>${esc(c.phone || "—")}</dd>
+              <dt>Mobile</dt><dd>${esc(c.mobile || "—")}</dd>
+              <dt>Email</dt><dd>${esc(c.email || "—")}</dd>
+              <dt>Company</dt><dd>${esc(c.company || "—")}</dd>
+              ${(c.municipal || c.type === "municipal") ? `
+                <dt>PO / hours</dt><dd>${esc(c.po || "—")} · ${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"} hrs used · ${muniHoursRemaining(c) == null ? "—" : muniHoursRemaining(c) + " left"}</dd>
+                <dt>Billing</dt><dd>Pay after service${c.hourlyRate ? ` · ${money(c.hourlyRate)}/hr` : ""}</dd>
+              ` : ""}
+              <dt>Contact preference</dt><dd>${c.acceptSms ? "SMS on" : "SMS off"} · ${c.acceptEmail === false ? "Email off" : "Email on"}</dd>
+            </dl>
+          </div>
+          ${customerLocationsCard(c)}
+        </div>
+        <div class="card customer-map-card">
+          ${locationPreviewCard(c)}
+        </div>
+      </div>
+    `;
+  }
+
+  function viewLocation() {
+    const c = custBy(state.selectedCustomer);
+    const l = c && locBy(c.id, state.selectedLocation);
+    if (!c || !l) return `<p>Location not found.</p>`;
+    const svc = svcFor(c.id, l.id);
+    const live = svc && svcIsContinuing(svc);
+    const plan = locPlan(c, l);
+    const prog = plan.programId ? progBy(plan.programId) : null;
+    const invoices = locInvoices(c.id, l.id);
+    const locTasks = tasksForCustomer(c.id).filter((t) => t.locationId === l.id);
+    const locDocs = docsForCustomer(c.id).filter((d) => d.locationId === l.id);
+    const visits = (state.data.stops || [])
+      .filter((s) => s.customerId === c.id && s.locationId === l.id)
+      .slice()
+      .sort((a, b) => String(b.day || "").localeCompare(String(a.day || "")) || String(a.time || "").localeCompare(String(b.time || "")));
+    const gps = l.lat != null && l.lng != null ? `${Number(l.lat).toFixed(4)}, ${Number(l.lng).toFixed(4)}` : (l.gps || approxGps(l));
+    return `
+      <button class="btn btn-ghost" data-act="open-customer" data-id="${esc(c.id)}">← ${esc(c.billTo || c.name)}</button>
+      <div class="cust-hero">
+        <div>
+          <h2 style="font-family:var(--display);font-size:28px;margin:8px 0 4px">${esc(l.name || "Property")}</h2>
+          <p class="muted">${esc(c.name)} · ${esc(l.address || "No address")} · ${locationStatus(c, l)}</p>
+        </div>
+        <div class="actions">
+          ${can("location.add") || canEditField("address") || state.role === "owner" ? `<button class="btn btn-ghost" data-act="edit-one-loc" data-id="${c.id}" data-loc="${l.id}">Edit location</button>` : ""}
+          ${locNeedsService(c, l) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
+          ${locNeedsTech(c, l) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
+          ${live && ["ops", "owner"].includes(state.role) ? btn("schedule.reassign", "Reassign trapper", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost") : ""}
+          ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Create task", "new-task", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost") : ""}
+        </div>
+      </div>
+      <div class="location-detail-grid">
+        <div class="stack">
+          <div class="card">
+            <h3>Location details</h3>
+            <dl class="kv section-gap">
+              <dt>Bill-To</dt><dd>${esc(c.billTo || c.name)}</dd>
+              <dt>Property type</dt><dd>${esc(c.type || "—")}</dd>
+              <dt>Address</dt><dd>${esc(l.address || "—")}</dd>
+              <dt>GPS</dt><dd>${esc(gps)}</dd>
+              <dt>Status</dt><dd>${locationStatus(c, l)}</dd>
+              <dt>Instructions</dt><dd>${esc(l.notes || c.opsNote || c.notes || "—")}</dd>
+            </dl>
+          </div>
+          <div class="card">
+            <h3>Service & dispatch</h3>
+            <dl class="kv section-gap">
+              <dt>Service</dt><dd>${svc ? esc(svcTypeLabel(svc.type)) : "No service yet"}</dd>
+              <dt>Trapper</dt><dd>${esc(svc?.techId || l.techId || c.techId ? techName(svc?.techId || l.techId || c.techId) : "Unassigned")}</dd>
+              <dt>Schedule</dt><dd>${esc(svc?.days || l.days || c.days || "—")}</dd>
+              <dt>Duration</dt><dd>${Number(svc?.durationMin || l.durationMin || c.durationMin || 0)} min</dd>
+              <dt>Program</dt><dd>${esc(prog?.name || "—")}${can("payment.viewAmount") && plan.amount ? ` · ${money(plan.amount)}` : ""}</dd>
+              <dt>Plan dates</dt><dd>${esc(plan.start || "—")} → ${esc(plan.expires || "—")}</dd>
+            </dl>
+          </div>
+          <div class="card">
+            <h3>Location tasks <span class="muted">${locTasks.filter((t) => t.status === "open").length} open</span></h3>
+            ${taskListHtml(locTasks, "No tasks for this location.")}
+          </div>
+        </div>
+        <div class="stack">
+          <div class="card customer-map-card">
+            ${miniMapHtml({
+              preview: [{ x: l.x, y: l.y, label: l.name, elId: "location-detail-pin" }],
+              caption: `${l.name} · ${l.address || gps}`,
+              mapId: "location-detail-map",
+              title: "Location map",
+              showHomes: false,
+            })}
+          </div>
+          <div class="card">
+            <h3>Billing at this location</h3>
+            <p class="tiny">${invoices.length ? invoices.map((i) => `${esc(i.id)} · ${esc(invoiceFinStatus(i))} · ${money(i.amount)}`).join("<br>") : "No invoices yet."}</p>
+          </div>
+          <div class="card">
+            <h3>Recent visits</h3>
+            ${visits.length ? table(["Day", "Time", "Trapper", "Duration", "Status"], visits.slice(0, 8).map((s) => [
+              esc(s.day || "—"), esc(s.time || "—"), esc(techName(s.techId)), `${Number(s.actualMin ?? s.durationMin ?? 0)} min`, statusBadge(s.status),
+            ])) : `<p class="muted">No visits yet.</p>`}
+          </div>
+          ${locDocs.length ? `<div class="card"><h3>Location documents</h3>${locDocs.map((d) => docRowHtml(d, false)).join("")}</div>` : ""}
+        </div>
+      </div>
+    `;
   }
 
   function viewCustomer() {
@@ -4179,6 +4455,7 @@
       existing: locs.slice(1).map((l) => ({ x: l.x, y: l.y, label: l.name, color: locPinColor(c, l) })),
       preview: locs[0] ? [{ x: locs[0].x, y: locs[0].y, label: locs[0].name, elId: "cust-pin-0" }] : [],
       caption: locs.map((l) => `${l.name} · ${l.address}`).join(" · ") || "No pin yet",
+      showHomes: false,
     });
   }
 
@@ -4833,7 +5110,7 @@
               </div>
             ` : ""}
             <div class="actions" style="margin-top:10px">
-              <button class="btn btn-ghost" data-act="open-customer" data-id="${pc.id}">Open Bill-To</button>
+              <button class="btn btn-ghost" data-act="open-location" data-id="${pc.id}" data-loc="${pl.id}">Open location</button>
               ${locNeedsTech(pc, pl) && filterTech ? btn("schedule.assign", "Assign " + techName(filterTech), "map-assign", `data-id="${pc.id}" data-loc="${pl.id}" data-tech="${filterTech}"`) : ""}
               ${canReassign ? `<button type="button" class="btn btn-ghost" data-act="open-pin-assign" data-cid="${pc.id}" data-lid="${pl.id}">Full assign…</button>` : ""}
             </div>
@@ -6218,6 +6495,35 @@
     return `<div class="overlay"><div class="modal ${state.modal.wide ? "wide" : ""} ${state.modal.setup ? "setup" : ""} ${state.modal.previewMap ? "map-preview" : ""}">${state.modal.html}</div></div>`;
   }
 
+  function applyListFilters(prefix) {
+    const table = document.querySelector(`[data-filter-table="${prefix}"]`);
+    if (!table) return;
+    const search = String(document.getElementById(`${prefix}-filter-search`)?.value || "").trim().toLowerCase();
+    const status = document.getElementById(`${prefix}-filter-status`)?.value || "";
+    const type = document.getElementById(`${prefix}-filter-type`)?.value || "";
+    const tech = document.getElementById(`${prefix}-filter-tech`)?.value || "";
+    let visible = 0;
+    const rows = [...table.querySelectorAll("tbody tr")];
+    rows.forEach((row) => {
+      const show =
+        (!search || row.dataset.search.includes(search))
+        && (!status || row.dataset.status === status)
+        && (!type || row.dataset.type === type)
+        && (!tech || row.dataset.tech === tech);
+      row.hidden = !show;
+      if (show) visible += 1;
+    });
+    const empty = table.querySelector(".list-filter-empty");
+    if (empty) empty.hidden = visible !== 0;
+    const count = document.getElementById(`${prefix}-filter-count`);
+    if (count) count.textContent = `${visible} of ${rows.length}`;
+  }
+
+  function clearListFilters(prefix) {
+    document.querySelectorAll(`[data-list-filter="${prefix}"]`).forEach((el) => { el.value = ""; });
+    applyListFilters(prefix);
+  }
+
   /* ---------- Bind / actions ---------- */
   function bind() {
     $app.onclick = (e) => {
@@ -6247,6 +6553,10 @@
       act(el.dataset.act, el.dataset);
     };
     $app.onchange = (e) => {
+      if (e.target.dataset.listFilter) {
+        applyListFilters(e.target.dataset.listFilter);
+        return;
+      }
       if (e.target.id === "nc-email-none") {
         const em = document.getElementById("nc-email");
         if (em) {
@@ -6342,6 +6652,10 @@
       }
     };
     $app.oninput = (e) => {
+      if (e.target.dataset.listFilter) {
+        applyListFilters(e.target.dataset.listFilter);
+        return;
+      }
       if (e.target.dataset.previewPin && !e.target.dataset.coord) updateMiniPreview(e.target);
       if (e.target.dataset.coord) syncPinFromLatLng(e.target);
       if (e.target.dataset.edit && e.target.tagName !== "SELECT") applyInlineEdit(e.target);
@@ -6635,9 +6949,17 @@
         }
         render();
       },
+      "clear-list-filters": () => clearListFilters(ds.prefix),
       "nav-toggle": () => toggleNavGroup(ds.group),
       "switch-role-btn": () => switchRole(ds.role),
-      "open-customer": () => { state.selectedCustomer = ds.id; state.page = "customer"; state.payFocusId = null; render(); },
+      "open-customer": () => { state.selectedCustomer = ds.id; state.selectedLocation = null; state.page = "customer"; state.payFocusId = null; render(); },
+      "open-location": () => {
+        state.selectedCustomer = ds.id;
+        state.selectedLocation = ds.loc;
+        state.page = "location";
+        state.payFocusId = null;
+        render();
+      },
       "open-pay-row": () => openPayRow(ds.id),
       "pay-filter": () => { state.payFilter = ds.filter || "month"; render(); },
       "pay-src-filter": () => { state.paySrcFilter = ds.filter || "all"; render(); },
