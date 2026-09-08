@@ -48,6 +48,8 @@
     eye: svg(["M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z", "M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6"]),
     search: svg(["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.35-4.35"]),
     pencil: svg(["M12 20h9", "M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"]),
+    back: svg(["M15 18l-6-6 6-6"]),
+    user: svg(["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8"]),
   };
 
   const ROLES = {
@@ -66,7 +68,7 @@
       title: "Operations / Dispatcher",
       initials: "RT",
       color: "#2d6a4c",
-      access: "Register shows who paid. Create the service, put it on the map, click a trapper’s home for their book. No commission or payroll here.",
+      access: "Register shows who paid. Create the service, put it on the map, click a trapper’s home for their book. No trapper bonus or payroll here.",
       chips: ["Register", "Create service", "Assign on map"],
     },
     admin: {
@@ -76,9 +78,9 @@
       initials: "CB",
       color: "#1d6a75",
       access: "AutoPay runs overnight. You fix declines and match anything that hits the register by hand. Renewals: pick, check, send.",
-      chips: ["AutoPay exceptions", "Allocate", "Renewals"],
+      chips: ["AutoPay exceptions", "Allocate", "Trapper bonuses"],
     },
-    // Sales (Rocco) and technician mobile (Johnny) hidden from demo login / switcher for now
+    // Sales (Rocco) hidden from demo login / switcher for now
     // sales: {
     //   id: "sales",
     //   name: "Rocco",
@@ -88,16 +90,16 @@
     //   access: "A call or message comes in. Add the customer on the location form — name, address, instructions, and whether they accept messages. Then the client exists.",
     //   chips: ["Incoming call", "Add customer"],
     // },
-    // tech: {
-    //   id: "tech",
-    //   name: "Johnny",
-    //   title: "Technician (Trapper)",
-    //   initials: "JN",
-    //   color: "#40916c",
-    //   techId: "johnny",
-    //   access: "Mobile app only. Route, check-in, removals, photos, Memo to Office. No pricing or payments.",
-    //   chips: ["Field app", "No pricing"],
-    // },
+    trapper: {
+      id: "trapper",
+      name: "Johnny",
+      title: "Trapper (field phone)",
+      initials: "JN",
+      color: "#40916c",
+      techId: "johnny",
+      access: "Today’s route only. Drive to the stop, start the clock, log iguanas (count, weight, photos), send a memo, or mark a miss. No prices or payments.",
+      chips: ["Today’s route", "Clock in/out", "Catch photos"],
+    },
     sysadmin: {
       id: "sysadmin",
       name: "Avery Cole",
@@ -125,13 +127,13 @@
     { id: "trappers", label: "Trappers", group: "Operations", icon: "people", roles: ["owner", "ops", "admin"] },
     { id: "oneoffs", label: "One-off jobs", group: "Operations", icon: "bolt", roles: ["owner", "ops"] },
     { id: "traps", label: "Trap assets", group: "Operations", icon: "trap", roles: ["owner", "ops"] },
-    { id: "noshows", label: "No-shows", group: "Operations", icon: "alert", roles: ["owner", "ops"] },
+    { id: "noshows", label: "Missed visits", group: "Operations", icon: "alert", roles: ["owner", "ops"] },
     { id: "workload", label: "Route workload", group: "Operations", icon: "route", roles: ["owner", "ops"] },
 
     { id: "payments", label: "Payment register", group: "Billing", icon: "pay", roles: ["ops", "owner", "admin"] },
     { id: "invoices", label: "Invoices", group: "Billing", icon: "bill", roles: ["owner", "admin"] },
     { id: "renewals", label: "Renewal report", group: "Billing", icon: "renew", roles: ["owner", "admin"] },
-    { id: "commission", label: "Commission", group: "Billing", icon: "star", roles: ["owner", "admin"] },
+    { id: "commission", label: "Trapper bonuses", group: "Billing", icon: "star", roles: ["owner", "admin"] },
 
     { id: "documents", label: "Documents", group: "Workspace", icon: "file", roles: ["owner", "ops", "admin"] },
     { id: "comms", label: "Communication log", group: "Workspace", icon: "chat", roles: ["owner", "ops", "admin"] },
@@ -140,15 +142,13 @@
 
     { id: "duration", label: "Duration report", group: "Reports", icon: "clock", roles: ["owner", "ops", "admin"] },
     { id: "removals", label: "Removal report", group: "Reports", icon: "list", roles: ["owner", "ops"] },
-    { id: "reports", label: "Reports hub", group: "Reports", icon: "chart", roles: ["owner", "ops", "admin"] },
+    // { id: "reports", label: "Reports hub", group: "Reports", icon: "chart", roles: ["owner", "ops", "admin"] },
 
     { id: "users", label: "Users", group: "System", icon: "users", roles: ["sysadmin", "owner"] },
     { id: "lists", label: "Configurable lists", group: "System", icon: "list", roles: ["sysadmin", "owner"] },
     { id: "templates", label: "Templates", group: "System", icon: "mail", roles: ["sysadmin", "admin", "owner"] },
     { id: "settings", label: "Company settings", group: "System", icon: "cog", roles: ["sysadmin", "owner"] },
     { id: "integrations", label: "Integrations", group: "System", icon: "cog", roles: ["sysadmin", "owner"] },
-
-    // { id: "mobile", label: "Today's route", group: "Field", icon: "phone", roles: ["tech"] },
   ];
 
   const WRITE = {
@@ -175,7 +175,8 @@
     "noshow.mark": ["ops"],
     "blackout.edit": ["ops", "sysadmin"],
     "docs.upload": ["admin", "ops"],
-    "mto.reply": ["ops", "admin"],
+    "mto.reply": ["ops", "admin", "owner"],
+    "mto.read": ["ops", "admin", "owner"],
     "task.create": ["owner", "ops", "admin"],
     "task.complete": ["owner", "ops", "admin"],
     "users.manage": ["sysadmin", "owner"],
@@ -185,7 +186,7 @@
     "mobile.act": ["tech", "trapper"],
   };
 
-  /** Roles Avery can assign on Users — includes Trapper (not on the login switcher). */
+  /** Roles Avery can assign on Users. Trapper login opens Johnny’s field phone. */
   const USER_ROLE_OPTIONS = [
     { id: "owner", title: "Owner" },
     { id: "ops", title: "Operations / Dispatcher" },
@@ -292,12 +293,29 @@
     if (!Array.isArray(s.extraPrograms)) s.extraPrograms = [];
     if (!Array.isArray(s.extraServiceTypes)) s.extraServiceTypes = [];
     if (!Array.isArray(s.customTemplates)) s.customTemplates = [];
-    if (!Array.isArray(state.data.optimizerRuns)) state.data.optimizerRuns = [];
+    if (!Array.isArray(state.data.traps)) state.data.traps = [];
+    const trapNamesBySerial = {
+      "IC-441": "Back canal",
+      "IC-208": "Front canal",
+      "IC-119": "Park line",
+      "IC-330": "Preserve pin",
+      "IC-512": "Clubhouse pond",
+      "IC-601": "Yard stock",
+    };
+    (state.data.traps || []).forEach((t) => {
+      if (trapNamesBySerial[t.serial]) t.name = trapNamesBySerial[t.serial];
+      else if (!t.name || String(t.name).split(/\s+/).length > 4) t.name = t.serial || "Trap";
+    });
     if (!state.data.templates) state.data.templates = {};
     if (!state.data.integrations) state.data.integrations = { mapsKey: "", processor: "", sendgrid: "", notes: "" };
     (state.data.users || []).forEach((u) => {
       if (u.role === "tech") u.role = "trapper";
     });
+    if (!Array.isArray(state.data.commissions)) state.data.commissions = [];
+    ensureSeedTrapperBonusDemo();
+    syncTrapperBonuses();
+    ensureSeedFieldStops();
+    ensureSeedMtoDemo();
   }
   function programBillAmount(p) {
     if (!p) return 0;
@@ -362,13 +380,20 @@
   }
 
   const REASONS = [
-    { id: "mechanical", label: "Mechanical failure", fault: "company" },
-    { id: "sick", label: "Technician illness", fault: "company" },
-    { id: "weather", label: "Weather", fault: "company" },
-    { id: "gate", label: "Gated — no answer", fault: "customer" },
-    { id: "nothome", label: "Not home / no access", fault: "customer" },
-    { id: "dog", label: "Aggressive dog / unsafe", fault: "customer" },
+    { id: "mechanical", label: "Mechanical failure", fault: "company", extension: "auto" },
+    { id: "sick", label: "Technician illness", fault: "company", extension: "auto" },
+    { id: "weather", label: "Weather", fault: "company", extension: "review" },
+    { id: "gate", label: "Gated — no answer", fault: "customer", extension: "none" },
+    { id: "nothome", label: "Not home / no access", fault: "customer", extension: "none" },
+    { id: "dog", label: "Aggressive dog / unsafe", fault: "customer", extension: "none" },
   ];
+  const HOLIDAY_NAMES = {
+    "2026-09-07": "Labor Day",
+    "2026-11-26": "Thanksgiving",
+    "2026-12-25": "Christmas",
+    "2027-01-01": "New Year’s Day",
+    "2027-07-04": "Independence Day",
+  };
 
   function seed() {
     return {
@@ -696,6 +721,8 @@
         { id: "INV-4420", customerId: "C-1042", locationId: "L-1042b", contractId: "CON-1042b", amount: 1200, status: "sent", sent: "2026-08-01", paidOn: "2026-08-02", kind: "initial" },
         { id: "INV-4502", customerId: "C-1108", locationId: "L-1108a", amount: 2100, status: "sent", sent: "2026-07-01", paidOn: "2026-07-03", kind: "renewal" },
         { id: "INV-4510", customerId: "C-1091", locationId: "L-1091a", contractId: "CON-1091a", amount: 2000, status: "sent", sent: "2026-08-20", paidOn: null, kind: "renewal" },
+        { id: "INV-4512", customerId: "C-1112", locationId: "L-1112a", amount: 1500, status: "sent", sent: "2026-08-10", paidOn: "2026-08-18", kind: "renewal" },
+        { id: "INV-4516", customerId: "C-1108", locationId: "L-1108b", amount: 1500, status: "sent", sent: "2026-08-12", paidOn: "2026-08-22", kind: "renewal" },
         { id: "INV-4531", customerId: "C-1077", locationId: "L-1077a", contractId: "CON-1077a", amount: 300, status: "sent", sent: "2026-08-20", paidOn: "2026-08-26", kind: "initial" },
         { id: "INV-4601", customerId: "C-1020", locationId: "L-1020a", amount: 0, status: "draft", sent: null, paidOn: null, kind: "municipal", period: "August 2026", po: "PO-4481" },
         { id: "INV-4484", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 200, status: "sent", sent: "2026-04-01", paidOn: "2026-04-02", kind: "autopay", periodN: 1, description: "12-month monthly — Billing Period 1" },
@@ -728,6 +755,8 @@
         { id: "P-9310", invoiceId: "INV-4710", customerId: "C-1210", locationId: "L-1210a", amount: 2000, method: "Card", last4: "1210", source: "portal", date: "2026-08-21", memo: "Portal · Jony Morales Boca — marked paid", invoiceMarked: true, linkPay: true },
         { id: "P-9311", invoiceId: "INV-4711", customerId: "C-1210", locationId: "L-1210b", amount: 1200, method: "ACH", last4: "", source: "ach", date: "2026-08-21", memo: "ACH · Jony Morales Deerfield — marked paid", invoiceMarked: true, linkPay: true },
         { id: "P-9340", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Zelle", last4: "", source: "EXTERNAL", date: "2026-08-27", memo: "Zelle replacement · Harbor Oaks month 5 — awaiting allocation", invoiceMarked: false, linkPay: false, status: "POSTED" },
+        { id: "P-9401", invoiceId: "INV-4512", customerId: "C-1112", locationId: "L-1112a", amount: 1500, method: "ACH", last4: "", source: "ach", date: "2026-08-18", memo: "Cypress Commons HOA · 2026 renewal", invoiceMarked: true, linkPay: false },
+        { id: "P-9402", invoiceId: "INV-4516", customerId: "C-1108", locationId: "L-1108b", amount: 1500, method: "Check", last4: "4516", source: "check", date: "2026-08-22", memo: "Palm Cove Lot 14 · 2026 renewal", invoiceMarked: true, linkPay: false },
       ],
       contracts: [
         { id: "CON-1042a", customerId: "C-1042", locationId: "L-1042a", programId: "12pre", program: "12-month prepaid", termMonths: 12, totalValue: 2400, startDate: "2026-03-01", endDate: "2027-03-01", status: "ACTIVE" },
@@ -777,6 +806,8 @@
         { id: "ALLOC-9179", paymentId: "P-9179", invoiceId: "INV-4487", amount: 200 },
         { id: "ALLOC-9310", paymentId: "P-9310", invoiceId: "INV-4710", amount: 2000 },
         { id: "ALLOC-9311", paymentId: "P-9311", invoiceId: "INV-4711", amount: 1200 },
+        { id: "ALLOC-9401", paymentId: "P-9401", invoiceId: "INV-4512", amount: 1500 },
+        { id: "ALLOC-9402", paymentId: "P-9402", invoiceId: "INV-4516", amount: 1500 },
       ],
       autopayAuthorizations: [
         { id: "APA-1066", contractId: "CON-1066a", customerId: "C-1066", locationId: "L-1066a", status: "FAILED", method: "Credit Card", last4: "3301", failureCode: "CARD_DECLINED", failedAt: "2026-08-26T12:00:00" },
@@ -785,17 +816,51 @@
       optimizerRuns: [
         {
           id: "OPT-1",
-          createdAt: "2026-08-25 16:40",
+          createdAt: "2026-08-09T18:31:13",
+          startedAt: "2026-08-09T18:31:13",
           createdBy: "Rick Torgerson",
           startDate: "2026-08-25",
           endDate: "2026-08-26",
-          techIds: ["bobby", "johnny"],
-          stopCount: 6,
-          routeCount: 2,
-          beforeDrive: 72,
-          afterDrive: 42,
+          techIds: ["johnny", "alejo", "bobby", "pedro"],
+          stopCount: 7,
+          routeCount: 4,
+          beforeDrive: 208,
+          afterDrive: 208,
           unreachable: 0,
           committed: true,
+          committedAt: "2026-08-25",
+        },
+        {
+          id: "OPT-2",
+          createdAt: "2026-08-09T18:28:44",
+          startedAt: "2026-08-09T18:28:44",
+          createdBy: "Rick Torgerson",
+          startDate: "2026-08-25",
+          endDate: "2026-08-26",
+          techIds: ["johnny", "alejo", "bobby", "pedro"],
+          stopCount: 7,
+          routeCount: 4,
+          beforeDrive: 208,
+          afterDrive: 200,
+          unreachable: 0,
+          committed: true,
+          committedAt: "2026-08-25",
+        },
+        {
+          id: "OPT-3",
+          createdAt: "2026-08-09T18:21:09",
+          startedAt: "2026-08-09T18:21:09",
+          createdBy: "Rick Torgerson",
+          startDate: "2026-08-25",
+          endDate: "2026-08-26",
+          techIds: ["johnny", "alejo", "bobby", "pedro"],
+          stopCount: 7,
+          routeCount: 4,
+          beforeDrive: 220,
+          afterDrive: 208,
+          unreachable: 0,
+          committed: true,
+          committedAt: "2026-08-25",
         },
       ],
       notifications: [
@@ -824,7 +889,9 @@
         { id: "SVC-1210b", customerId: "C-1210", locationId: "L-1210b", type: "6mon-res", status: "live", techId: "bobby", days: "Tue/Thu", durationMin: 25, generated: true, schedule: "WK-TUTH", target: "IGUANA", charge: "Production", start: "2026-08-20", expires: "2027-02-20", renewal: "2027-02-20" },
       ],
       commissions: [
-        { id: "B-12", paymentId: "P-9114", customerId: "C-1108", amount: 42, splits: [{ techId: "bobby", pct: 60, dollars: 25.2 }, { techId: "johnny", pct: 40, dollars: 16.8 }], period: "2026-07" },
+        { id: "B-12", paymentId: "P-9114", invoiceId: "INV-4502", customerId: "C-1108", locationId: "L-1108a", paymentAmount: 2100, rate: 2, amount: 42, splits: [{ techId: "bobby", dollars: 25.2 }, { techId: "johnny", dollars: 16.8 }], period: "2026-07", status: "approved", approvedAt: "2026-07-08", renewalLabel: "2026 HOA renewal" },
+        { id: "B-13", paymentId: "P-9401", invoiceId: "INV-4512", customerId: "C-1112", locationId: "L-1112a", paymentAmount: 1500, rate: 2, amount: 30, splits: [{ techId: "johnny", dollars: 15 }, { techId: "bobby", dollars: 15 }], period: "2026-08", status: "paid", approvedAt: "2026-08-19", paidAt: "2026-08-20", renewalLabel: "2026 HOA renewal" },
+        { id: "B-14", paymentId: "P-9402", invoiceId: "INV-4516", customerId: "C-1108", locationId: "L-1108b", paymentAmount: 1500, rate: 2, amount: 30, splits: [], period: "2026-08", status: "pending", renewalLabel: "2026 HOA renewal" },
       ],
       stops: [
         { id: "S-1", customerId: "C-1042", locationId: "L-1042a", techId: "johnny", day: "Mon", time: "08:10", durationMin: 20, type: "service", status: "complete", actualMin: 18, removals: { count: 2, weight: 7.1 } },
@@ -837,6 +904,8 @@
         { id: "S-8", customerId: "C-1020", locationId: "L-1020a", techId: "alejo", day: "Fri", time: "07:30", durationMin: 180, type: "service", status: "scheduled", actualMin: null, removals: null },
         { id: "S-9", customerId: null, locationId: null, techId: "johnny", day: "Thu", time: "11:40", durationMin: 25, type: "oneoff", status: "unassigned_done", actualMin: null, removals: null, label: "Iguana in garage — walk-up, Boca", address: "Near Mizner Park", pending: true, taskType: "garage", x: "29%", y: "41%" },
         { id: "S-10", customerId: "C-1077", locationId: "L-1077a", techId: "johnny", day: "Thu", time: "08:20", durationMin: 25, type: "service", status: "scheduled", actualMin: null, removals: null },
+        { id: "S-18", customerId: "C-1004", locationId: "L-1004a", techId: "johnny", day: "Thu", time: "09:50", durationMin: 20, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Retrieve trap IC-208", address: "1901 N Federal Hwy, Boca Raton, FL" },
+        { id: "S-20", customerId: null, locationId: null, techId: "johnny", day: "Thu", time: "11:40", durationMin: 25, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Iguana in garage — walk-up, Boca", address: "Near Mizner Park", taskType: "garage", x: "29%", y: "41%" },
         { id: "S-11", customerId: "C-1112", locationId: "L-1112a", techId: "johnny", day: "Mon", time: "13:00", durationMin: 180, type: "service", status: "scheduled", actualMin: null, removals: null },
         { id: "S-12", customerId: "C-1112", locationId: "L-1112a", techId: "bobby", day: "Wed", time: "13:00", durationMin: 180, type: "service", status: "scheduled", actualMin: null, removals: null },
         { id: "S-13", customerId: "C-1210", locationId: "L-1210a", techId: "johnny", day: "Mon", time: "10:20", durationMin: 20, type: "service", status: "scheduled", actualMin: null, removals: null },
@@ -846,9 +915,9 @@
         { id: "S-17", customerId: null, locationId: null, techId: "bobby", day: "Wed", time: "10:00", durationMin: 20, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Northlake backyard visit", address: "Northlake Blvd, Palm Beach Gardens", x: "48%", y: "28%" },
       ],
       mtos: [
-        { id: "M-1", from: "johnny", dept: "ops", customerId: "C-1042", text: "Gate keypad sticking. Side path still works. Property issue, not billing.", date: "2026-08-24 08:32", read: false },
-        { id: "M-2", from: "bobby", dept: "admin", customerId: "C-1108", text: "HOA manager asked whether Lot 31 is covered this term — they think they paid for all four.", date: "2026-08-25 08:51", read: false },
-        { id: "M-3", from: "alejo", dept: "ops", customerId: "C-1020", text: "Park pin is correct. Native maps launch from the coordinate now.", date: "2026-08-22 16:10", read: true },
+        { id: "M-1", from: "johnny", dept: "ops", customerId: "C-1042", locationId: "L-1042a", stopId: "S-1", text: "Gate keypad sticking. Side path still works. Property issue, not billing.", date: "2026-08-24 08:32", read: false },
+        { id: "M-2", from: "bobby", dept: "admin", customerId: "C-1108", locationId: "L-1108d", text: "HOA manager asked whether Lot 31 is covered this term — they think they paid for all four.", date: "2026-08-25 08:51", read: false },
+        { id: "M-3", from: "alejo", dept: "ops", customerId: "C-1020", locationId: "L-1020a", text: "Park pin is correct. Native maps launch from the coordinate now.", date: "2026-08-22 16:10", read: true, readAt: "2026-08-22 16:40" },
       ],
       comms: [
         { id: "CM-1", customerId: "C-1091", who: "Christy Brown", channel: "Email", date: "2026-08-20", text: "Previewed renewal notice. Holding send until she confirms prepaid vs monthly." },
@@ -871,11 +940,12 @@
         { id: "D-12", customerId: "C-1020", locationId: "L-1020a", kind: "other", name: "July hours timesheet export.pdf", by: "Rick Torgerson", date: "2026-08-02", note: "Confirmed hours for Christy’s invoice." },
       ],
       traps: [
-        { id: "T-441", serial: "IC-441", customerId: "C-1042", locationId: "L-1042a", status: "deployed", value: 80, lastSeen: "2026-08-24", note: "Back canal. Johnny confirmed on Mon." },
-        { id: "T-208", serial: "IC-208", customerId: "C-1004", locationId: "L-1004a", status: "out", value: 80, lastSeen: "2026-07-01", note: "Contract ended — still in the field. Retrieve." },
-        { id: "T-119", serial: "IC-119", customerId: "C-1020", locationId: "L-1020a", status: "retrieved", value: 80, lastSeen: "2026-08-22", note: "Pulled after the Friday park run." },
-        { id: "T-330", serial: "IC-330", customerId: "C-1112", locationId: "L-1112a", status: "missing", value: 80, lastSeen: "2026-08-10", note: "Preserve pin. Not at last GPS." },
-        { id: "T-512", serial: "IC-512", customerId: "C-1108", locationId: "L-1108a", status: "deployed", value: 80, lastSeen: "2026-08-25", note: "Clubhouse pond." },
+        { id: "T-441", serial: "IC-441", name: "Back canal", customerId: "C-1042", locationId: "L-1042a", status: "deployed", value: 80, lastSeen: "2026-08-24", note: "Johnny confirmed on Mon." },
+        { id: "T-208", serial: "IC-208", name: "Front canal", customerId: "C-1004", locationId: "L-1004a", status: "out", value: 80, lastSeen: "2026-07-01", note: "Contract ended — still in the field. Retrieve." },
+        { id: "T-119", serial: "IC-119", name: "Park line", customerId: "C-1020", locationId: "L-1020a", status: "retrieved", value: 80, lastSeen: "2026-08-22", note: "Pulled after the Friday park run." },
+        { id: "T-330", serial: "IC-330", name: "Preserve pin", customerId: "C-1112", locationId: "L-1112a", status: "missing", value: 80, lastSeen: "2026-08-10", note: "Not at last GPS." },
+        { id: "T-512", serial: "IC-512", name: "Clubhouse pond", customerId: "C-1108", locationId: "L-1108a", status: "deployed", value: 80, lastSeen: "2026-08-25", note: "" },
+        { id: "T-601", serial: "IC-601", name: "Yard stock", customerId: null, locationId: null, status: "retrieved", value: 80, lastSeen: "2026-08-20", note: "Not on a property yet." },
       ],
       users: [
         { id: "u1", name: "Tom", role: "owner", active: true },
@@ -958,12 +1028,19 @@
     payView: false,
     inboundId: session.inboundId || null,
     taskFilter: "mine",
+    bonusFilter: "pending",
+    bonusDraft: null,
+    bonusFocusId: null,
     mobileStop: null,
     schedView: "week",
     navOpen: {},
     locCount: 1,
     optimizerPreview: null,
     optimizerAnchors: {},
+    optimizerFocusTech: null,
+    optimizerFocusDay: null,
+    optimizerScreen: "setup",
+    workloadTech: null,
   };
   normalizeDemoData();
   if (state.page === "location" && !locBy(state.selectedCustomer, state.selectedLocation)) {
@@ -990,13 +1067,22 @@
   function isRecordPage(id) {
     return id === "customer" || id === "location" || id === "add-customer" || id === "create-service" || id === "create-oneoff";
   }
+  function isFieldRole() {
+    return state.role === "trapper" || state.role === "tech";
+  }
+  function fieldTechId() {
+    return (role() && role().techId) || "johnny";
+  }
+  function fieldDay() {
+    return weekdayFromIso(TODAY) || "Thu";
+  }
   function resolveWho(id) {
     if (ROLES[id]) return id;
     const raw = String(id || "").trim().toLowerCase();
     if (raw.includes("christy") || raw === "admin") return "admin";
     // if (raw.includes("rocco") || raw.includes("sales")) return "sales";
     if (raw.includes("rick") || raw === "ops") return "ops";
-    // if (raw.includes("johnny") || raw === "tech") return "tech";
+    if (raw.includes("johnny") || raw === "tech" || raw === "trapper") return "trapper";
     if (raw.includes("avery") || raw.includes("sys")) return "sysadmin";
     if (raw.includes("tom") || raw.includes("owner")) return "owner";
     return null;
@@ -1008,10 +1094,12 @@
     state.payView = false;
     state.modal = null;
     state.mobileStop = null;
+    state.mobileTab = "route";
+    state.mobileFocusId = null;
     state.inboundId = null;
     state.selectedCustomer = null;
     state.locCount = 1;
-    state.page = who === "admin" ? "payments" : "dashboard";
+    state.page = who === "admin" ? "payments" : who === "trapper" || who === "tech" ? "mobile" : "dashboard";
     state.payFilter = "month";
     state.payFocusId = null;
     render();
@@ -1061,6 +1149,7 @@
       if (q.locationId) return;
       if (q.locationIds?.[0]) q.locationId = q.locationIds[0];
     });
+    if (!Array.isArray(d.blackout)) d.blackout = [];
     if (!Array.isArray(state.renewPick)) state.renewPick = [];
     if (!Array.isArray(state.mapSelect)) state.mapSelect = [];
   }
@@ -1091,6 +1180,39 @@
   function locBy(cid, lid) {
     const c = custBy(cid);
     return c?.locations?.find((l) => l.id === lid);
+  }
+  function trapsForLocation(cid, lid) {
+    return (state.data.traps || []).filter((t) => t.customerId === cid && t.locationId === lid);
+  }
+  function unassignedTraps() {
+    return (state.data.traps || []).filter((t) => !t.locationId);
+  }
+  function locationTrapChoices() {
+    return (state.data.customers || []).flatMap((c) => (c.locations || []).map((l) => ({
+      customerId: c.id,
+      locationId: l.id,
+      label: `${c.billTo || c.name} · ${l.name}`,
+    })));
+  }
+  function nextTrapSerial() {
+    const nums = (state.data.traps || []).map((t) => Number(String(t.serial || "").replace(/\D/g, ""))).filter((n) => Number.isFinite(n) && n > 0);
+    return `IC-${(nums.length ? Math.max(...nums) : 600) + 1}`;
+  }
+  function trapName(t) {
+    return (t && (t.name || t.serial)) || "Trap";
+  }
+  function trapStatusKey(t) {
+    if (t.status === "deployed") return "active";
+    if (t.status === "retrieved") return "paid";
+    if (t.status === "missing") return "failed";
+    return "inquiry";
+  }
+  function trapStatusLabel(t) {
+    if (t.status === "deployed") return "On property";
+    if (t.status === "retrieved") return "Retrieved";
+    if (t.status === "missing") return "Missing";
+    if (t.status === "out") return "Still out";
+    return t.status || "—";
   }
   function locPlan(c, l) {
     if (!c) return { programId: null, amount: 0, start: null, expires: null, paid: false, autoPay: false };
@@ -1194,6 +1316,170 @@
     const who = c?.billTo || c?.name || "";
     const prop = loc ? ` · ${loc.name}` : "";
     return `${i.id} · ${who}${prop} · ${money(i.amount)}`;
+  }
+  function invKindLabel(kind) {
+    return ({ initial: "Initial", renewal: "Renewal", autopay: "Monthly installment", municipal: "Municipal" })[kind] || kind || "Invoice";
+  }
+  function invoiceBtn(id) {
+    if (!id) return "—";
+    return `<button class="btn btn-ghost linkish" data-act="open-invoice" data-id="${esc(id)}">${esc(id)}</button>`;
+  }
+  function bonusRate() {
+    return Number(state.data.settings?.commissionPct || 2);
+  }
+  function bonusPoolFor(amount) {
+    return +(Number(amount || 0) * bonusRate() / 100).toFixed(2);
+  }
+  function isRenewalInvoice(inv) {
+    if (!inv) return false;
+    if (inv.kind === "municipal" || inv.kind === "initial") return false;
+    if (invoiceIsInstallment(inv) && inv.kind !== "renewal") return false;
+    return inv.kind === "renewal";
+  }
+  function renewalLabelForInvoice(inv) {
+    if (!inv) return "Renewal";
+    const c = custBy(inv.customerId);
+    const ct = inv.contractId
+      ? (state.data.contracts || []).find((x) => x.id === inv.contractId)
+      : contractForLoc(inv.customerId, inv.locationId);
+    const year = String(ct?.endDate || inv.sent || TODAY).slice(0, 4);
+    let prog = ct?.program || "";
+    if (!prog && c?.type === "hoa") prog = "HOA";
+    if (!prog) prog = "Annual";
+    return `${year} ${prog} renewal`;
+  }
+  function trapperBonuses() {
+    return state.data.commissions || [];
+  }
+  function trapperBonusById(id) {
+    return trapperBonuses().find((b) => b.id === id);
+  }
+  function bonusForInvoice(invoiceId) {
+    return trapperBonuses().find((b) => b.invoiceId === invoiceId);
+  }
+  function bonusForPayment(paymentId) {
+    return trapperBonuses().find((b) => b.paymentId === paymentId);
+  }
+  function bonusStatusOf(b) {
+    if (!b) return "pending";
+    if (b.status === "paid" || b.status === "exported") return "paid";
+    if (b.status === "approved") return "approved";
+    return "pending";
+  }
+  function bonusStatusBadge(b) {
+    const st = bonusStatusOf(b);
+    if (st === "paid") return `<span class="badge badge-ok">Paid / exported</span>`;
+    if (st === "approved") return `<span class="badge badge-sea">Approved</span>`;
+    const remaining = bonusRemaining(b);
+    if (remaining > 0.009) return `<span class="badge badge-warn">Needs allocation</span>`;
+    return `<span class="badge badge-warn">Pending</span>`;
+  }
+  function bonusAllocated(b) {
+    return (b?.splits || []).reduce((s, x) => s + Number(x.dollars || 0), 0);
+  }
+  function bonusRemaining(b, splits) {
+    const used = splits
+      ? splits.reduce((s, x) => s + Number(x.dollars || 0), 0)
+      : bonusAllocated(b);
+    return Math.round((Number(b?.amount || 0) - used) * 100) / 100;
+  }
+  function eligibleTrappersForLocation(cid, lid) {
+    const ids = svcsFor(cid, lid).map((s) => s.techId).filter(Boolean);
+    return [...new Set(ids)];
+  }
+  function bonusAllocLabel(b) {
+    const splits = (b?.splits || []).filter((s) => Number(s.dollars || 0) > 0);
+    if (!splits.length) return "—";
+    return splits.map((s) => techName(s.techId)).join("/");
+  }
+  function ensureSeedTrapperBonusDemo() {
+    const invoices = state.data.invoices || [];
+    const payments = state.data.payments || [];
+    const allocs = state.data.paymentAllocations || [];
+    const addInv = (row) => { if (!invoices.some((i) => i.id === row.id)) invoices.push(row); };
+    const addPay = (row) => { if (!payments.some((p) => p.id === row.id)) payments.push(row); };
+    const addAlloc = (row) => { if (!allocs.some((a) => a.id === row.id)) allocs.push(row); };
+    addInv({ id: "INV-4512", customerId: "C-1112", locationId: "L-1112a", amount: 1500, status: "sent", sent: "2026-08-10", paidOn: "2026-08-18", kind: "renewal" });
+    addInv({ id: "INV-4516", customerId: "C-1108", locationId: "L-1108b", amount: 1500, status: "sent", sent: "2026-08-12", paidOn: "2026-08-22", kind: "renewal" });
+    addPay({ id: "P-9401", invoiceId: "INV-4512", customerId: "C-1112", locationId: "L-1112a", amount: 1500, method: "ACH", last4: "", source: "ach", date: "2026-08-18", memo: "Cypress Commons HOA · 2026 renewal", invoiceMarked: true, linkPay: false });
+    addPay({ id: "P-9402", invoiceId: "INV-4516", customerId: "C-1108", locationId: "L-1108b", amount: 1500, method: "Check", last4: "4516", source: "check", date: "2026-08-22", memo: "Palm Cove Lot 14 · 2026 renewal", invoiceMarked: true, linkPay: false });
+    addAlloc({ id: "ALLOC-9401", paymentId: "P-9401", invoiceId: "INV-4512", amount: 1500 });
+    addAlloc({ id: "ALLOC-9402", paymentId: "P-9402", invoiceId: "INV-4516", amount: 1500 });
+    const list = state.data.commissions;
+    const upsert = (row) => {
+      const existing = list.find((b) => b.id === row.id || b.paymentId === row.paymentId);
+      if (!existing) list.push(row);
+      else {
+        if (!existing.invoiceId) existing.invoiceId = row.invoiceId;
+        if (!existing.locationId) existing.locationId = row.locationId;
+        if (existing.paymentAmount == null) existing.paymentAmount = row.paymentAmount;
+        if (existing.rate == null) existing.rate = row.rate;
+        if (!existing.renewalLabel) existing.renewalLabel = row.renewalLabel;
+        if (!existing.status) existing.status = row.status;
+      }
+    };
+    upsert({ id: "B-12", paymentId: "P-9114", invoiceId: "INV-4502", customerId: "C-1108", locationId: "L-1108a", paymentAmount: 2100, rate: 2, amount: 42, splits: [{ techId: "bobby", dollars: 25.2 }, { techId: "johnny", dollars: 16.8 }], period: "2026-07", status: "approved", approvedAt: "2026-07-08", renewalLabel: "2026 HOA renewal" });
+    upsert({ id: "B-13", paymentId: "P-9401", invoiceId: "INV-4512", customerId: "C-1112", locationId: "L-1112a", paymentAmount: 1500, rate: 2, amount: 30, splits: [{ techId: "johnny", dollars: 15 }, { techId: "bobby", dollars: 15 }], period: "2026-08", status: "paid", approvedAt: "2026-08-19", paidAt: "2026-08-20", renewalLabel: "2026 HOA renewal" });
+    upsert({ id: "B-14", paymentId: "P-9402", invoiceId: "INV-4516", customerId: "C-1108", locationId: "L-1108b", paymentAmount: 1500, rate: 2, amount: 30, splits: [], period: "2026-08", status: "pending", renewalLabel: "2026 HOA renewal" });
+  }
+  function ensureTrapperBonusFromPayment(payment, inv) {
+    if (!payment || payment.failed || !inv || !isRenewalInvoice(inv)) return null;
+    const allocAmt = paymentAllocatedAmount(payment.id);
+    if (allocAmt <= 0) return null;
+    if (!Array.isArray(state.data.commissions)) state.data.commissions = [];
+    let b = bonusForPayment(payment.id) || bonusForInvoice(inv.id);
+    const pool = bonusPoolFor(allocAmt);
+    if (!b) {
+      b = {
+        id: nid("TB"),
+        paymentId: payment.id,
+        invoiceId: inv.id,
+        customerId: inv.customerId || payment.customerId,
+        locationId: inv.locationId || payment.locationId,
+        contractId: inv.contractId || null,
+        paymentAmount: allocAmt,
+        rate: bonusRate(),
+        amount: pool,
+        splits: [],
+        period: String(payment.date || TODAY).slice(0, 7),
+        status: "pending",
+        renewalLabel: renewalLabelForInvoice(inv),
+        createdAt: TODAY,
+      };
+      state.data.commissions.unshift(b);
+      b._justCreated = true;
+      return b;
+    }
+    b.paymentId = b.paymentId || payment.id;
+    b.invoiceId = b.invoiceId || inv.id;
+    b.customerId = b.customerId || inv.customerId;
+    b.locationId = b.locationId || inv.locationId;
+    if (b.paymentAmount == null) b.paymentAmount = allocAmt;
+    if (b.rate == null) b.rate = bonusRate();
+    if (b.amount == null) b.amount = pool;
+    if (!b.renewalLabel) b.renewalLabel = renewalLabelForInvoice(inv);
+    if (!b.status) b.status = (b.splits || []).some((s) => Number(s.dollars) > 0) ? "pending" : "pending";
+    if (!Array.isArray(b.splits)) b.splits = [];
+    return b;
+  }
+  function syncTrapperBonuses() {
+    (state.data.payments || []).forEach((p) => {
+      if (p.failed) return;
+      const inv = p.invoiceId ? (state.data.invoices || []).find((i) => i.id === p.invoiceId) : null;
+      if (inv) ensureTrapperBonusFromPayment(p, inv);
+    });
+    (state.data.commissions || []).forEach((b) => {
+      if (!Array.isArray(b.splits)) b.splits = [];
+      b.splits = b.splits.map((s) => ({
+        techId: s.techId,
+        dollars: Number(s.dollars != null ? s.dollars : (Number(b.amount || 0) * Number(s.pct || 0) / 100).toFixed(2)),
+      }));
+      if (!b.status) b.status = "pending";
+    });
+  }
+  function periodLabel(iso) {
+    const d = new Date((iso || TODAY) + "T12:00:00");
+    return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   }
   function applyPlanToLocation(l, programId, startDate) {
     const p = progBy(programId) || PROGRAMS[0];
@@ -1326,7 +1612,7 @@
     if (!Array.isArray(state.data.notifications)) state.data.notifications = [];
     state.data.notifications.unshift({
       id: nid("N"),
-      date: TODAY,
+      date: n.date || TODAY,
       read: false,
       severity: n.severity || "info",
       type: n.type || "INFO",
@@ -1335,11 +1621,23 @@
       customerId: n.customerId || null,
       locationId: n.locationId || null,
       invoiceId: n.invoiceId || null,
+      dept: n.dept || null,
+      mtoId: n.mtoId || null,
     });
   }
 
+  function notificationsForRole() {
+    const all = state.data.notifications || [];
+    if (state.role === "owner") return all;
+    return all.filter((n) => {
+      if (n.dept === "ops") return state.role === "ops";
+      if (n.dept === "admin") return state.role === "admin";
+      if (n.type === "MTO") return false;
+      return state.role === "admin";
+    });
+  }
   function unreadNotifications() {
-    return (state.data.notifications || []).filter((n) => !n.read);
+    return notificationsForRole().filter((n) => !n.read);
   }
 
   const TASK_ASSIGNEES = [
@@ -2061,6 +2359,31 @@
     const n = Number(min) || 0;
     return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
   }
+  function fmtHours(min) {
+    const n = Math.max(0, Math.round(Number(min) || 0));
+    if (!n) return "0 min";
+    if (n < 60) return `${n} min`;
+    const h = Math.floor(n / 60);
+    const m = n % 60;
+    if (!m) return h === 1 ? "1 hr" : `${h} hr`;
+    return `${h} hr ${m} min`;
+  }
+  function fmtClockTime(t) {
+    const parts = String(t || "").split(":");
+    const h = Number(parts[0]);
+    const m = Number(parts[1]);
+    if (!Number.isFinite(h)) return "—";
+    const ampm = h >= 12 ? "PM" : "AM";
+    const hr = ((h % 24) + 24) % 24;
+    const hour12 = hr % 12 || 12;
+    return `${hour12}:${String(Number.isFinite(m) ? m : 0).padStart(2, "0")} ${ampm}`;
+  }
+  function addClock(t, addMin) {
+    const n = timeToMin(t) + Number(addMin || 0);
+    const hh = Math.floor((((n % (24 * 60)) + (24 * 60)) % (24 * 60)) / 60);
+    const mm = ((n % 60) + 60) % 60;
+    return fmtClockTime(`${hh}:${String(mm).padStart(2, "0")}`);
+  }
   function parseDur(s) {
     const m = String(s || "").match(/(\d+)\s*:\s*(\d+)/);
     if (m) return Number(m[1]) * 60 + Number(m[2]);
@@ -2340,18 +2663,85 @@
     return ordered;
   }
 
-  function optimizerTimes(techId, stops) {
+  function minToHHMM(n) {
+    const tot = Math.max(0, Math.round(Number(n) || 0));
+    const hh = Math.min(23, Math.floor(tot / 60));
+    const mm = tot % 60;
+    return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  }
+  function optimizerDriveBetween(a, b) {
+    return Math.round(distMiles(a.x, a.y, b.x, b.y) * 2.3);
+  }
+  function optimizerTimeline(techId, stops, useScheduledTimes) {
     const tech = techBy(techId);
-    let prev = { x: tech?.x || "50%", y: tech?.y || "50%" };
+    const home = { x: tech?.x || "50%", y: tech?.y || "50%" };
+    if (!stops.length) return [];
+    const rows = [];
     let cursor = 8 * 60;
-    return stops.map((s) => {
-      const p = stopCoords(s);
-      const drive = Math.round(distMiles(prev.x, prev.y, p.x, p.y) * 2.3);
-      const arrival = cursor + drive;
-      cursor = arrival + Number(s.durationMin || 20);
-      prev = p;
-      return { id: s.id, time: minToTime(arrival) };
+    const firstPt = stopCoords(stops[0]);
+    const driveFromHome = optimizerDriveBetween(home, firstPt);
+    const homeDepart = useScheduledTimes
+      ? Math.max(7 * 60, timeToMin(stops[0].time) - driveFromHome)
+      : cursor;
+    rows.push({
+      kind: "start",
+      order: "Start",
+      name: techName(techId),
+      address: `${tech?.home || "Home"} (home)`,
+      service: "",
+      production: 0,
+      eligibleDate: DAY_DATES[stops[0].day] || "",
+      eligibleTime: "All day",
+      arrive: "",
+      depart: minToHHMM(homeDepart),
+      driveToNext: driveFromHome,
     });
+    if (!useScheduledTimes) cursor = homeDepart + driveFromHome;
+    stops.forEach((s, i) => {
+      const pt = stopCoords(s);
+      const serviceMin = Number(s.durationMin || 20);
+      const arriveMin = useScheduledTimes ? timeToMin(s.time) : cursor;
+      const departMin = arriveMin + serviceMin;
+      const next = stops[i + 1];
+      const driveToNext = optimizerDriveBetween(pt, next ? stopCoords(next) : home);
+      const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+      rows.push({
+        kind: "stop",
+        id: s.id,
+        order: String(i + 1),
+        name: stopLabel(s),
+        address: loc?.address || s.address || loc?.name || "",
+        service: s.type === "oneoff" ? "Task" : "Iguana service",
+        production: optimizerProduction(s),
+        eligibleDate: DAY_DATES[s.day] || "",
+        eligibleTime: "All day",
+        arrive: minToHHMM(arriveMin),
+        depart: minToHHMM(departMin),
+        driveToNext,
+        durationMin: serviceMin,
+      });
+      if (!useScheduledTimes) cursor = departMin + driveToNext;
+    });
+    const last = rows[rows.length - 1];
+    rows.push({
+      kind: "end",
+      order: "End",
+      name: techName(techId),
+      address: `${tech?.home || "Home"} (return home)`,
+      service: "",
+      production: 0,
+      eligibleDate: last.eligibleDate,
+      eligibleTime: "",
+      arrive: minToHHMM(timeToMin(last.depart) + Number(last.driveToNext || 0)),
+      depart: "",
+      driveToNext: 0,
+    });
+    return rows;
+  }
+  function optimizerTimes(techId, stops) {
+    return optimizerTimeline(techId, stops, false)
+      .filter((row) => row.kind === "stop")
+      .map((row) => ({ id: row.id, time: row.arrive }));
   }
 
   function optimizerCapValue(config, key) {
@@ -2462,6 +2852,8 @@
       .sort((a, b) => a.date.localeCompare(b.date) || techName(a.techId).localeCompare(techName(b.techId)))
       .map((bucket) => {
         const original = (originalGroups[`${bucket.date}:${bucket.techId}`] || []).slice();
+        const origService = original.reduce((n, s) => n + Number(s.durationMin || 0), 0);
+        const origProduction = original.reduce((n, s) => n + optimizerProduction(s), 0);
         const anchorId = state.optimizerAnchors?.[`${bucket.date}:${bucket.techId}`] || null;
         const ordered = optimizerNearestOrder(bucket.techId, bucket.stops, anchorId);
         const capped = optimizerApplyCaps(bucket.techId, ordered, config);
@@ -2478,6 +2870,8 @@
           serviceMin: capped.serviceMin,
           workingMin: capped.workingMin,
           production: capped.production,
+          originalServiceMin: origService,
+          originalProduction: origProduction,
           warnings: capped.warnings,
         };
       });
@@ -2498,7 +2892,8 @@
       afterDrive,
       unreachable,
       committed: false,
-      createdAt: `${TODAY} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+      createdAt: optimizerNowStamp(),
+      startedAt: optimizerNowStamp(),
       createdBy: role()?.name || "Rick Torgerson",
     };
   }
@@ -2594,6 +2989,44 @@
     const d = new Date(`${iso}T12:00:00`);
     if (Number.isNaN(d.getTime())) return "";
     return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
+  }
+  function calendarBlocks() {
+    const holidays = (state.data.holidays || []).map((h) => {
+      if (typeof h === "string") {
+        return { id: "H-" + h, date: h, kind: "holiday", reason: HOLIDAY_NAMES[h] || "Holiday", scope: "company" };
+      }
+      return {
+        id: h.id || "H-" + h.date,
+        date: h.date,
+        kind: "holiday",
+        reason: h.reason || HOLIDAY_NAMES[h.date] || "Holiday",
+        scope: h.scope || "company",
+      };
+    });
+    const meetings = (state.data.blackout || []).map((b) => {
+      if (typeof b === "string") {
+        return { id: "B-" + b, date: b, kind: "meeting", reason: "Company meeting", scope: "company" };
+      }
+      return {
+        id: b.id || "B-" + b.date,
+        date: b.date,
+        kind: b.kind || "meeting",
+        reason: b.reason || "Company meeting",
+        scope: b.scope || "company",
+      };
+    });
+    return holidays.concat(meetings).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  }
+  function isIsoBlocked(iso) {
+    if (!iso) return false;
+    return calendarBlocks().some((b) => b.date === iso);
+  }
+  function isDayBlocked(day) {
+    const iso = DAY_DATES[day];
+    return iso ? isIsoBlocked(iso) : false;
+  }
+  function blackoutForIso(iso) {
+    return calendarBlocks().find((b) => b.date === iso) || null;
   }
   function selectedSetupTrappers() {
     const rows = Array.from(document.querySelectorAll(".service-trapper-row[data-tech]"));
@@ -2834,6 +3267,7 @@
   }
   function addLiveStop(c, loc, techId, day, durationMin) {
     if (!c || !loc || !techId || !DAYS.includes(day)) return;
+    if (isDayBlocked(day)) return;
     const exists = (state.data.stops || []).some((s) =>
       s.customerId === c.id && s.locationId === loc.id && s.techId === techId && s.day === day && !s.pending
     );
@@ -2900,6 +3334,210 @@
   function allReasons() {
     return REASONS.concat(state.data.settings.extraReasons || []);
   }
+  function reasonById(id) {
+    return allReasons().find((r) => r.id === id) || allReasons()[0];
+  }
+  function reasonPolicy(reason) {
+    const r = typeof reason === "string" ? reasonById(reason) : reason;
+    if (!r) return { id: "", label: "No-show", fault: "customer", extension: "none" };
+    const extension = r.extension || (r.fault === "customer" ? "none" : r.fault === "review" ? "review" : "auto");
+    const fault = r.fault === "review" ? "company" : (r.fault || "company");
+    return { id: r.id, label: r.label, fault, extension };
+  }
+  function reasonRuleLabel(r) {
+    const p = reasonPolicy(r);
+    if (p.extension === "auto") return "Company/tech · +1 visit";
+    if (p.extension === "none") return "Customer · no extension";
+    return "Review · approve or deny";
+  }
+  function nextServiceOccurrence(iso, days) {
+    const wanted = (days && days.length) ? days : DAYS;
+    const start = iso || TODAY;
+    for (let i = 1; i <= 21; i++) {
+      const next = isoShift(start, i);
+      const wd = weekdayFromIso(next);
+      if (wanted.includes(wd) && !isIsoBlocked(next)) return next;
+    }
+    return isoShift(start, 7);
+  }
+  function extendServiceByOneVisit(customerId, locationId) {
+    if (!customerId) return "";
+    const svc = svcFor(customerId, locationId);
+    const loc = locBy(customerId, locationId);
+    const c = custBy(customerId);
+    const days = patternDays(svc?.days || loc?.days || c?.days || "Tue/Thu");
+    const current = svc?.expires || loc?.expires || c?.expires;
+    if (!current) return "";
+    const next = nextServiceOccurrence(current, days);
+    if (svc) {
+      svc.expires = next;
+      svc.renewal = next;
+      svc.extensionVisits = (svc.extensionVisits || 0) + 1;
+    }
+    if (loc) loc.expires = next;
+    if (c && (!c.expires || c.expires === current || c.expires < next)) c.expires = next;
+    return next;
+  }
+  function applyCompanyBlackout(iso, reason) {
+    const day = weekdayFromIso(iso);
+    if (!day || !DAYS.includes(day) || DAY_DATES[day] !== iso) return 0;
+    let n = 0;
+    state.data.stops.forEach((s) => {
+      if (s.day !== day || s.pending) return;
+      if (s.status !== "scheduled" && s.status !== "in_progress") return;
+      s.status = "blocked_off";
+      s.blockReason = reason || "Company day off";
+      s.fault = null;
+      s.reason = "";
+      s.reasonId = "";
+      s.missNote = "";
+      s.extended = false;
+      s.pendingExt = false;
+      n += 1;
+    });
+    return n;
+  }
+  function addCalendarBlock() {
+    if (!can("blackout.edit")) return;
+    const date = val("bo-date");
+    const kind = val("bo-kind") || "meeting";
+    const reason = (val("bo-reason") || "").trim() || (kind === "holiday" ? (HOLIDAY_NAMES[date] || "Holiday") : "Company meeting");
+    if (!date) {
+      toast("Pick a date to block.");
+      return;
+    }
+    if (isIsoBlocked(date)) {
+      toast("That date is already on the master calendar.");
+      return;
+    }
+    if (kind === "holiday") {
+      if (!Array.isArray(state.data.holidays)) state.data.holidays = [];
+      state.data.holidays.push(HOLIDAY_NAMES[date] && reason === HOLIDAY_NAMES[date] ? date : { id: nid("H"), date, kind: "holiday", reason, scope: "company" });
+    } else {
+      if (!Array.isArray(state.data.blackout)) state.data.blackout = [];
+      state.data.blackout.push({ id: nid("BO"), date, kind: "meeting", reason, scope: "company" });
+    }
+    const changed = applyCompanyBlackout(date, reason);
+    const label = kind === "holiday" ? "Holiday" : "Company meeting";
+    toast(changed
+      ? `${label} ${date}: ${changed} stop${changed === 1 ? "" : "s"} never scheduled. Not missed. Contracts not extended.`
+      : `${label} ${date} is a non-service day. Scheduling will skip it. No missed visits, no extensions.`);
+    render();
+  }
+  function removeCalendarBlock(kind, date) {
+    if (!can("blackout.edit")) return;
+    if (kind === "holiday") {
+      state.data.holidays = (state.data.holidays || []).filter((h) => (typeof h === "string" ? h : h.date) !== date);
+    } else {
+      state.data.blackout = (state.data.blackout || []).filter((b) => (typeof b === "string" ? b : b.date) !== date);
+    }
+    const day = weekdayFromIso(date);
+    if (day && DAY_DATES[day] === date && !isIsoBlocked(date)) {
+      state.data.stops.forEach((s) => {
+        if (s.day === day && s.status === "blocked_off") {
+          s.status = "scheduled";
+          s.blockReason = "";
+        }
+      });
+    }
+    toast("Blocked date removed. That day can be scheduled again.");
+    render();
+  }
+  function applyNoShow(stop, reasonId, note) {
+    const policy = reasonPolicy(reasonId);
+    stop.status = policy.fault === "customer" ? "missed" : "noshow";
+    stop.fault = policy.fault;
+    stop.reason = policy.label;
+    stop.reasonId = policy.id;
+    stop.missNote = note || "";
+    stop.extended = false;
+    stop.pendingExt = policy.extension === "review";
+    stop.extendedUntil = "";
+    if (policy.extension === "auto" && stop.customerId) {
+      const until = extendServiceByOneVisit(stop.customerId, stop.locationId);
+      stop.extended = true;
+      stop.extendedUntil = until;
+    }
+    return policy;
+  }
+  function bulkNoShowTech(techId, day, reasonId, remainingOnly) {
+    const list = state.data.stops.filter((s) => {
+      if (s.techId !== techId || s.day !== day || s.pending) return false;
+      if (s.status === "complete" || s.status === "noshow" || s.status === "missed" || s.status === "blocked_off" || s.status === "blocked") return false;
+      if (remainingOnly === false && s.status === "complete") return false;
+      return s.status === "scheduled" || s.status === "in_progress";
+    });
+    list.forEach((s) => applyNoShow(s, reasonId, ""));
+    return list;
+  }
+  function bulkNoShowFromForm() {
+    if (!can("noshow.mark")) return;
+    const techId = val("ns-tech");
+    const day = val("ns-day");
+    const reasonId = val("ns-reason");
+    const remaining = document.getElementById("ns-remaining") ? document.getElementById("ns-remaining").checked : true;
+    if (!techId || !day || !reasonId) {
+      toast("Pick a trapper, day, and reason.");
+      return;
+    }
+    const list = bulkNoShowTech(techId, day, reasonId, remaining);
+    const policy = reasonPolicy(reasonId);
+    if (!list.length) {
+      toast("No open stops for that trapper on that day.");
+      return;
+    }
+    const ext = policy.extension === "auto"
+      ? " Affected contracts extended by one visit."
+      : policy.extension === "review"
+        ? " Extension is waiting on your approval."
+        : " Contracts are not extended.";
+    toast(`${list.length} stop${list.length === 1 ? "" : "s"} marked no-show (${policy.label}).${ext}`);
+    render();
+  }
+  function openMarkStop(id) {
+    if (!can("noshow.mark")) return;
+    const s = state.data.stops.find((x) => x.id === id);
+    if (!s) return;
+    const c = s.customerId ? custBy(s.customerId) : null;
+    const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+    state.modal = {
+      html: `
+        <h3>Mark no-show</h3>
+        <p class="muted">${esc(stopLabel(s))} · ${esc(s.day)} ${esc(s.time || "")} · ${esc(techName(s.techId))}</p>
+        <p class="tiny">This visit was scheduled. If the office already knew nobody would work that day, block it on the master calendar instead — that is not a missed visit.</p>
+        <div class="field"><label>Reason</label>
+          <select id="mark-reason">${allReasons().map((r) => `<option value="${esc(r.id)}">${esc(r.label)} — ${esc(reasonRuleLabel(r))}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Note</label><textarea id="mark-note" rows="2" placeholder="Waited at gate, no answer"></textarea></div>
+        <div class="actions">
+          <button class="btn btn-warn" data-act="save-mark-stop" data-id="${s.id}">Log no-show</button>
+          ${c && loc ? `<button class="btn btn-ghost" data-act="open-assign" data-id="${c.id}" data-loc="${loc.id}">Reassign instead</button>` : ""}
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+        </div>
+      `,
+    };
+    render();
+  }
+  function saveMarkStop(id) {
+    if (!can("noshow.mark")) return;
+    const s = state.data.stops.find((x) => x.id === id);
+    if (!s) return;
+    const policy = applyNoShow(s, val("mark-reason"), val("mark-note"));
+    state.modal = null;
+    const ext = policy.extension === "auto"
+      ? (s.extendedUntil ? ` Contract extended by one visit through ${s.extendedUntil}.` : " Contract extended by one visit.")
+      : policy.extension === "review"
+        ? " Approve or deny the extension below."
+        : " Contract is not extended.";
+    toast(`${stopLabel(s)} logged as ${policy.label}.${ext}`);
+    render();
+  }
+  function visitOutcomeHtml(s) {
+    const extra = s.reason || s.blockReason || "";
+    const ext = s.pendingExt ? "awaiting extension" : s.extended ? (`+1 visit${s.extendedUntil ? " through " + s.extendedUntil : ""}`) : "";
+    const note = [extra, s.missNote, ext].filter(Boolean).join(" · ");
+    return `${statusBadge(s.status)}${note ? `<div class="tiny">${esc(note)}</div>` : ""}`;
+  }
   function pay() {
     return window.IguanaPay || {
       METHODS: [],
@@ -2948,8 +3586,9 @@
       p[field] = value;
     } else if (kind === "mto") {
       const m = state.data.mtos.find((x) => x.id === el.dataset.id);
-      if (!m || !can("mto.reply")) return;
+      if (!m || !can("mto.reply") || !mtoVisible(m)) return;
       m[field] = value;
+      markMtoRead(m.id);
     } else if (kind === "location") {
       const loc = locBy(el.dataset.cid, el.dataset.lid);
       if (!loc || !canEditField(field)) return;
@@ -3018,6 +3657,17 @@
           loc.requestService = true;
           loc.requestedAt = Date.now();
         }
+        if (loc) {
+          pushNotify({
+            type: "NEEDS_SERVICE_SETUP",
+            severity: "alert",
+            title: "Paid — needs service setup",
+            text: `${c.billTo || c.name} · ${loc.name} just paid. Create the service.`,
+            customerId: c.id,
+            locationId: loc.id,
+            invoiceId: inv.id,
+          });
+        }
       } else if (loc) {
         loc.requestService = false;
       }
@@ -3064,6 +3714,7 @@
         });
       }
     }
+    ensureTrapperBonusFromPayment(payment, inv);
     return true;
   }
   function applyInvoicePayment(inv, method, memo, checkNo, amountOverride) {
@@ -3170,14 +3821,14 @@
   function renderPageKey() {
     if (state.payView) return "pay";
     if (!state.role) return "login";
-    if (state.role === "tech") return "tech:" + (state.mobileStop || state.page || "");
+    if (state.role === "tech" || state.role === "trapper") return "field:" + fieldTechId() + ":" + (state.mobileStop || state.mobileTab || "route");
     return String(state.page || "dashboard");
   }
 
   function render() {
     ensureData();
     if (state.role && !ROLES[state.role]) state.role = null;
-    if (state.role && state.role !== "tech" && !canPage(state.page) && !isRecordPage(state.page)) state.page = "dashboard";
+    if (state.role && !isFieldRole() && !canPage(state.page) && !isRecordPage(state.page)) state.page = "dashboard";
     const pageKey = renderPageKey();
     const samePage = state._pageKey === pageKey;
     const scroll = samePage ? captureUiScroll() : null;
@@ -3189,7 +3840,7 @@
         $app.innerHTML = renderPublicPay() + renderToast();
       } else if (!state.role) {
         $app.innerHTML = renderLogin();
-      } else if (state.role === "tech") {
+      } else if (isFieldRole()) {
         $app.innerHTML = renderMobile() + renderModal() + renderToast();
       } else {
         $app.innerHTML = renderShell() + renderModal() + renderToast();
@@ -3242,9 +3893,9 @@
           <div class="demo-flag">Click a person to enter — no password</div>
           <h2>Who is signing in?</h2>
           <div class="who-switch" style="margin:12px 0 18px">${peopleButtons()}</div>
-          <p class="lede">Click <strong>Christy</strong> for Administration. You can switch people any time from the names in the top bar.</p>
+          <p class="lede">Click <strong>Christy</strong> for Administration, <strong>Johnny</strong> for the trapper phone. Switch people any time from the names in the top bar.</p>
           <div class="role-grid">${cards}</div>
-          <p class="login-roles-note">Owner can read and edit. Ops cannot post payments. Admin cannot schedule.</p>
+          <p class="login-roles-note">Owner can read and edit. Ops cannot post payments. Admin cannot schedule. Johnny is the field phone — no prices.</p>
           <p class="login-roles-note"><button class="btn btn-ghost" data-act="open-pay">Preview public payment page</button> (invoice link, website, or ACH — names stay on the register)</p>
           <p class="login-roles-note"><button class="btn btn-ghost" data-act="reset-demo">Reset saved demo data</button></p>
         </main>
@@ -3315,7 +3966,8 @@
         <div class="nav-group-body" ${open ? "" : "hidden"}>
           ${g.items.map((n) => `
             <button class="nav-btn ${state.page === n.id ? "active" : ""}" data-act="nav" data-page="${n.id}">
-              ${ICONS[n.icon] || ""} ${esc(n.label)}
+              ${ICONS[n.icon] || ""} <span class="nav-btn-label">${esc(n.label)}</span>
+              ${n.id === "mtos" && unreadMtosForRole().length ? `<span class="nav-badge">${unreadMtosForRole().length}</span>` : ""}
             </button>
           `).join("")}
         </div>
@@ -3446,7 +4098,6 @@
     const paidToday = state.data.payments.filter((p) => p.date === TODAY && !p.failed && p.posted);
     const outliers = durationRows().filter((r) => r.delta < -8);
     const mine = myOpenTasks();
-    const mtos = (state.data.mtos || []).filter((m) => !m.read);
     const modules = [
       ["Customers", "customers", "Bill-Tos and properties"],
       ["Quotes", "quotes", "Sent quotes"],
@@ -3454,19 +4105,19 @@
       ["Map & routing", "map", "Trappers and stops"],
       ["One-off jobs", "oneoffs", "Live call-ins"],
       ["Trap assets", "traps", "Field inventory"],
-      ["No-shows", "noshows", "Missed stops"],
+      ["Missed visits", "noshows", "Blackouts vs no-shows"],
       ["Route workload", "workload", "Load by trapper"],
       ["Payment register", "payments", "Money in"],
       ["Invoices", "invoices", "Sent and open"],
       ["Renewal report", "renewals", "30–60 day window"],
-      ["Commission", "commission", "Renewal splits"],
+      ["Trapper bonuses", "commission", "Who gets the 2%"],
       ["Documents", "documents", "COIs, photos, files"],
       ["Communication log", "comms", "Calls and notes"],
       ["Memo to Office", "mtos", "Tech memos"],
       ["Tasks", "tasks", "Tom / Rick / Christy"],
       ["Duration report", "duration", "Sched vs clocked"],
       ["Removal report", "removals", "Counts and weight"],
-      ["Reports hub", "reports", "All report tiles"],
+      ["reports", "All report tiles"],
       ["Users", "users", "Roles and access"],
       ["Configurable lists", "lists", "Dropdowns"],
       ["Templates", "templates", "Email copy"],
@@ -3489,7 +4140,7 @@
         ${stat("Expiring in 60 days", expiring.length, "Renewals")}
         ${stat("Failed payments", failed.length, "Register exceptions", failed.length ? "alert" : "")}
         ${stat("Posted today", money(paidToday.reduce((s, p) => s + p.amount, 0)), "Register", "good")}
-        ${stat("Unread memos", mtos.length, "Memo to Office", mtos.length ? "alert" : "")}
+        ${stat("Unread memos", unreadMtosForRole().length, "Memo to Office", unreadMtosForRole().length ? "alert" : "")}
       </div>
       <div class="card section-gap">
         <h3>All modules</h3>
@@ -3518,7 +4169,7 @@
             <button class="btn btn-ghost" data-act="nav" data-page="renewals">Renewals</button>
             <button class="btn btn-ghost" data-act="nav" data-page="comms">Communication log</button>
             <button class="btn btn-ghost" data-act="nav" data-page="mtos">Memo to Office</button>
-            <button class="btn btn-ghost" data-act="nav" data-page="reports">Reports hub</button>
+            <!-- <button class="btn btn-ghost" data-act="nav" data-page="reports">Reports hub</button> -->
             <button class="btn btn-ghost" data-act="nav" data-page="lists">Configurable lists</button>
           </div>
           <p class="tiny" style="margin-top:12px">Non-renewal sample: Martin Ruiz lapsed on Johnny’s book.</p>
@@ -3539,7 +4190,8 @@
     const retrieve = (state.data.traps || []).filter((t) => t.status === "out" || t.status === "missing");
     const mine = myOpenTasks();
     return `
-      ${head("Dispatch board", "Paid locations appear in Ready to schedule. Create the service there, then assign the trapper on the map.")}
+      ${head("Dispatch board", "When a customer pays, a notice lands here. Click it to open Ready to schedule.")}
+      ${opsPaidSetupBanner()}
       <div class="grid-4 dashboard-summary">
         ${dashboardStat("Ready to schedule", needSvc.length, "Paid locations waiting for service", "ready-schedule", needSvc.length ? "alert" : "good")}
         ${dashboardStat("Customers", customerCount, "Active Bill-To accounts", "customers")}
@@ -3590,8 +4242,9 @@
       ${mtos.length ? `
         <div class="card" style="margin-bottom:16px">
           <h3>New memos from the field <span class="muted">${mtos.length}</span></h3>
-          <p class="tiny">Techs send these — you don’t have to open the stop first.</p>
+          <p class="tiny">Internal only — you do not have to open the stop. Customer never sees these.</p>
           ${mtos.map(mtoCard).join("")}
+          <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="nav" data-page="mtos">Memo to Office inbox</button></div>
         </div>
       ` : ""}
       <div class="grid-4">
@@ -3602,11 +4255,11 @@
       </div>
       <div class="split section-gap">
         <div class="card">
-          <h3>Duration by trapper · this week</h3>
-          <p class="tiny">Minutes on the property this week — who’s light vs loaded.</p>
-          ${table(["Technician", "Stops", "Scheduled min"], TECHS.map((t) => {
+          <h3>Time on site · this week</h3>
+          <p class="tiny">How long each trapper is at properties — not drive time, not a clock.</p>
+          ${table(["Technician", "Stops", "On site"], TECHS.map((t) => {
             const ss = state.data.stops.filter((s) => s.techId === t.id && !s.pending);
-            return [t.name, ss.length, ss.reduce((a, s) => a + s.durationMin, 0) + " min"];
+            return [t.name, ss.length, fmtHours(ss.reduce((a, s) => a + (s.durationMin || 0), 0))];
           }))}
         </div>
         <div class="card">
@@ -3615,12 +4268,31 @@
           ${["Thu", "Fri"].map((d) => {
             const ss = state.data.stops.filter((s) => s.day === d && !s.pending).sort((a, b) => String(a.time).localeCompare(String(b.time)));
             return `<div class="tiny" style="margin:8px 0 4px"><strong>${d}</strong> · ${ss.length} stops</div>
-              ${ss.slice(0, 6).map((s) => `<div class="tiny">${esc(s.time)} ${esc(techName(s.techId))} · ${esc(stopLabel(s))} · ${s.durationMin}m</div>`).join("")}
+              ${ss.slice(0, 6).map((s) => `<div class="tiny">${fmtClockTime(s.time)} ${esc(techName(s.techId))} · ${esc(stopLabel(s))} · ${fmtHours(s.durationMin)} on site</div>`).join("")}
               ${ss.length > 6 ? `<div class="tiny">+${ss.length - 6} more</div>` : ""}`;
           }).join("")}
           <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="nav" data-page="workload">Full workload</button></div>
         </div>
       </div>
+    `;
+  }
+
+  function opsPaidSetupBanner() {
+    const ready = opsServiceQueue();
+    if (!ready.length) return "";
+    const first = ready[0];
+    const extra = ready.length - 1;
+    const line = extra
+      ? `${esc(first.c.name)} and ${extra} other ${extra === 1 ? "customer" : "customers"} made a payment.`
+      : `${esc(first.c.name)} made a payment for ${esc(first.l.name)}.`;
+    return `
+      <button type="button" class="ops-pay-notice" data-act="nav" data-page="ready-schedule">
+        <span class="ops-pay-notice-count">${ready.length}</span>
+        <span class="ops-pay-notice-body">
+          <strong>Payment received</strong>
+          <span>${line} Click to open Ready to schedule.</span>
+        </span>
+      </button>
     `;
   }
 
@@ -3649,9 +4321,9 @@
                 <div class="tiny">${esc(c.billTo || c.name)} · ${esc(l.address || "No address")}</div>
                 <div class="tiny">${esc(program?.name || "Program not selected")}${latestPayment ? ` · Paid ${esc(latestPayment.date)} · ${esc(latestPayment.method || "Payment")}` : ""}</div>
               </div>
-              <div class="actions">
-                <button class="btn btn-ghost" data-act="open-location" data-id="${c.id}" data-loc="${l.id}">View location</button>
-                ${btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`)}
+              <div class="ready-schedule-acts">
+                <button class="icon-btn" data-act="open-location" data-id="${c.id}" data-loc="${l.id}" title="View location" aria-label="View ${esc(l.name)}">${ICONS.eye}</button>
+                ${can("service.create") ? `<button class="icon-btn icon-btn-primary" data-act="open-service" data-id="${c.id}" data-loc="${l.id}" title="Create service" aria-label="Create service for ${esc(l.name)}">${ICONS.plus}</button>` : ""}
               </div>
             </div>
           `;
@@ -3669,7 +4341,7 @@
   function dashAdmin() {
     const renew = renewalCandidates();
     const failed = failedAutopay();
-    const mtos = (state.data.mtos || []).filter((m) => m.dept === "admin");
+    const mtos = (state.data.mtos || []).filter((m) => m.dept === "admin" && !m.read);
     const due = unpaidInvoices();
     const muni = state.data.customers.filter((c) => c.municipal);
     const todayPays = paymentsInFilter("today").filter((p) => !p.failed);
@@ -3714,11 +4386,19 @@
                 <div class="tiny">${esc(n.date)} · ${esc(n.text)}</div>
               </div>
               <div class="actions">
-                ${n.customerId ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${n.customerId}">Open</button>` : ""}
+                ${n.mtoId ? `<button class="btn btn-ghost" data-act="open-mto" data-id="${n.mtoId}">Open MTO</button>` : n.customerId ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${n.customerId}">Open</button>` : ""}
                 <button class="btn btn-ghost" data-act="dismiss-notify" data-id="${n.id}">Dismiss</button>
               </div>
             </div>
           `).join("")}
+        </div>
+      ` : ""}
+      ${mtos.length ? `
+        <div class="card" style="margin-bottom:16px">
+          <h3>New memos from the field <span class="muted">${mtos.length}</span></h3>
+          <p class="tiny">Administration-routed only. Internal — the customer never sees this. Billing and renewal notes land here.</p>
+          ${mtos.map(mtoCard).join("")}
+          <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="nav" data-page="mtos">Memo to Office inbox</button></div>
         </div>
       ` : ""}
       <div class="card" style="margin-bottom:16px">
@@ -3800,6 +4480,30 @@
           <button class="btn btn-ghost" data-act="nav" data-page="renewals">Full renewal report</button>
         </div>
       </div>
+      ${(() => {
+        const pendingBonuses = trapperBonuses().filter((b) => bonusStatusOf(b) === "pending");
+        const pendingSum = pendingBonuses.reduce((s, b) => s + Number(b.amount || 0), 0);
+        return `
+      <div class="card" style="margin-bottom:16px">
+        <h3>4 · Trapper bonuses <span class="muted">after a renewal is paid</span></h3>
+        <p class="tiny">2% of the qualifying payment. Split it here — not while posting the payment.</p>
+        ${pendingBonuses.length ? pendingBonuses.slice(0, 5).map((b) => {
+          const c = custBy(b.customerId);
+          return `<div class="fit-row">
+            <div>
+              ${bonusStatusBadge(b)}
+              <strong>${esc(c?.billTo || c?.name || "—")}</strong>
+              <div class="tiny">${esc(b.invoiceId || "")} · ${esc(b.paymentId || "")} · pool ${money2(b.amount)}</div>
+            </div>
+            <button class="btn btn-sun" data-act="open-bonus" data-id="${esc(b.id)}">${money2(b.amount)}</button>
+          </div>`;
+        }).join("") : `<p class="muted">No pending bonuses. They appear when a renewal invoice is paid.</p>`}
+        <div class="actions" style="margin-top:10px">
+          <button class="btn btn-ghost" data-act="nav" data-page="commission">Open trapper bonuses</button>
+          ${pendingBonuses.length ? `<span class="tiny">${pendingBonuses.length} pending · ${money2(pendingSum)}</span>` : ""}
+        </div>
+      </div>`;
+      })()}
       <div class="card" style="margin-bottom:16px">
         <h3>Add a customer</h3>
         <p class="tiny">After the call: add Bill-To and properties, quote, invoice, then payment.</p>
@@ -3833,7 +4537,6 @@
             <button class="btn btn-ghost" data-act="manual-invoice" data-id="${c.id}">Manual invoice</button>
           </div>`;
           }).join("") : `<p class="muted">None.</p>`}
-          <div class="tiny" style="margin-top:8px">Admin MTOs: ${mtos.filter((x) => !x.read).length} unread</div>
         </div>
       </div>
     `;
@@ -3880,7 +4583,7 @@
       <div class="grid-4">
         ${stat("Active users", state.data.users.filter((u) => u.active).length, "Logins")}
         ${stat("No-show reasons", REASONS.length, "Lists")}
-        ${stat("Commission default", state.data.settings.commissionPct + "%", "Default %")}
+        ${stat("Trapper bonus rate", state.data.settings.commissionPct + "%", "Of renewal pay")}
         ${stat("Renewal window", state.data.settings.renewalWindow + " days", "Days out")}
       </div>
       <div class="card section-gap">
@@ -4419,6 +5122,7 @@
           ${locNeedsTech(c, l) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
           ${live && ["ops", "owner"].includes(state.role) ? btn("schedule.reassign", "Reassign trapper", "open-assign", `data-id="${c.id}" data-loc="${l.id}" data-return="location"`, "btn-ghost") : ""}
           ${live && ["ops", "owner"].includes(state.role) ? `<button class="btn btn-ghost" data-act="share-on-map" data-id="${c.id}" data-loc="${l.id}">Share with trapper</button>` : ""}
+          ${["owner", "ops"].includes(state.role) ? btn("trap.update", "Attach trap", "attach-trap", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost") : ""}
           ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Create task", "new-task", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost") : ""}
         </div>
       </div>
@@ -4463,6 +5167,12 @@
             ` : `<p class="muted">No service history yet.</p>`}
           </div>
           <div class="card">
+            <h3>Trap assets <span class="muted">${trapsForLocation(c.id, l.id).length}</span></h3>
+            <p class="tiny">Hardware on this property. The same records show on Trap assets. Attach or remove here or there.</p>
+            ${trapAssetListHtml(trapsForLocation(c.id, l.id), { fromLocation: true }) || `<p class="muted">No traps on this property yet.</p>`}
+            ${can("trap.update") ? `<div class="actions" style="margin-top:10px">${btn("trap.update", "Attach trap", "attach-trap", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost btn-small")}</div>` : ""}
+          </div>
+          <div class="card">
             <h3>Tasks <span class="muted">${locTasks.filter((t) => t.status === "open").length} open</span></h3>
             ${taskListHtml(locTasks, "No tasks for this location.", { hideCustomer: true, manage: true })}
           </div>
@@ -4490,7 +5200,7 @@
                 <tbody>
                   ${invoices.map((i) => `<tr>
                     <td>${esc(i.date || i.due || "—")}</td>
-                    <td>${esc(i.id)}<div class="tiny">Invoice</div></td>
+                    <td>${invoiceBtn(i.id)}<div class="tiny">${esc(invKindLabel(i.kind))} invoice</div></td>
                     <td>${can("payment.viewAmount") ? money(i.amount) : "—"}</td>
                     <td>—</td>
                     <td>${statusBadge(invoiceFinStatus(i))}</td>
@@ -4509,7 +5219,7 @@
           <div class="card">
             <h3>Recent visits</h3>
             ${visits.length ? table(["Day", "Time", "Trapper", "Duration", "Status"], visits.slice(0, 8).map((s) => [
-              esc(s.day || "—"), esc(s.time || "—"), esc(techName(s.techId)), `${Number(s.actualMin ?? s.durationMin ?? 0)} min`, statusBadge(s.status),
+              esc(s.day || "—"), esc(s.time || "—"), esc(techName(s.techId)), `${Number(s.actualMin ?? s.durationMin ?? 0)} min`, visitOutcomeHtml(s),
             ])) : `<p class="muted">No visits yet.</p>`}
           </div>
           ${locDocs.length ? `<div class="card"><h3>Location documents</h3>${locDocs.map((d) => docRowHtml(d, false)).join("")}</div>` : ""}
@@ -4620,7 +5330,7 @@
                   </tbody></table>` : ""}
                 <div class="tiny" style="margin-top:6px"><strong>Invoices</strong> ${invs.length ? invs.map((i) => {
                   const st = invoiceFinStatus(i);
-                  return `${esc(i.id)} ${st} · paid ${money(allocated(i.id))} · bal ${money(invoiceBalance(i))}`;
+                  return `${invoiceBtn(i.id)} ${st} · paid ${money(allocated(i.id))} · bal ${money(invoiceBalance(i))}${i.kind === "renewal" ? " · renewal" : ""}`;
                 }).join("; ") : "None"}</div>
                 ${(() => {
                   const locPays = (state.data.payments || []).filter((p) => p.customerId === c.id && p.locationId === l.id)
@@ -4776,7 +5486,7 @@
                   <td>${esc(loc?.name || "—")}</td>
                   <td>${esc(techName(s.techId))}</td>
                   <td>${s.actualMin != null ? s.actualMin : s.durationMin || "—"}</td>
-                  <td>${statusBadge(s.status)}</td>
+                  <td>${visitOutcomeHtml(s)}</td>
                 </tr>`;
               }).join("")}
             </tbody>
@@ -4949,15 +5659,50 @@
       ${writeBar("schedule.reassign", "Reassign")}
       ${genQ.length ? `<div class="notice">${genQ.length} assigned service(s) are not on this board yet. ${btn("schedule.generate", "Generate now", "generate-schedule")}</div>` : ""}
       ${toggle}
-      <div class="notice">Routes start and end at the tech’s home — no depot. Company blackouts: ${state.data.holidays.map(esc).join(", ")}. Reassign moves the stop; it doesn’t copy it.</div>
+      <div class="notice">Routes start and end at the tech’s home — no depot. ${calendarBlocks().length
+        ? `Master calendar: ${calendarBlocks().map((b) => `${b.date} ${b.reason}`).join("; ")}.`
+        : "No company blackouts on the master calendar."} ${DAYS.filter(isDayBlocked).length ? `This week excluded: ${DAYS.filter(isDayBlocked).join(", ")}.` : ""} Reassign moves the stop; it doesn’t copy it.</div>
       ${state.schedView === "month" ? monthCalendar() : weekBoard()}
       <div class="card section-gap">
         <h3>Visit notices · 2 days before</h3>
         <p class="tiny">Templated text/email. The customer cannot reply to the system message. Friday’s remaining stops would have been notified Wednesday.</p>
-        ${table(["When", "Customer", "Tech", "Notice"], state.data.stops.filter((s) => s.day === "Fri" && !s.pending).map((s) => [s.day + " " + (s.time || ""), stopLabel(s), techName(s.techId), s.noticed ? "Sent" : "Queued — no-reply template"]))}
+        ${table(["When", "Customer", "Tech", "Notice"], state.data.stops.filter((s) => s.day === "Fri" && !s.pending && s.status !== "blocked_off").map((s) => [s.day + " " + (s.time || ""), stopLabel(s), techName(s.techId), s.noticed ? "Sent" : "Queued — no-reply template"]))}
         <div class="actions" style="margin-top:10px">${btn("schedule.assign", "Send Friday notices", "send-notices", "", "btn-ghost")}</div>
       </div>
     `;
+  }
+
+  function optimizerNowStamp() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+  function fmtUsDate(iso) {
+    const s = String(iso || "").slice(0, 10);
+    const [y, m, d] = s.split("-");
+    if (!d) return iso || "—";
+    return `${m}/${d}/${y}`;
+  }
+  function fmtStartTime(raw) {
+    const text = String(raw || "");
+    if (!text) return "—";
+    const parsed = new Date(/T/.test(text) ? text : text.replace(" ", "T"));
+    if (Number.isNaN(parsed.getTime())) return text;
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(parsed.getMonth() + 1)}/${pad(parsed.getDate())}/${parsed.getFullYear()}, ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`;
+  }
+  function optimizerRunTechIds(run) {
+    const ids = [];
+    const add = (id) => { if (id && !ids.includes(id)) ids.push(id); };
+    (run.routes || []).forEach((r) => add(r.techId));
+    if (!ids.length) (run.techIds || []).forEach(add);
+    return ids;
+  }
+  function optimizerRunTechLabel(run) {
+    const names = optimizerRunTechIds(run).map((id) => techName(id)).filter(Boolean);
+    if (!names.length) return "All";
+    if (names.length <= 2) return names.join(", ");
+    return `${names.slice(0, 2).join(", ")} +${names.length - 2} more`;
   }
 
   function optimizerLimitField(id, label, unit, placeholder = "No limit") {
@@ -4965,80 +5710,186 @@
     const current = state.optimizerPreview?.config?.limits?.[key] || "";
     return `<div class="field"><label for="opt-${id}">${esc(label)}</label><div class="opt-input-unit"><input id="opt-${id}" type="number" min="0" step="1" value="${esc(current)}" placeholder="${esc(placeholder)}"><span>${esc(unit)}</span></div></div>`;
   }
-
+  function optimizerTechGroups(preview) {
+    const byTech = {};
+    (preview.routes || []).forEach((route) => {
+      if (!byTech[route.techId]) byTech[route.techId] = { techId: route.techId, routes: [] };
+      byTech[route.techId].routes.push(route);
+    });
+    return Object.values(byTech).map((group) => {
+      const routes = group.routes.slice().sort((a, b) => a.date.localeCompare(b.date));
+      return {
+        techId: group.techId,
+        routes,
+        days: routes.map((r) => r.day),
+        jobsOrig: routes.reduce((n, r) => n + r.originalStopIds.length, 0),
+        jobsOpt: routes.reduce((n, r) => n + r.optimized.length, 0),
+        unreachable: routes.reduce((n, r) => n + r.unreachableIds.length, 0),
+        serviceMin: routes.reduce((n, r) => n + r.serviceMin, 0),
+        originalServiceMin: routes.reduce((n, r) => n + (r.originalServiceMin || r.serviceMin), 0),
+        beforeDrive: routes.reduce((n, r) => n + r.beforeDrive, 0),
+        afterDrive: routes.reduce((n, r) => n + r.afterDrive, 0),
+        production: routes.reduce((n, r) => n + r.production, 0),
+        originalProduction: routes.reduce((n, r) => n + (r.originalProduction || r.production), 0),
+        workingMin: routes.reduce((n, r) => n + r.workingMin, 0),
+      };
+    }).sort((a, b) => techName(a.techId).localeCompare(techName(b.techId)));
+  }
+  function optimizerDriveClass(before, after) {
+    if (after < before) return "good";
+    if (after > before) return "bad";
+    return "";
+  }
   function optimizerSummary(preview) {
     const saved = preview.beforeDrive - preview.afterDrive;
+    const trappers = optimizerTechGroups(preview).length;
     return `
-      <div class="opt-summary">
-        <div class="stat"><span>Stops reviewed</span><strong>${preview.stopCount}</strong></div>
-        <div class="stat"><span>Routes</span><strong>${preview.routeCount}</strong></div>
-        <div class="stat"><span>Drive before</span><strong>${fmtDur(preview.beforeDrive)}</strong></div>
-        <div class="stat"><span>Drive after</span><strong>${fmtDur(preview.afterDrive)}</strong><small class="${saved >= 0 ? "good" : "bad"}">${saved >= 0 ? `${fmtDur(saved)} saved` : `${fmtDur(Math.abs(saved))} added`}</small></div>
-        <div class="stat"><span>Unreachable</span><strong>${preview.unreachable}</strong></div>
+      <div class="opt-run-summary card">
+        <div class="opt-run-kicker">Run summary — estimated drive-time impact</div>
+        <div class="opt-summary">
+          <div class="stat"><span>Total stops</span><strong>${preview.stopCount} → ${preview.stopCount - preview.unreachable}</strong></div>
+          <div class="stat"><span>Trappers</span><strong>${trappers}</strong></div>
+          <div class="stat"><span>Drive before</span><strong>${fmtHours(preview.beforeDrive)}</strong></div>
+          <div class="stat"><span>Drive after</span><strong>${fmtHours(preview.afterDrive)}</strong><small class="${optimizerDriveClass(preview.beforeDrive, preview.afterDrive)}">${saved > 0 ? fmtHours(saved) + " saved" : saved < 0 ? fmtHours(Math.abs(saved)) + " added" : "No change"}</small></div>
+          <div class="stat"><span>Unreachable</span><strong>${preview.unreachable}</strong></div>
+        </div>
+        <p class="opt-insight">${saved > 0
+          ? "Less drive time means more billable stops per day — payroll is the biggest line item, so this is where the optimizer earns its keep."
+          : "Drive time is estimated from trapper home to each stop and back. Unlock dates or pick one trapper if you want the engine to try a tighter sequence."}</p>
       </div>`;
   }
-
-  function optimizerResultRow(route) {
-    const reachable = route.optimized.length;
-    const saved = route.beforeDrive - route.afterDrive;
+  function optimizerTechRow(group) {
+    const saved = group.beforeDrive - group.afterDrive;
+    const open = state.optimizerFocusTech === group.techId;
     return `
-      <div class="opt-route-row">
-        <div>
-          <strong>${esc(techName(route.techId))}</strong>
-          <div class="tiny">${esc(route.day)} · ${esc(route.date)}</div>
+      <div class="opt-tech-block">
+        <div class="opt-tech-row">
+          <div>
+            <strong>${esc(techName(group.techId))}</strong>
+            <div class="tiny">${esc(techBy(group.techId)?.home || "")} · ${esc(group.days.join(" · "))}</div>
+          </div>
+          <div><span class="tiny">Stops orig → opt</span><strong>${group.jobsOrig} → ${group.jobsOpt}</strong></div>
+          <div><span class="tiny">Unreachable</span><strong>${group.unreachable}</strong></div>
+          <div><span class="tiny">Service duration</span><strong>${fmtHours(group.serviceMin)}</strong></div>
+          <div><span class="tiny">Drive time</span><strong>${fmtHours(group.beforeDrive)} → ${fmtHours(group.afterDrive)}</strong><small class="${optimizerDriveClass(group.beforeDrive, group.afterDrive)}">${saved > 0 ? fmtHours(saved) + " shorter" : saved < 0 ? "Longer" : "Same"}</small></div>
+          <div><span class="tiny">Production value</span><strong>${money(group.production)}</strong></div>
+          <div>${group.unreachable ? `<span class="badge badge-bad">${group.unreachable} unreachable</span>` : `<span class="badge badge-ok">All fit</span>`}</div>
+          <button class="btn ${open ? "btn-sun" : "btn-ghost"}" data-act="${open ? "optimizer-hide" : "optimizer-detail"}" data-tech="${esc(group.techId)}" data-date="${esc(group.routes[0]?.date || "")}">${open ? "Hide route" : "Show route"}</button>
         </div>
-        <div><span class="tiny">Jobs</span><strong>${reachable}</strong></div>
-        <div><span class="tiny">Service</span><strong>${fmtDur(route.serviceMin)}</strong></div>
-        <div><span class="tiny">Working</span><strong>${fmtDur(route.workingMin)}</strong></div>
-        <div><span class="tiny">Drive</span><strong>${fmtDur(route.beforeDrive)} → ${fmtDur(route.afterDrive)}</strong><small class="${saved >= 0 ? "good" : "bad"}">${saved >= 0 ? "Shorter" : "Longer"}</small></div>
-        <div><span class="tiny">Production</span><strong>${money(route.production)}</strong></div>
-        <div>${route.unreachableIds.length ? `<span class="badge badge-bad">${route.unreachableIds.length} unreachable</span>` : `<span class="badge badge-ok">All fit</span>`}${route.warnings.map((w) => `<div class="tiny opt-warning">${esc(w)}</div>`).join("")}</div>
-        <button class="btn btn-ghost" data-act="optimizer-detail" data-date="${esc(route.date)}" data-tech="${esc(route.techId)}">Route details</button>
+        ${open ? optimizerTechDetail(group) : ""}
+      </div>`;
+  }
+  function optimizerOrderTable(rows, date, techId, allowAnchor) {
+    return `
+      <div class="table-wrap opt-order-wrap">
+        <table class="opt-order-table">
+          <thead><tr>
+            <th>Order</th><th>Name &amp; address</th><th>Arrive</th><th>Depart</th><th>Drive to next</th>
+            <th>Service</th><th>Prod. value</th><th>Eligible date</th>${allowAnchor ? "<th></th>" : ""}
+          </tr></thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr class="opt-order-${row.kind}">
+                <td>${esc(row.order)}</td>
+                <td><strong>${esc(row.name)}</strong>${row.address ? `<div class="tiny">${esc(row.address)}${row.eligibleTime ? ` · ${esc(row.eligibleTime)}` : ""}</div>` : ""}</td>
+                <td>${row.arrive ? fmtClockTime(row.arrive) : "—"}</td>
+                <td>${row.depart ? fmtClockTime(row.depart) : "—"}</td>
+                <td>${row.driveToNext ? fmtHours(row.driveToNext) : "—"}</td>
+                <td>${esc(row.service || "—")}</td>
+                <td>${row.kind === "stop" ? money(row.production) : "—"}</td>
+                <td>${esc(row.eligibleDate || "—")}</td>
+                ${allowAnchor ? `<td>${row.kind === "stop" ? `<button class="btn btn-ghost btn-small" data-act="optimizer-anchor" data-date="${esc(date)}" data-tech="${esc(techId)}" data-stop="${esc(row.id)}">${state.optimizerPreview?.routes.find((r) => r.date === date && r.techId === techId)?.anchorId === row.id ? "Starting here" : "From here"}</button>` : ""}</td>` : ""}
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`;
+  }
+  function optimizerTechDetail(group) {
+    const date = group.routes.some((r) => r.date === state.optimizerFocusDay)
+      ? state.optimizerFocusDay
+      : group.routes[0].date;
+    const route = group.routes.find((r) => r.date === date) || group.routes[0];
+    const originalStops = route.originalStopIds.map((id) => state.data.stops.find((s) => s.id === id)).filter(Boolean);
+    const optimizedStops = route.optimized.map((x) => state.data.stops.find((s) => s.id === x.id)).filter(Boolean);
+    const originalTimeline = optimizerTimeline(route.techId, originalStops, true);
+    const optimizedTimeline = optimizerTimeline(route.techId, optimizedStops, false);
+    const unreachable = route.unreachableIds.map((id) => state.data.stops.find((s) => s.id === id)).filter(Boolean);
+    return `
+      <div class="opt-tech-detail">
+        ${group.routes.length > 1 ? `
+          <div class="seg" style="margin-bottom:12px">
+            ${group.routes.map((r) => `<button class="${r.date === route.date ? "on" : ""}" data-act="optimizer-detail" data-tech="${esc(group.techId)}" data-date="${esc(r.date)}">${esc(r.day)} · ${esc(r.date)}</button>`).join("")}
+          </div>
+        ` : `<p class="tiny" style="margin-bottom:10px">${esc(route.day)} · ${esc(route.date)} · starts and ends at ${esc(techBy(route.techId)?.home || "home")}</p>`}
+        <table class="mini-table opt-metric-table">
+          <thead><tr><th>Metric</th><th>Original</th><th>Optimized</th></tr></thead>
+          <tbody>
+            <tr><td>Stops</td><td>${route.originalStopIds.length}</td><td>${route.optimized.length}</td></tr>
+            <tr><td>Unscheduled / unreachable</td><td>0</td><td>${route.unreachableIds.length}</td></tr>
+            <tr><td>Service duration</td><td>${fmtHours(route.originalServiceMin || route.serviceMin)}</td><td>${fmtHours(route.serviceMin)}</td></tr>
+            <tr><td>Drive time</td><td>${fmtHours(route.beforeDrive)}</td><td class="${optimizerDriveClass(route.beforeDrive, route.afterDrive)}">${fmtHours(route.afterDrive)}</td></tr>
+            <tr><td>Production value</td><td>${money(route.originalProduction || route.production)}</td><td>${money(route.production)}</td></tr>
+          </tbody>
+        </table>
+        <h4 class="section-gap">Optimized order</h4>
+        <p class="tiny">Arrive and depart are clock times. Drive to next is travel after leaving the stop, including the return home.</p>
+        ${optimizerOrderTable(optimizedTimeline, route.date, route.techId, true)}
+        <h4 class="section-gap">Original order</h4>
+        ${optimizerOrderTable(originalTimeline, route.date, route.techId, false)}
+        ${unreachable.length ? `<div class="notice locked section-gap"><strong>Unreachable</strong><p class="tiny">These stay on their original schedule when this run is committed.</p>${unreachable.map((s) => `<div>${esc(stopLabel(s))} · ${fmtClockTime(s.time)}</div>`).join("")}</div>` : ""}
       </div>`;
   }
 
   function viewOptimizer() {
+    if (state.optimizerScreen === "history") return viewOptimizerHistory();
     const preview = state.optimizerPreview;
+    const groups = preview ? optimizerTechGroups(preview) : [];
     return `
       ${head("Multi-Day Route Optimizer", "Build a route preview across several days. Nothing moves on the live schedule until you commit it.")}
       ${writeBar("schedule.optimize", "Optimize routes")}
-      <div class="card opt-setup">
+      <div class="card opt-section">
+        <h3>Select orders to optimize</h3>
         <div class="opt-fields">
           <div class="field"><label for="opt-start">Start date</label><input id="opt-start" type="date" value="${esc(preview?.config.startDate || DAY_DATES.Tue)}"></div>
           <div class="field"><label for="opt-end">End date</label><input id="opt-end" type="date" value="${esc(preview?.config.endDate || DAY_DATES.Wed)}"></div>
-          <div class="field"><label for="opt-tech">Trapper</label><select id="opt-tech"><option value="all">All trappers</option>${TECHS.map((t) => `<option value="${t.id}" ${preview?.config.techId === t.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select></div>
+          <div class="field"><label for="opt-tech">Technicians</label><select id="opt-tech"><option value="all">All</option>${TECHS.map((t) => `<option value="${t.id}" ${preview?.config.techId === t.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select></div>
         </div>
-        <div class="opt-locks">
-          <label class="check-row"><input id="opt-keep-date" type="checkbox" ${preview?.config.keepDate !== false ? "checked" : ""}> Keep each stop on its current date</label>
-          <label class="check-row"><input id="opt-keep-tech" type="checkbox" ${preview?.config.keepTech !== false ? "checked" : ""}> Keep each stop with its current trapper</label>
+      </div>
+      <div class="card opt-section">
+        <h3>Flexibility</h3>
+        <label class="check-row"><input id="opt-keep-date" type="checkbox" ${preview?.config.keepDate !== false ? "checked" : ""}> Keep orders on their current work date (this optimizer only resequences, never moves a stop to a different date)</label>
+        <label class="check-row"><input id="opt-keep-tech" type="checkbox" ${preview?.config.keepTech !== false ? "checked" : ""}> Keep orders on their current technician (never reassigns a stop to a different technician)</label>
+      </div>
+      <div class="card opt-section">
+        <h3>Work day overrides</h3>
+        <p class="tiny">All optional — leave blank for no cap. Applied independently to each date in range. Stops that do not fit, in sequence order, are reported as unreachable for that day rather than silently dropped.</p>
+        <div class="opt-limit-grid">
+          ${optimizerLimitField("leave-open", "Time to leave open per day", "min")}
+          ${optimizerLimitField("min-jobs", "Min jobs per day", "jobs")}
+          ${optimizerLimitField("max-jobs", "Max jobs per day", "jobs")}
+          ${optimizerLimitField("max-service", "Max service duration per day", "min")}
+          ${optimizerLimitField("max-working", "Max working duration per day", "min")}
+          ${optimizerLimitField("max-drive", "Max drive time per day", "min")}
+          ${optimizerLimitField("min-production", "Min production value per day", "$")}
+          ${optimizerLimitField("max-production", "Max production value per day", "$")}
         </div>
-        <details class="opt-limits">
-          <summary>Daily route limits <span class="tiny">Optional · applied to each trapper and day</span></summary>
-          <div class="opt-limit-grid">
-            ${optimizerLimitField("leave-open", "Leave open", "min")}
-            ${optimizerLimitField("min-jobs", "Minimum jobs", "jobs")}
-            ${optimizerLimitField("max-jobs", "Maximum jobs", "jobs")}
-            ${optimizerLimitField("max-service", "Maximum service", "min")}
-            ${optimizerLimitField("max-working", "Maximum working", "min")}
-            ${optimizerLimitField("max-drive", "Maximum drive", "min")}
-            ${optimizerLimitField("min-production", "Minimum production", "$")}
-            ${optimizerLimitField("max-production", "Maximum production", "$")}
-          </div>
-        </details>
-        <div class="actions opt-actions">
-          <button class="btn btn-primary" data-act="optimizer-run">Start Optimization</button>
-          <button class="btn btn-ghost" data-act="optimizer-history">View Run History</button>
-        </div>
+      </div>
+      <div class="actions opt-actions">
+        <button class="btn btn-primary" data-act="optimizer-run">Start Optimization</button>
+        <button class="btn btn-ghost" data-act="optimizer-history">View in run history</button>
       </div>
       ${preview ? `
         <div class="opt-results">
           <div class="opt-results-head">
-            <div><h2>Optimization preview</h2><p class="muted">Review every route and any stops that could not fit.</p></div>
-            <span class="badge badge-warn">Not committed</span>
+            <div><h2>Optimization preview</h2><p class="muted">One row per trapper. Open a route to see arrive, depart, and drive to the next stop.</p></div>
+            <span class="badge ${preview.committed ? "badge-ok" : "badge-warn"}">${preview.committed ? "Committed" : "Not committed"}</span>
           </div>
           ${optimizerSummary(preview)}
           <div class="card opt-route-list">
-            ${preview.routes.map(optimizerResultRow).join("") || `<p class="muted">No scheduled stops matched these dates and trappers.</p>`}
+            <div class="opt-tech-head">
+              <span>Technician</span><span>Stops orig → opt</span><span>Unreachable</span><span>Service duration</span><span>Drive time</span><span>Production value</span><span>Status</span><span></span>
+            </div>
+            ${groups.map(optimizerTechRow).join("") || `<p class="muted">No scheduled stops matched these dates and trappers.</p>`}
           </div>
           <div class="actions opt-commit-bar">
             <button class="btn btn-primary" data-act="optimizer-commit" ${preview.stopCount ? "" : "disabled"}>Commit This Run</button>
@@ -5049,52 +5900,98 @@
     `;
   }
 
-  function openOptimizerDetail(date, techId) {
-    const preview = state.optimizerPreview;
-    const route = preview?.routes.find((r) => r.date === date && r.techId === techId);
-    if (!route) return;
-    const current = route.originalStopIds.map((id) => state.data.stops.find((s) => s.id === id)).filter(Boolean);
-    const optimized = route.optimized.map((x) => ({ ...state.data.stops.find((s) => s.id === x.id), optimizedTime: x.time })).filter((s) => s.id);
-    const unreachable = route.unreachableIds.map((id) => state.data.stops.find((s) => s.id === id)).filter(Boolean);
-    const orderList = (rows, optimizedOrder = false) => rows.map((s, i) => `
-      <div class="opt-stop-row">
-        <span class="opt-order">${i + 1}</span>
-        <div><strong>${esc(stopLabel(s))}</strong><div class="tiny">${esc(optimizedOrder ? s.optimizedTime : s.time)} · ${Number(s.durationMin || 0)} min</div></div>
-        ${optimizedOrder ? `<button class="btn btn-ghost btn-small" data-act="optimizer-anchor" data-date="${esc(date)}" data-tech="${esc(techId)}" data-stop="${esc(s.id)}">${route.anchorId === s.id ? "Starting here" : "Optimize from here"}</button>` : ""}
-      </div>`).join("") || `<p class="muted">No stops.</p>`;
-    state.modal = {
-      wide: true,
-      html: `
-        <div class="modal-head"><div><h3>${esc(techName(techId))} · ${esc(route.day)} route</h3><p class="muted">${esc(date)} · starts and ends at ${esc(techBy(techId)?.home || "home")}</p></div><button class="icon-btn" data-act="close-modal">×</button></div>
-        <div class="opt-compare">
-          <div><h4>Current order</h4>${orderList(current)}</div>
-          <div><h4>Optimized order</h4>${orderList(optimized, true)}</div>
+  function viewOptimizerHistory() {
+    const rows = (state.data.optimizerRuns || []).slice().reverse();
+    return `
+      ${head("Optimizer Run History", "Every optimization run, previewed or committed — modeled on the current system’s RouteOp Dynamic Planner run history.")}
+      ${writeBar("schedule.optimize", "Optimize routes")}
+      <div class="card opt-history-card">
+        <div class="opt-history-head">
+          <span>Date range</span>
+          <span>Technicians</span>
+          <span>Start time</span>
+          <span>Optimized by</span>
+          <span>Status</span>
+          <span></span>
         </div>
-        ${unreachable.length ? `<div class="notice locked section-gap"><strong>Unreachable</strong><p class="tiny">These stay on their original schedule when this run is committed.</p>${unreachable.map((s) => `<div>${esc(stopLabel(s))} · ${esc(s.time)}</div>`).join("")}</div>` : ""}
-        <div class="actions section-gap"><button class="btn btn-primary" data-act="close-modal">Done</button></div>`,
-    };
-    render();
+        ${rows.map((run) => `
+          <div class="opt-history-row">
+            <div><strong>${esc(fmtUsDate(run.startDate))} – ${esc(fmtUsDate(run.endDate))}</strong></div>
+            <div>${esc(optimizerRunTechLabel(run))}</div>
+            <div>${esc(fmtStartTime(run.startedAt || run.createdAt))}</div>
+            <div>${esc(run.createdBy || "Rick Torgerson")}</div>
+            <div>${run.committed
+              ? `<span class="badge badge-ok">Committed ${esc(fmtUsDate(run.committedAt || run.endDate || run.startDate))}</span>`
+              : `<span class="badge badge-warn">Preview only</span>`}</div>
+            <div class="opt-history-actions">
+              <button class="btn btn-ghost btn-small" data-act="optimizer-view-run" data-id="${esc(run.id)}">View</button>
+              <button class="btn btn-ghost btn-small" data-act="optimizer-delete-run" data-id="${esc(run.id)}">Delete</button>
+            </div>
+          </div>`).join("") || `<p class="muted" style="padding:18px 0">No optimizer runs yet. Start one to see it here.</p>`}
+      </div>
+      <div class="actions opt-actions">
+        <button class="btn btn-primary" data-act="optimizer-new">+ New Optimization</button>
+      </div>
+    `;
   }
 
   function openOptimizerHistory() {
-    const rows = (state.data.optimizerRuns || []).slice().reverse();
-    state.modal = {
-      wide: true,
-      html: `
-        <div class="modal-head"><div><h3>Optimizer run history</h3><p class="muted">Previous previews and committed route changes.</p></div><button class="icon-btn" data-act="close-modal">×</button></div>
-        <div class="opt-history">
-          ${rows.map((run) => `
-            <div class="opt-history-row">
-              <div><strong>${esc(run.id)}</strong><div class="tiny">${esc(run.createdAt)} · ${esc(run.createdBy || "Rick Torgerson")}</div></div>
-              <div><span class="tiny">Dates</span><strong>${esc(run.startDate)} → ${esc(run.endDate)}</strong></div>
-              <div><span class="tiny">Stops</span><strong>${Number(run.stopCount || 0)}</strong></div>
-              <div><span class="tiny">Drive</span><strong>${fmtDur(run.beforeDrive)} → ${fmtDur(run.afterDrive)}</strong></div>
-              <div>${run.unreachable ? `<span class="badge badge-bad">${run.unreachable} unreachable</span>` : `<span class="badge badge-ok">All fit</span>`}</div>
-              <span class="badge ${run.committed ? "badge-ok" : "badge-mute"}">${run.committed ? "Committed" : "Preview only"}</span>
-            </div>`).join("") || `<p class="muted">No optimizer runs yet.</p>`}
-        </div>
-        <div class="actions section-gap"><button class="btn btn-primary" data-act="close-modal">Close</button></div>`,
-    };
+    state.modal = null;
+    state.optimizerScreen = "history";
+    render();
+  }
+
+  function openOptimizerNew() {
+    state.modal = null;
+    state.optimizerScreen = "setup";
+    state.optimizerFocusTech = null;
+    state.optimizerFocusDay = null;
+    render();
+  }
+
+  function viewSavedOptimizerRun(id) {
+    const run = (state.data.optimizerRuns || []).find((r) => r.id === id);
+    if (!run) return;
+    if (run.routes && run.routes.some((r) => (r.originalStopIds || r.optimized || []).length)) {
+      state.optimizerScreen = "setup";
+      state.optimizerFocusTech = null;
+      state.optimizerFocusDay = null;
+      state.optimizerPreview = {
+        ...run,
+        config: run.config || {
+          startDate: run.startDate,
+          endDate: run.endDate,
+          techId: (run.techIds || []).length === 1 ? run.techIds[0] : "all",
+          techIds: optimizerRunTechIds(run),
+          keepDate: true,
+          keepTech: true,
+          limits: {},
+        },
+      };
+      render();
+      return;
+    }
+    toast("This history row is a summary. Use + New Optimization to build a live preview.");
+  }
+
+  function deleteOptimizerRun(id) {
+    const list = state.data.optimizerRuns || [];
+    const index = list.findIndex((r) => r.id === id);
+    if (index < 0) return;
+    list.splice(index, 1);
+    if (state.optimizerPreview?.id === id) {
+      state.optimizerPreview = null;
+      state.optimizerAnchors = {};
+    }
+    persist();
+    toast("Optimizer run deleted.");
+    render();
+  }
+
+  function openOptimizerDetail(date, techId) {
+    if (!techId) return;
+    state.optimizerFocusTech = techId;
+    state.optimizerFocusDay = date || state.optimizerPreview?.routes.find((r) => r.techId === techId)?.date || null;
     render();
   }
 
@@ -5126,19 +6023,23 @@
   }
 
   function compactOptimizerRun(preview) {
+    const techIds = optimizerRunTechIds(preview);
     return {
       id: preview.id,
       createdAt: preview.createdAt,
+      startedAt: preview.startedAt || preview.createdAt,
       createdBy: preview.createdBy,
       startDate: preview.config.startDate,
       endDate: preview.config.endDate,
-      techIds: preview.config.techIds,
+      config: preview.config,
+      techIds,
       stopCount: preview.stopCount,
       routeCount: preview.routeCount,
       beforeDrive: preview.beforeDrive,
       afterDrive: preview.afterDrive,
       unreachable: preview.unreachable,
       committed: !!preview.committed,
+      committedAt: preview.committedAt || (preview.committed ? optimizerNowStamp().slice(0, 10) : null),
       routes: preview.routes.map((r) => ({
         date: r.date,
         day: r.day,
@@ -5147,6 +6048,16 @@
         unreachable: r.unreachableIds.length,
         beforeDrive: r.beforeDrive,
         afterDrive: r.afterDrive,
+        originalStopIds: r.originalStopIds,
+        optimized: r.optimized,
+        unreachableIds: r.unreachableIds,
+        serviceMin: r.serviceMin,
+        workingMin: r.workingMin,
+        production: r.production,
+        originalServiceMin: r.originalServiceMin,
+        originalProduction: r.originalProduction,
+        warnings: r.warnings,
+        anchorId: r.anchorId,
       })),
     };
   }
@@ -5201,6 +6112,7 @@
       });
     });
     preview.committed = true;
+    preview.committedAt = TODAY;
     saveOptimizerRun(preview);
     state.optimizerPreview = null;
     state.optimizerAnchors = {};
@@ -5221,7 +6133,7 @@
       <p class="tiny" style="margin-bottom:8px">Week of 24 Aug 2026 — this week’s live stops.</p>
       <div class="week">
         <div></div>
-        ${DAYS.map((d) => `<div class="head">${d}<div class="tiny">${DAY_DATES[d]}</div></div>`).join("")}
+        ${DAYS.map((d) => `<div class="head${isDayBlocked(d) ? " blocked" : ""}">${d}<div class="tiny">${DAY_DATES[d]}${isDayBlocked(d) ? " · no service" : ""}</div></div>`).join("")}
         ${cells}
       </div>
     `;
@@ -5240,11 +6152,13 @@
       const wd = wdNames[new Date(year, month, d).getDay()];
       const stops = DAYS.includes(wd) ? state.data.stops.filter((s) => s.day === wd && !s.pending) : [];
       const today = iso === TODAY;
+      const blocked = isIsoBlocked(iso);
       cells.push(`
-        <div class="month-cell ${today ? "today" : ""}">
-          <div class="month-num">${d} <span class="tiny">${wd}</span></div>
-          ${stops.slice(0, 4).map((s) => `<div class="month-stop">${esc(techName(s.techId).slice(0, 1))} ${esc(stopLabel(s))}</div>`).join("")}
-          ${stops.length > 4 ? `<div class="tiny">+${stops.length - 4} more</div>` : ""}
+        <div class="month-cell ${today ? "today" : ""} ${blocked ? "blocked-day" : ""}">
+          <div class="month-num">${d} <span class="tiny">${wd}${blocked ? " · blocked" : ""}</span></div>
+          ${blocked ? `<div class="tiny">${esc(blackoutForIso(iso)?.reason || "No service")}</div>` : ""}
+          ${blocked ? "" : stops.slice(0, 4).map((s) => `<div class="month-stop">${esc(techName(s.techId).slice(0, 1))} ${esc(stopLabel(s))}</div>`).join("")}
+          ${!blocked && stops.length > 4 ? `<div class="tiny">+${stops.length - 4} more</div>` : ""}
         </div>`);
     }
     return `
@@ -5257,8 +6171,13 @@
   }
 
   function stopChip(s) {
-    const cls = s.type === "oneoff" ? "oneoff" : s.status === "missed" || s.status === "noshow" || s.status === "blocked" ? "missed" : "";
-    return `<div class="stop ${cls}"><div class="t">${esc(s.time)} · ${esc(stopLabel(s))}</div><div class="m">${s.durationMin}m · ${esc(s.status)}</div></div>`;
+    const cls = s.type === "oneoff" ? "oneoff"
+      : s.status === "blocked_off" ? "blocked-off"
+      : s.status === "missed" || s.status === "noshow" || s.status === "blocked" ? "missed" : "";
+    const detail = s.status === "blocked_off"
+      ? (s.blockReason || "Company day off")
+      : (s.reason ? `${s.status} · ${s.reason}` : s.status);
+    return `<div class="stop ${cls}"><div class="t">${esc(s.time)} · ${esc(stopLabel(s))}</div><div class="m">${s.durationMin}m · ${esc(detail)}</div></div>`;
   }
 
   function mapRoadsSvg() {
@@ -5883,17 +6802,45 @@
 
   function viewNoshows() {
     const marked = state.data.stops.filter((s) => s.status === "noshow" || s.status === "missed");
+    const blockedOff = state.data.stops.filter((s) => s.status === "blocked_off" && !s.pending);
     const pendingExt = state.data.stops.filter((s) => s.pendingExt);
-    const thuJohnny = state.data.stops.filter((s) => s.techId === "johnny" && s.day === "Thu" && s.status === "scheduled");
+    const openStops = state.data.stops
+      .filter((s) => !s.pending && (s.status === "scheduled" || s.status === "in_progress"))
+      .sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || String(a.time).localeCompare(String(b.time)));
+    const blocks = calendarBlocks();
+    const thisWeekBlocked = DAYS.filter(isDayBlocked);
     return `
-      ${head("Missed visits", "Gate, weather, private event — log it. You decide on an extension. No automatic make-up visit.")}
+      ${head("Missed visits & blocked dates", "A company meeting or holiday is a non-service day — no visit is created, nothing is marked missed, and contracts are not extended. A no-show is a visit that was scheduled and could not be performed.")}
       ${writeBar("noshow.mark", "Mark no-show")}
+      <div class="ns-rules">
+        <div class="ns-rule">
+          <span class="badge badge-mute">Blocked date</span>
+          <strong>Company meeting / holiday</strong>
+          <p>Known in advance. Master calendar excludes the day. No appointment, no miss, no extension.</p>
+        </div>
+        <div class="ns-rule">
+          <span class="badge badge-warn">Company / tech</span>
+          <strong>Sick, mechanical</strong>
+          <p>The stop existed. Mark no-show. Contract gets +1 visit. Bulk-mark a trapper’s remaining stops.</p>
+        </div>
+        <div class="ns-rule">
+          <span class="badge badge-bad">Customer fault</span>
+          <strong>Gate / not home</strong>
+          <p>Technician arrived. Log reason and note. Contract is not extended.</p>
+        </div>
+        <div class="ns-rule">
+          <span class="badge badge-sea">Weather / other</span>
+          <strong>Review</strong>
+          <p>Log the miss. Rick approves or denies an extra visit — it is not automatic.</p>
+        </div>
+      </div>
       ${pendingExt.length ? `
         <div class="card" style="margin-bottom:16px">
           <h3>Waiting on an extension decision</h3>
+          <p class="tiny">Weather and unusual reasons wait here. Company/tech fault already extended; customer fault never does.</p>
           ${pendingExt.map((s) => `
             <div class="fit-row">
-              <div><strong>${esc(stopLabel(s))}</strong><div class="tiny">${esc(s.reason || "Miss")} · ${esc(s.fault || "")}</div></div>
+              <div><strong>${esc(stopLabel(s))}</strong><div class="tiny">${esc(s.day)} · ${esc(techName(s.techId))} · ${esc(s.reason || "Miss")}${s.missNote ? " · " + esc(s.missNote) : ""}</div></div>
               <div class="actions">
                 ${btn("noshow.mark", "Approve +1 visit", "ext-yes", `data-id="${s.id}"`)}
                 ${btn("noshow.mark", "Deny", "ext-no", `data-id="${s.id}"`, "btn-ghost")}
@@ -5902,27 +6849,90 @@
           `).join("")}
         </div>
       ` : ""}
-      <div class="grid-3">
+      <div class="split">
         <div class="card">
-          <h3>Macro · company day off</h3>
-          <p class="muted">Block a date so nothing is marked missed.</p>
-          ${btn("blackout.edit", "Block Fri 28 Aug (meeting)", "macro-block")}
-          ${state.data.blackout.length ? `<p class="tiny">Blocked: ${state.data.blackout.join(", ")}</p>` : ""}
+          <h3>Master calendar · OPS-12a / OPS-13</h3>
+          <p class="muted">Block a date company-wide. The engine will not schedule anyone. This week’s board is 24–28 Aug 2026 — block Friday to see it live.</p>
+          <div class="ns-form-row">
+            <div class="field"><label>Date</label><input id="bo-date" type="date" value="2026-08-28"></div>
+            <div class="field"><label>Type</label>
+              <select id="bo-kind">
+                <option value="meeting">Company meeting</option>
+                <option value="holiday">Holiday / closure</option>
+              </select>
+            </div>
+          </div>
+          <div class="field"><label>Reason</label><input id="bo-reason" placeholder="Company meeting, Thanksgiving, July 4th…"></div>
+          ${btn("blackout.edit", "Block this date", "add-blackout")}
+          ${thisWeekBlocked.length ? `<p class="tiny" style="margin-top:8px">This week excluded: ${thisWeekBlocked.map((d) => `${d} ${DAY_DATES[d]}`).join(", ")}.</p>` : ""}
+          ${blocks.length ? `
+            <table class="mini-table" style="width:100%;margin-top:12px">
+              <thead><tr><th>Date</th><th>Kind</th><th>Reason</th><th></th></tr></thead>
+              <tbody>
+                ${blocks.map((b) => `<tr>
+                  <td>${esc(b.date)}${DAYS.find((d) => DAY_DATES[d] === b.date) ? ` <span class="tiny">· this week</span>` : ""}</td>
+                  <td>${esc(b.kind === "holiday" ? "Holiday" : "Meeting")}</td>
+                  <td>${esc(b.reason)}</td>
+                  <td>${btn("blackout.edit", "Remove", "remove-blackout", `data-kind="${esc(b.kind)}" data-date="${esc(b.date)}"`, "btn-ghost")}</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          ` : `<p class="tiny" style="margin-top:8px">No blocked dates yet besides seeded holidays.</p>`}
         </div>
         <div class="card">
-          <h3>Technician / weather</h3>
-          <p class="muted">Mark remaining Thursday stops for Johnny. You will choose whether to extend — it is not automatic.</p>
-          ${btn("noshow.mark", `Mark ${thuJohnny.length} remaining`, "noshow-company")}
-        </div>
-        <div class="card">
-          <h3>Customer fault</h3>
-          <p class="muted">Gated, no answer, unannounced event — log the miss. Extension stays off unless you approve it.</p>
-          ${btn("noshow.mark", "Mark Walsh Wed as customer miss", "noshow-customer", "", "btn-warn")}
+          <h3>Technician absence · OPS-12b</h3>
+          <p class="muted">Pedro sick, or a flat tire mid-route: mark that trapper’s remaining stops as no-show. Do not use this for a company meeting.</p>
+          <div class="ns-form-row">
+            <div class="field"><label>Trapper</label>
+              <select id="ns-tech">${TECHS.map((t) => `<option value="${t.id}" ${t.id === "johnny" ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select>
+            </div>
+            <div class="field"><label>Day</label>
+              <select id="ns-day">${DAYS.map((d) => `<option value="${d}" ${d === "Thu" ? "selected" : ""}>${d} ${DAY_DATES[d]}</option>`).join("")}</select>
+            </div>
+          </div>
+          <div class="field"><label>Reason</label>
+            <select id="ns-reason">${allReasons().map((r) => `<option value="${esc(r.id)}" ${r.id === "sick" ? "selected" : ""}>${esc(r.label)} — ${esc(reasonRuleLabel(r))}</option>`).join("")}</select>
+          </div>
+          <label class="ns-check"><input type="checkbox" id="ns-remaining" checked> Only remaining stops (leave completed visits alone)</label>
+          ${btn("noshow.mark", "Mark those stops no-show", "bulk-noshow")}
+          <p class="tiny" style="margin-top:8px">If another trapper can take the work, reassign the stop on the map instead of skipping it.</p>
         </div>
       </div>
       <div class="card section-gap">
-        <h3>Logged this session</h3>
-        ${table(["Stop", "Reason", "Fault", "Contract"], marked.map((s) => [s.id, s.reason || "—", s.fault || "—", s.pendingExt ? "Awaiting decision" : s.extended ? "Extended +1 visit" : "Not extended"]))}
+        <h3>Scheduled this week — mark one stop</h3>
+        <p class="tiny">Customer-fault (gate, not home) does not extend the contract. Mechanical / illness does. Weather waits for approval.</p>
+        ${openStops.length ? table(
+          ["Day", "Time", "Stop", "Trapper", ""],
+          openStops.map((s) => [
+            s.day,
+            s.time || "—",
+            esc(stopLabel(s)),
+            esc(techName(s.techId)),
+            btn("noshow.mark", "No-show", "open-mark-stop", `data-id="${s.id}"`, "btn-warn"),
+          ])
+        ) : `<p class="muted">No open stops this week.</p>`}
+      </div>
+      ${blockedOff.length ? `
+        <div class="card section-gap">
+          <h3>Company day off — not missed</h3>
+          <p class="tiny">These stops were never meant to run. They are not no-shows and they did not extend a contract.</p>
+          ${table(["Day", "Stop", "Trapper", "Reason"], blockedOff.map((s) => [s.day, esc(stopLabel(s)), esc(techName(s.techId)), esc(s.blockReason || blackoutForIso(DAY_DATES[s.day])?.reason || "Company day off")]))}
+        </div>
+      ` : ""}
+      <div class="card section-gap">
+        <h3>Service history · missed visits</h3>
+        <p class="tiny">A miss stays on the account so operations can later answer why a customer received an extra visit.</p>
+        ${marked.length ? table(
+          ["Day", "Stop", "Trapper", "Reason", "Fault", "Contract"],
+          marked.map((s) => [
+            s.day,
+            esc(stopLabel(s)),
+            esc(techName(s.techId)),
+            `${esc(s.reason || "—")}${s.missNote ? `<div class="tiny">${esc(s.missNote)}</div>` : ""}`,
+            s.fault === "customer" ? "Customer" : "Company / tech",
+            s.pendingExt ? "Awaiting decision" : s.extended ? `+1 visit${s.extendedUntil ? " through " + s.extendedUntil : ""}` : "Not extended",
+          ])
+        ) : `<p class="muted">No missed visits logged yet.</p>`}
       </div>
     `;
   }
@@ -5988,14 +6998,147 @@
     `;
   }
 
-  function viewWorkload() {
+  function workloadStops(techId) {
+    return (state.data.stops || [])
+      .filter((s) => s.techId === techId && !s.pending)
+      .sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || String(a.time || "").localeCompare(String(b.time || "")));
+  }
+  function stopOnSiteMin(s) {
+    if (!s || s.status === "blocked_off" || s.status === "blocked") return 0;
+    return Number(s.durationMin || 0);
+  }
+  function stopPlace(s) {
+    const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+    return loc?.address || s.address || "";
+  }
+  function loadBadge(min) {
+    if (min >= 420) return `<span class="badge badge-bad">Heavy</span>`;
+    if (min >= 300) return `<span class="badge badge-warn">Full day</span>`;
+    if (min >= 120) return `<span class="badge badge-ok">Steady</span>`;
+    return `<span class="badge badge-sea">Light</span>`;
+  }
+  function techWorkloadSummary(t) {
+    const stops = workloadStops(t.id);
+    const onSite = stops.reduce((n, s) => n + stopOnSiteMin(s), 0);
+    const workDays = DAYS.filter((day) => stops.some((s) => s.day === day));
+    const daysLabel = workDays.length ? workDays.join(" · ") : "No live stops";
+    const extra = t.id === "bobby"
+      ? (state.data.customers.find((c) => c.id === "C-1108")?.locations.filter((l) => l.covered !== false).length || 0)
+      : 0;
+    return { t, stops, onSite, daysLabel, extra, customers: new Set(stops.map((s) => s.customerId).filter(Boolean)).size };
+  }
+  function workloadDayGroups(stops) {
+    return DAYS.map((day) => {
+      const list = stops.filter((s) => s.day === day);
+      if (!list.length) return null;
+      const onSite = list.reduce((n, s) => n + stopOnSiteMin(s), 0);
+      const first = list[0];
+      const last = list[list.length - 1];
+      const window = first?.time
+        ? `${fmtClockTime(first.time)} – ${addClock(last.time, last.durationMin || 0)}`
+        : "—";
+      return { day, date: DAY_DATES[day], list, onSite, window };
+    }).filter(Boolean);
+  }
+  function workloadStopRow(s, i, next) {
+    const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+    const planned = Number(s.durationMin || 0);
+    const leave = s.time ? addClock(s.time, planned) : "—";
+    const clocked = s.actualMin != null ? ` · clocked ${fmtHours(s.actualMin)}` : "";
+    const kind = s.type === "oneoff" ? "Task" : "Service";
+    const gap = next && s.time && next.time
+      ? timeToMin(next.time) - (timeToMin(s.time) + planned)
+      : null;
+    const gapHtml = gap == null ? ""
+      : gap < 0
+        ? `<div class="wl-gap overlap">Overlaps the next stop by ${fmtHours(Math.abs(gap))}</div>`
+        : gap >= 20
+          ? `<div class="wl-gap">Then ${fmtHours(gap)} to drive or break</div>`
+          : "";
     return `
-      ${head("Route / workload", "Next few days by trapper, in stop order. Busy routes show every stop.")}
-      ${TECHS.map((t) => {
-        const ss = state.data.stops.filter((s) => s.techId === t.id && !s.pending).sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || String(a.time).localeCompare(String(b.time)));
-        const extra = t.id === "bobby" ? state.data.customers.find((c) => c.id === "C-1108")?.locations.filter((l) => l.covered !== false).length : 0;
-        return `<div class="card" style="margin-bottom:10px"><h3>${esc(t.name)} · ${esc(t.home)} · ${ss.length} timed stop${ss.length === 1 ? "" : "s"}${extra ? ` · ${extra} HOA lots on the map` : ""}</h3>${table(["Day", "Time", "Stop", "Min", "Type"], ss.map((s) => [s.day, s.time, stopLabel(s), s.durationMin, s.type === "oneoff" ? "Task" : "Service"]))}</div>`;
-      }).join("")}
+      <div class="wl-stop">
+        <div class="wl-stop-n">${i + 1}</div>
+        <div class="wl-stop-when">
+          <strong>${s.time ? `${fmtClockTime(s.time)} – ${leave}` : "No arrival time"}</strong>
+          <div class="tiny">${fmtHours(planned)} on site${clocked}</div>
+        </div>
+        <div class="wl-stop-who">
+          <strong>${esc(stopLabel(s))}</strong>
+          <div class="tiny">${esc(stopPlace(s) || loc?.name || kind)}</div>
+        </div>
+        <div class="wl-stop-meta">
+          ${statusBadge(s.status)}
+          <div class="tiny">${esc(kind)}</div>
+        </div>
+      </div>
+      ${gapHtml}
+    `;
+  }
+  function viewWorkload() {
+    const focusId = state.workloadTech && TECHS.some((t) => t.id === state.workloadTech) ? state.workloadTech : null;
+    const summaries = TECHS.map(techWorkloadSummary);
+    const focus = focusId ? summaries.find((s) => s.t.id === focusId) : null;
+    const chips = `
+      <div class="seg" style="margin-bottom:14px">
+        <button class="${!focusId ? "on" : ""}" data-act="open-workload" data-tech="">All trappers</button>
+        ${TECHS.map((t) => `<button class="${focusId === t.id ? "on" : ""}" data-act="open-workload" data-tech="${t.id}">${esc(t.name)}</button>`).join("")}
+      </div>`;
+    if (focus) {
+      const days = workloadDayGroups(focus.stops);
+      return `
+        ${head(`${focus.t.name}’s route`, `${focus.t.home} · this week’s stops in order. Arrival is clock time; on site is how long they stay.`)}
+        ${chips}
+        <div class="grid-4">
+          ${stat("Stops this week", focus.stops.length, "On the live board")}
+          ${stat("Time on site", fmtHours(focus.onSite), "Not including drive")}
+          ${stat("Customers", focus.customers, "On this route")}
+          ${stat("Days on route", focus.daysLabel, "This week")}
+        </div>
+        ${focus.extra ? `<p class="tiny section-gap">${focus.extra} HOA lots also sit on ${esc(focus.t.name)}’s map book.</p>` : ""}
+        ${days.length ? days.map((g) => `
+          <div class="card wl-day section-gap">
+            <div class="wl-day-head">
+              <div>
+                <h3>${g.day} · ${MONTHS[new Date(`${g.date}T12:00:00`).getMonth()]} ${Number(g.date.slice(8))}</h3>
+                <p class="tiny">${g.list.length} stop${g.list.length === 1 ? "" : "s"} · ${fmtHours(g.onSite)} on site · ${g.window}</p>
+              </div>
+              ${loadBadge(g.onSite)}
+            </div>
+            ${g.list.map((s, i) => workloadStopRow(s, i, g.list[i + 1])).join("")}
+          </div>
+        `).join("") : `<div class="card section-gap"><p class="muted">No timed stops on ${esc(focus.t.name)} this week.</p></div>`}
+        <p class="tiny section-gap">Drive time between properties is the gap after each stop — it is not billed as on-site minutes.</p>
+      `;
+    }
+    return `
+      ${head("Route workload", "Who is light vs loaded this week. Open a trapper to see arrive / leave / time on site.")}
+      ${chips}
+      <div class="wl-tech-grid">
+        ${summaries.map((row) => `
+          <button type="button" class="wl-tech-card" data-act="open-workload" data-tech="${row.t.id}">
+            <div class="wl-tech-card-top">
+              <i class="dot" style="background:${row.t.color}"></i>
+              <strong>${esc(row.t.name)}</strong>
+              ${loadBadge(row.onSite)}
+            </div>
+            <p class="tiny">${esc(row.t.home)}</p>
+            <dl class="wl-tech-stats">
+              <div><dt>Stops</dt><dd>${row.stops.length}</dd></div>
+              <div><dt>On site</dt><dd>${esc(fmtHours(row.onSite))}</dd></div>
+              <div><dt>Days</dt><dd>${esc(row.daysLabel)}</dd></div>
+            </dl>
+            <div class="wl-week-strip">
+              ${DAYS.map((day) => {
+                const list = row.stops.filter((s) => s.day === day);
+                const min = list.reduce((n, s) => n + stopOnSiteMin(s), 0);
+                const held = list.length && list.every((s) => s.status === "blocked" || s.status === "blocked_off");
+                return `<span class="${list.length ? "" : "mute"}"><b>${day}</b>${list.length ? `${list.length} · ${held ? "not working" : fmtHours(min)}` : "off"}</span>`;
+              }).join("")}
+            </div>
+          </button>
+        `).join("")}
+      </div>
+      <p class="tiny section-gap">Click a trapper for the stop-by-stop route. Clock times are arrive → leave. “On site” is how long they stay at the property, not drive time.</p>
     `;
   }
 
@@ -6011,7 +7154,7 @@
       else if (st === "PAID") act = `<span class="tiny">Paid ${esc(i.paidOn || "")}</span>`;
       else act = btn("payment.post", "Post / allocate", "open-record-pay", `data-id="${i.id}"`);
       return [
-        i.id,
+        i.id ? invoiceBtn(i.id) : "—",
         custBtn(i.customerId, c?.billTo || c?.name || "—"),
         esc(invProperty(i)),
         (can("invoice.send") || can("payment.post") || state.role === "owner") && st !== "PAID"
@@ -6020,13 +7163,13 @@
         money(paid),
         money(bal),
         statusBadge(st),
-        i.kind,
+        esc(invKindLabel(i.kind)),
         i.sent || "—",
         act,
       ];
     });
     return `
-      ${head("Invoices", "One invoice per property / period. OPEN, PARTIAL, or PAID from what’s allocated. Paid in full → Ops can set up service.")}
+      ${head("Invoices", "One invoice per property / period. OPEN, PARTIAL, or PAID from what’s allocated. Renewal invoices show the contract, service, and trapper bonus once paid.")}
       ${writeBar("invoice.send", "Send invoice")}
       <div class="actions" style="margin-bottom:10px">${btn("invoice.create", "Manual municipal invoice", "manual-invoice", "", "btn-ghost")}</div>
       ${table(["Invoice", "Bill-To", "Property", "Amount", "Paid", "Balance", "Status", "Kind", "Sent", ""], rows)}
@@ -6086,7 +7229,7 @@
         p.date,
         c ? `<button class="btn btn-ghost linkish" data-act="open-pay-row" data-id="${p.id}">${esc(c.billTo || c.name)}</button>` : "—",
         esc(p.method || "—"),
-        p.invoiceId || "—",
+        p.invoiceId ? invoiceBtn(p.invoiceId) : "—",
         can("payment.viewAmount") || isOps ? money(p.amount) : "—",
         status,
         `<div class="payment-row-actions">${act}</div>`,
@@ -6202,6 +7345,7 @@
     if (!available) return;
     allocatePaymentToInvoice(p, inv, available);
     const paid = invoiceFinStatus(inv) === "PAID";
+    const bonus = paid ? ensureTrapperBonusFromPayment(p, inv) : null;
     state.data.comms.unshift({
       id: nid("CM"),
       customerId: inv.customerId,
@@ -6212,7 +7356,11 @@
     });
     state.modal = null;
     state.payFocusId = null;
-    toast(paid ? `${inv.id} marked paid. Rick can continue with service.` : `${money(available)} allocated. ${money(invoiceBalance(inv))} remains.`);
+    toast(paid
+      ? (bonus && isRenewalInvoice(inv)
+        ? `${inv.id} marked paid. ${money2(bonus.amount)} trapper bonus is pending — allocate on Trapper bonuses.`
+        : `${inv.id} marked paid. Rick can continue with service.`)
+      : `${money(available)} allocated. ${money(invoiceBalance(inv))} remains.`);
     render();
   }
 
@@ -6384,17 +7532,259 @@
   }
 
   function viewCommission() {
-    const rows = state.data.commissions.map((b) => {
+    const filter = state.bonusFilter || "pending";
+    const all = trapperBonuses().slice().sort((a, b) => String(b.period || "").localeCompare(String(a.period || "")) || String(b.invoiceId || "").localeCompare(String(a.invoiceId || "")));
+    const pending = all.filter((b) => bonusStatusOf(b) === "pending");
+    const approved = all.filter((b) => bonusStatusOf(b) === "approved");
+    const paid = all.filter((b) => bonusStatusOf(b) === "paid");
+    const shown = filter === "approved" ? approved : filter === "paid" ? paid : pending;
+    const pendingSum = pending.reduce((s, b) => s + Number(b.amount || 0), 0);
+    const tabs = [
+      ["pending", `Pending (${pending.length})`],
+      ["approved", `Approved (${approved.length})`],
+      ["paid", `Paid / exported (${paid.length})`],
+    ];
+    const canEdit = can("commission.enter");
+    const rows = shown.map((b) => {
       const c = custBy(b.customerId);
-      return [b.period, custBtn(b.customerId, c?.name || "—"), money2(b.amount), b.splits.map((s) => `${techName(s.techId)} ${s.pct}% (${money2(s.dollars)})`).join(" · ")];
+      const loc = b.locationId ? locBy(b.customerId, b.locationId) : null;
+      return [
+        `<button class="btn btn-ghost linkish" data-act="open-bonus" data-id="${esc(b.id)}">${esc(b.paymentId || "—")}</button>`,
+        custBtn(b.customerId, c?.billTo || c?.name || "—"),
+        invoiceBtn(b.invoiceId),
+        money(b.paymentAmount || 0),
+        `<button class="btn btn-ghost linkish bonus-pool-link" data-act="open-bonus" data-id="${esc(b.id)}">${money2(b.amount)}</button>`,
+        esc(bonusAllocLabel(b)),
+        `<button class="btn btn-ghost linkish" data-act="open-bonus" data-id="${esc(b.id)}">${bonusStatusBadge(b)}</button>`,
+        loc ? `<span class="tiny">${esc(loc.name)}</span>` : "",
+      ];
     });
     return `
-      ${head("Commission / bonus", "Renewal pay only — not the first term. You enter the split by hand. Dollars only; ADP stays outside.")}
-      ${writeBar("commission.enter", "Enter split")}
-      <div class="actions" style="margin-bottom:12px">${btn("commission.enter", "Enter split on next renewal", "enter-comm")}</div>
-      ${table(["Period", "Account", "Bonus $", "Split"], rows)}
-      <p class="tiny">Default rate ${state.data.settings.commissionPct}%. Owner can read this. Christy’s team enters the split — not Ops.</p>
+      ${head("Trapper bonuses", "When a location’s renewal invoice is paid, 2% of that payment becomes a bonus pool. Staff decide who gets it here — not during payment entry.")}
+      ${writeBar("commission.enter", "Allocate bonus")}
+      <div class="card bonus-queue-head">
+        <div>
+          <div class="tiny" style="letter-spacing:0.08em;font-weight:700">TRAPPER BONUSES</div>
+          <strong>${esc(periodLabel(TODAY))}</strong>
+        </div>
+        <div class="bonus-queue-stats">
+          <div><span class="tiny">Pending bonus opportunities</span><strong>${pending.length}</strong></div>
+          <div><span class="tiny">Total pending</span><strong>${money2(pendingSum)}</strong></div>
+        </div>
+      </div>
+      <div class="seg section-gap">
+        ${tabs.map(([id, lab]) => `<button class="${filter === id ? "on" : ""}" data-act="bonus-filter" data-filter="${id}">${lab}</button>`).join("")}
+      </div>
+      ${table(["Payment", "Customer", "Renewal", "Amount", "Bonus pool", "Allocation", "Status", "Location"], rows, "bonus-queue-table")}
+      <p class="tiny">${canEdit ? "Click the bonus pool to split it among the trappers on that location." : "Owner can read this. Christy’s team enters the split — not Ops."} Default rate ${bonusRate()}%. First-term and monthly installment payments do not create a bonus.</p>
     `;
+  }
+
+  function captureBonusDraft() {
+    const rows = [];
+    document.querySelectorAll("[data-bonus-tech]").forEach((el) => {
+      const techId = el.getAttribute("data-bonus-tech");
+      const input = el.querySelector(".bonus-alloc-amt") || el.querySelector("input");
+      const dollars = Number(input?.value || 0);
+      if (techId) rows.push({ techId, dollars: Number.isFinite(dollars) ? dollars : 0 });
+    });
+    state.bonusDraft = rows;
+    return rows;
+  }
+  function openBonus(id) {
+    const b = trapperBonusById(id);
+    if (!b) return;
+    if (state.bonusFocusId !== id) state.bonusDraft = null;
+    state.bonusFocusId = id;
+    if (!state.bonusDraft) {
+      const splits = (b.splits || []).filter((s) => s.techId).map((s) => ({ techId: s.techId, dollars: Number(s.dollars || 0) }));
+      if (!splits.length) {
+        const ids = eligibleTrappersForLocation(b.customerId, b.locationId);
+        let left = Number(b.amount || 0);
+        ids.forEach((techId, i) => {
+          const share = i === ids.length - 1 ? +left.toFixed(2) : +(left / (ids.length - i)).toFixed(2);
+          left = +(left - share).toFixed(2);
+          splits.push({ techId, dollars: share });
+        });
+      }
+      state.bonusDraft = splits;
+    }
+    state.modal = { wide: true, html: bonusDetailHtml(b) };
+    render();
+  }
+  function bonusDetailHtml(b) {
+    const c = custBy(b.customerId);
+    const loc = b.locationId ? locBy(b.customerId, b.locationId) : null;
+    const inv = (state.data.invoices || []).find((i) => i.id === b.invoiceId);
+    const pay = (state.data.payments || []).find((p) => p.id === b.paymentId);
+    const draft = state.bonusDraft || [];
+    const remaining = bonusRemaining(b, draft);
+    const canEdit = can("commission.enter") && bonusStatusOf(b) !== "paid";
+    const usedIds = draft.map((s) => s.techId);
+    const addChoices = TECHS.filter((t) => !usedIds.includes(t.id));
+    const locked = bonusStatusOf(b) === "paid";
+    return `
+      <h3>Bonus details</h3>
+      <p class="tiny">2% of the qualifying renewal payment. Split the pool among the trappers who cover this location.</p>
+      <dl class="kv bonus-kv">
+        <dt>Customer</dt><dd>${custBtn(b.customerId, c?.billTo || c?.name || "—")}</dd>
+        <dt>Location</dt><dd>${loc
+          ? `<button class="btn btn-ghost linkish" data-act="open-location" data-id="${esc(b.customerId)}" data-loc="${esc(b.locationId)}">${esc(loc.address || loc.name)}</button>`
+          : "—"}</dd>
+        <dt>Invoice</dt><dd>${invoiceBtn(b.invoiceId)}${inv ? ` · ${esc(invKindLabel(inv.kind))}` : ""}</dd>
+        <dt>Payment</dt><dd>${esc(b.paymentId || "—")}${pay ? ` · ${esc(pay.method || "")} · ${esc(pay.date || "")}` : ""}</dd>
+        <dt>Renewal</dt><dd>${esc(b.renewalLabel || renewalLabelForInvoice(inv))}</dd>
+        <dt>Qualifying payment</dt><dd>${money2(b.paymentAmount || 0)}</dd>
+        <dt>Bonus rate</dt><dd>${esc(String(b.rate || bonusRate()))}%</dd>
+        <dt>Bonus pool</dt><dd><strong>${money2(b.amount)}</strong> ${bonusStatusBadge(b)}</dd>
+      </dl>
+      <div class="bonus-alloc-head">
+        <strong>Eligible / assigned trappers</strong>
+        ${canEdit && addChoices.length ? `
+          <div class="bonus-add">
+            <select id="bonus-add-tech">${addChoices.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("")}</select>
+            <button class="btn btn-ghost btn-small" data-act="bonus-add-trapper" data-id="${esc(b.id)}">+ Add trapper</button>
+          </div>` : ""}
+      </div>
+      <table class="mini-table bonus-alloc-table">
+        <thead><tr><th>Trapper</th><th>Allocation</th>${canEdit ? "<th></th>" : ""}</tr></thead>
+        <tbody>
+          ${draft.length ? draft.map((s) => `
+            <tr data-bonus-tech="${esc(s.techId)}">
+              <td>${esc(techName(s.techId))}</td>
+              <td>${canEdit
+                ? `<input class="bonus-alloc-amt" type="number" min="0" step="0.01" value="${esc(Number(s.dollars || 0).toFixed(2))}">`
+                : money2(s.dollars)}</td>
+              ${canEdit ? `<td><button class="btn btn-ghost btn-small" data-act="bonus-remove-trapper" data-id="${esc(b.id)}" data-tech="${esc(s.techId)}">Remove</button></td>` : ""}
+            </tr>`).join("") : `<tr><td colspan="3" class="muted">No trappers yet. Add the crew who cover this property.</td></tr>`}
+        </tbody>
+        <tfoot>
+          <tr><td>Total allocated</td><td>${money2(draft.reduce((s, x) => s + Number(x.dollars || 0), 0))}</td>${canEdit ? "<td></td>" : ""}</tr>
+          <tr class="${Math.abs(remaining) < 0.01 ? "" : "bonus-remain-warn"}"><td>Remaining</td><td>${money2(remaining)}</td>${canEdit ? "<td></td>" : ""}</tr>
+        </tfoot>
+      </table>
+      <div class="actions section-gap">
+        <button class="btn btn-ghost" data-act="close-modal">Close</button>
+        ${canEdit && !locked ? btn("commission.enter", "Save allocation", "save-bonus-alloc", `data-id="${b.id}"`, "btn-ghost") : ""}
+        ${canEdit && bonusStatusOf(b) === "pending" ? btn("commission.enter", "Approve bonus", "approve-bonus", `data-id="${b.id}"`, "btn-primary") : ""}
+        ${canEdit && bonusStatusOf(b) === "approved" ? btn("commission.enter", "Mark paid / exported", "export-bonus", `data-id="${b.id}"`, "btn-sun") : ""}
+      </div>
+    `;
+  }
+  function bonusAddTrapper(id) {
+    captureBonusDraft();
+    const techId = val("bonus-add-tech");
+    if (!techId) return;
+    if (!(state.bonusDraft || []).some((s) => s.techId === techId)) {
+      state.bonusDraft = (state.bonusDraft || []).concat({ techId, dollars: 0 });
+    }
+    openBonus(id);
+  }
+  function bonusRemoveTrapper(id, techId) {
+    captureBonusDraft();
+    state.bonusDraft = (state.bonusDraft || []).filter((s) => s.techId !== techId);
+    openBonus(id);
+  }
+  function saveBonusAlloc(id, { approve = false, exportPaid = false } = {}) {
+    if (!can("commission.enter")) return;
+    const b = trapperBonusById(id);
+    if (!b || bonusStatusOf(b) === "paid") return;
+    const splits = captureBonusDraft().filter((s) => s.techId);
+    const remaining = bonusRemaining(b, splits);
+    if (approve && Math.abs(remaining) > 0.009) {
+      toast(`Allocate the full ${money2(b.amount)} before approving. ${money2(remaining)} still remains.`);
+      openBonus(id);
+      return;
+    }
+    if (approve && !splits.some((s) => Number(s.dollars) > 0)) {
+      toast("Add at least one trapper with a dollar amount.");
+      openBonus(id);
+      return;
+    }
+    b.splits = splits;
+    if (approve) {
+      b.status = "approved";
+      b.approvedAt = TODAY;
+    }
+    if (exportPaid) {
+      if (bonusStatusOf(b) !== "approved" && Math.abs(remaining) > 0.009) {
+        toast("Approve the split before marking it paid.");
+        openBonus(id);
+        return;
+      }
+      b.status = "paid";
+      b.paidAt = TODAY;
+      if (!b.approvedAt) b.approvedAt = TODAY;
+    }
+    persist();
+    state.modal = null;
+    state.bonusDraft = null;
+    toast(exportPaid
+      ? `${money2(b.amount)} exported for ${custBy(b.customerId)?.name || "this account"}.`
+      : approve
+        ? `Bonus approved · ${bonusAllocLabel(b)}.`
+        : `Allocation saved. ${money2(bonusRemaining(b))} remaining.`);
+    render();
+  }
+  function openInvoice(id) {
+    const inv = (state.data.invoices || []).find((i) => i.id === id);
+    if (!inv) return;
+    const c = custBy(inv.customerId);
+    const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
+    const ct = inv.contractId
+      ? (state.data.contracts || []).find((x) => x.id === inv.contractId)
+      : contractForLoc(inv.customerId, inv.locationId);
+    const svcs = inv.locationId ? svcsFor(inv.customerId, inv.locationId) : [];
+    const pays = (state.data.payments || []).filter((p) => p.invoiceId === inv.id);
+    const st = invoiceFinStatus(inv);
+    const bonus = bonusForInvoice(inv.id);
+    const expectedPool = bonusPoolFor(allocated(inv.id) || Number(inv.amount || 0));
+    const renewal = isRenewalInvoice(inv);
+    const plan = loc ? locPlan(c, loc) : {};
+    const prog = progBy(plan.programId);
+    state.modal = {
+      wide: true,
+      html: `
+        <h3>${esc(inv.id)}</h3>
+        <p class="tiny">${esc(invKindLabel(inv.kind))} · ${statusBadge(st)} · sent ${esc(inv.sent || "—")}${inv.paidOn ? ` · paid ${esc(inv.paidOn)}` : ""}</p>
+        <div class="invoice-sheet">
+          <p>Bill-To ${esc(c?.billTo || c?.name || "—")}</p>
+          <p>Property ${esc(loc?.name || "—")} · ${esc(loc?.address || "")}</p>
+          <p>${esc(prog?.name || "Program")} · ${money(inv.amount)}</p>
+          ${renewal ? `<p class="tiny"><strong>Renewal invoice</strong> · ${esc(renewalLabelForInvoice(inv))}. This property already has service; payment funds the next term and opens a trapper bonus.</p>` : `<p class="tiny">This invoice is only for this property. Other properties on the same Bill-To have their own invoices.</p>`}
+        </div>
+        <dl class="kv bonus-kv">
+          <dt>Customer</dt><dd>${custBtn(inv.customerId, c?.billTo || c?.name || "—")}</dd>
+          <dt>Location</dt><dd>${loc
+            ? `<button class="btn btn-ghost linkish" data-act="open-location" data-id="${esc(inv.customerId)}" data-loc="${esc(inv.locationId)}">${esc(loc.name)}</button><div class="tiny">${esc(loc.address || "")}</div>`
+            : "—"}</dd>
+          <dt>Invoice type</dt><dd>${esc(invKindLabel(inv.kind))}${renewal ? " · trapper bonus eligible" : ""}</dd>
+          <dt>Amount</dt><dd>${money2(inv.amount)} · paid ${money2(allocated(inv.id))} · balance ${money2(invoiceBalance(inv))}</dd>
+          <dt>Contract</dt><dd>${ct ? `${esc(ct.id)} · ${esc(ct.program || "")}<div class="tiny">${esc(ct.startDate || "—")} → ${esc(ct.endDate || "—")} · ${esc(ct.status || "")}</div>` : "None linked"}</dd>
+          <dt>Service</dt><dd>${svcs.length
+            ? svcs.map((s) => `${esc(svcTypeLabel(s.type))} · ${esc(s.techId ? techName(s.techId) : "Unassigned")}<div class="tiny">${esc(s.days || "—")} · ${esc(s.start || "—")} → ${esc(s.expires || "—")}</div>`).join("")
+            : "No live service on this property"}</dd>
+          ${renewal ? `<dt>Renewal</dt><dd>${esc(renewalLabelForInvoice(inv))}</dd>` : ""}
+          <dt>Payments</dt><dd>${pays.length
+            ? pays.map((p) => `${esc(p.id)} · ${money2(p.amount)} · ${esc(p.method || "")} · ${esc(p.date || "")} · ${p.failed ? "Failed" : payNeedsMark(p) ? "Needs posting" : "Posted"}`).join("<br>")
+            : "None yet"}</dd>
+          ${renewal ? `<dt>Trapper bonus</dt><dd>${
+            bonus
+              ? `${money2(bonus.amount)} · ${bonusStatusBadge(bonus)} · ${esc(bonusAllocLabel(bonus))}<div class="tiny">${bonusRate()}% of ${money2(bonus.paymentAmount || 0)}</div>`
+              : st === "PAID"
+                ? `${money2(expectedPool)} will appear on Trapper bonuses (${bonusRate()}% of payment).`
+                : `Opens after this renewal is paid — ${bonusRate()}% of payment (${money2(expectedPool)} at face value).`
+          }</dd>` : `<dt>Trapper bonus</dt><dd class="muted">Only paid renewal invoices create a trapper bonus. Initial and monthly installments do not.</dd>`}
+        </dl>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Close</button>
+          ${inv.status === "draft" ? `<button class="btn btn-primary" data-act="confirm-invoice" data-id="${esc(inv.id)}">Send invoice</button>` : ""}
+          ${bonus ? `<button class="btn btn-primary" data-act="open-bonus" data-id="${esc(bonus.id)}">Open trapper bonus</button>` : ""}
+          ${st !== "PAID" && inv.status !== "draft" && can("payment.post") ? btn("payment.post", "Post / allocate", "open-record-pay", `data-id="${inv.id}"`) : ""}
+        </div>
+      `,
+    };
+    render();
   }
 
   function docKindLabel(kind) {
@@ -6481,15 +7871,24 @@
   }
 
   function viewMtos() {
-    const list = state.data.mtos.filter((m) => {
-      if (state.role === "owner") return true;
-      if (state.role === "ops") return m.dept === "ops";
-      if (state.role === "admin") return m.dept === "admin";
-      return false;
-    });
+    if (!["owner", "ops", "admin"].includes(state.role)) {
+      return `${head("Memo to Office", "Internal office inbox.")}<p class="muted">Only Operations, Administration, and the owner can open these memos.</p>`;
+    }
+    const filter = state.mtoFilter || "unread";
+    const mine = mtosForRole().slice().sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    const unread = mine.filter((m) => !m.read);
+    const list = filter === "unread" ? unread : mine;
+    const who = state.role === "ops" ? "Operations" : state.role === "admin" ? "Administration" : "Operations and Administration";
     return `
-      ${head("Memo to Office", "Tech notes to Ops or Admin — stays on that memo.")}
-      ${list.map(mtoCard).join("") || `<p class="muted">No memos for this department.</p>`}
+      ${head("Memo to Office", "Internal only. Trappers send these from the field phone. The customer never sees them. Routed to Operations or Administration — not a note buried on the account.")}
+      <p class="tiny" style="margin:-6px 0 12px">This inbox is ${esc(who)}. Sales cannot open it. An MTO does not extend a contract — that is the missed-visit rule.</p>
+      <div class="seg" style="margin-bottom:12px">
+        <button class="${filter === "unread" ? "on" : ""}" data-act="mto-filter" data-filter="unread">Unread${unread.length ? ` (${unread.length})` : ""}</button>
+        <button class="${filter === "all" ? "on" : ""}" data-act="mto-filter" data-filter="all">All</button>
+      </div>
+      ${list.map(mtoCard).join("") || (filter === "unread"
+        ? `<p class="muted">Nothing unread. <button class="btn btn-ghost" data-act="mto-filter" data-filter="all">Show all</button></p>`
+        : `<p class="muted">No memos for this department.</p>`)}
     `;
   }
 
@@ -6527,14 +7926,100 @@
     `;
   }
 
+  function mtoDept(m) {
+    return m && m.dept === "admin" ? "admin" : "ops";
+  }
+  function mtoDeptLabel(dept) {
+    return dept === "admin" ? "Administration" : "Operations";
+  }
+  function mtoVisible(m) {
+    if (state.role === "owner") return true;
+    if (state.role === "ops") return mtoDept(m) === "ops";
+    if (state.role === "admin") return mtoDept(m) === "admin";
+    return false;
+  }
+  function mtosForRole() {
+    return (state.data.mtos || []).filter(mtoVisible);
+  }
+  function unreadMtosForRole() {
+    return mtosForRole().filter((m) => !m.read);
+  }
+  function mtoPlace(m) {
+    if (!m) return "";
+    const loc = m.locationId ? locBy(m.customerId, m.locationId) : null;
+    if (loc) return `${loc.name}${loc.address ? " · " + loc.address : ""}`;
+    const stop = m.stopId ? (state.data.stops || []).find((s) => s.id === m.stopId) : null;
+    if (stop) return stop.address || stopLabel(stop);
+    return "";
+  }
+  function markMtoRead(id) {
+    if (!can("mto.read") && !can("mto.reply") && state.role !== "owner") return;
+    const m = (state.data.mtos || []).find((x) => x.id === id);
+    if (!m || !mtoVisible(m)) return;
+    if (!m.read) {
+      m.read = true;
+      m.readAt = fieldStamp();
+    }
+    (state.data.notifications || []).forEach((n) => {
+      if (n.mtoId === id) n.read = true;
+    });
+  }
+  function ensureSeedMtoDemo() {
+    const mtos = state.data.mtos || [];
+    const patch = (id, extra) => {
+      const m = mtos.find((x) => x.id === id);
+      if (!m) return;
+      Object.keys(extra).forEach((k) => {
+        if (m[k] == null || m[k] === "") m[k] = extra[k];
+      });
+    };
+    patch("M-1", { locationId: "L-1042a", stopId: "S-1", dept: "ops" });
+    patch("M-2", { locationId: "L-1108d", dept: "admin" });
+    patch("M-3", { locationId: "L-1020a", dept: "ops" });
+    if (!Array.isArray(state.data.notifications)) state.data.notifications = [];
+    const notes = state.data.notifications;
+    const seedMtoNote = (id, m) => {
+      if (!m || m.read || notes.some((n) => n.id === id || n.mtoId === m.id)) return;
+      const c = custBy(m.customerId);
+      const place = mtoPlace(m);
+      notes.unshift({
+        id,
+        type: "MTO",
+        severity: "alert",
+        title: `New memo from ${techName(m.from)}`,
+        text: `${c?.name || "Stop"} · ${place || "field"}. ${m.text}`,
+        customerId: m.customerId || null,
+        locationId: m.locationId || null,
+        dept: mtoDept(m),
+        mtoId: m.id,
+        date: m.date,
+        read: false,
+      });
+    };
+    seedMtoNote("N-M1", mtos.find((x) => x.id === "M-1"));
+    seedMtoNote("N-M2", mtos.find((x) => x.id === "M-2"));
+  }
   function mtoCard(m) {
     const c = custBy(m.customerId);
-    return `<div class="mto-card ${m.read ? "" : "unread"}">
-      <strong>${esc(techBy(m.from)?.name || m.from)}</strong> → ${esc(m.dept)} · ${custBtn(m.customerId, c?.name)} · ${esc(m.date)}
-      <div>${esc(m.text)}</div>
+    const focus = state.mtoFocusId === m.id ? " mto-focus" : "";
+    const place = mtoPlace(m);
+    return `<div class="mto-card ${m.read ? "" : "unread"}${focus}" id="mto-${esc(m.id)}">
+      <div class="mto-card-top">
+        ${m.read ? "" : `<span class="badge badge-warn">Unread</span>`}
+        <span class="badge ${mtoDept(m) === "admin" ? "badge-sea" : "badge-ok"}">${esc(mtoDeptLabel(mtoDept(m)))}</span>
+        <span class="tiny">${esc(m.date)}</span>
+      </div>
+      <strong>From ${esc(techBy(m.from)?.name || m.from)}</strong>
+      <div class="tiny">${c ? custBtn(m.customerId, c.name) : esc("Walk-up / no account")}${place ? " · " + esc(place) : ""}</div>
+      <div class="mto-msg">${esc(m.text)}</div>
+      <p class="tiny">Internal — not on the customer portal, invoice, or communication log.</p>
+      <div class="actions">
+        ${!m.read ? `<button class="btn btn-primary" data-act="mto-read" data-id="${m.id}">Mark read</button>` : ""}
+        ${c ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Open Bill-To</button>` : ""}
+      </div>
       ${can("mto.reply")
-        ? `<div class="field" style="margin-top:10px"><label>Office reply</label><textarea class="inline-edit" data-edit="mto" data-field="reply" data-id="${m.id}" rows="2" placeholder="Reply stays on this memo">${esc(m.reply || "")}</textarea></div>`
-        : (m.reply ? `<div class="tiny">Reply: ${esc(m.reply)}</div>` : "")}
+        ? `<div class="field" style="margin-top:10px"><label>Office note (stays here — not sent to the trapper)</label><textarea class="inline-edit" data-edit="mto" data-field="reply" data-id="${m.id}" rows="2" placeholder="What you did about this">${esc(m.reply || "")}</textarea></div>`
+        : (m.reply ? `<div class="tiny">Office note: ${esc(m.reply)}</div>` : "")}
     </div>`;
   }
 
@@ -6561,7 +8046,7 @@
         ${stat("Active trappers", rows.filter((r) => r.user?.active !== false).length, "Field team")}
         ${stat("Stops scheduled", rows.reduce((n, r) => n + r.stops.length, 0), "Current board")}
         ${stat("Customers covered", new Set((state.data.stops || []).filter((s) => s.status === "scheduled" && !s.pending).map((s) => s.customerId).filter(Boolean)).size, "Across all trappers")}
-        ${stat("Scheduled hours", (rows.reduce((n, r) => n + r.minutes, 0) / 60).toFixed(1), "Current board")}
+        ${stat("Scheduled hours", fmtHours(rows.reduce((n, r) => n + r.minutes, 0)), "On site this week")}
       </div>
       <div class="card section-gap">
         ${rows.map(({ t, user, stops, customers, minutes, next }) => `
@@ -6572,12 +8057,12 @@
                 <strong>${esc(t.name)}</strong>
                 <span class="badge ${user?.active === false ? "badge-bad" : "badge-ok"}">${user?.active === false ? "Inactive" : "Active"}</span>
               </div>
-              <div class="tiny">${esc(t.home)} · ${customers} customer${customers === 1 ? "" : "s"} · ${stops.length} stop${stops.length === 1 ? "" : "s"} · ${fmtClock(minutes)}</div>
+              <div class="tiny">${esc(t.home)} · ${customers} customer${customers === 1 ? "" : "s"} · ${stops.length} stop${stops.length === 1 ? "" : "s"} · ${fmtHours(minutes)} on site</div>
               <div class="tiny">${next ? `Next: ${esc(next.day)} ${esc(next.time || "")} · ${esc(stopLabel(next))}` : "No scheduled stops"}</div>
             </div>
             <div class="actions">
               ${canPage("map") ? `<button class="btn btn-ghost" data-act="map-tech" data-tech="${t.id}">Open on map</button>` : ""}
-              ${canPage("workload") ? `<button class="btn btn-ghost" data-act="nav" data-page="workload">Workload</button>` : ""}
+              ${canPage("workload") ? `<button class="btn btn-ghost" data-act="open-workload" data-tech="${t.id}">Workload</button>` : ""}
             </div>
           </div>
         `).join("")}
@@ -6588,40 +8073,59 @@
     `;
   }
 
+  function trapAssetListHtml(traps, opts = {}) {
+    const list = traps || [];
+    if (!list.length) return "";
+    return list.map((t) => {
+      const c = t.customerId ? custBy(t.customerId) : null;
+      const loc = t.customerId && t.locationId ? locBy(t.customerId, t.locationId) : null;
+      const locLine = loc
+        ? `<button class="trap-loc-link" data-act="open-location" data-id="${esc(t.customerId)}" data-loc="${esc(t.locationId)}">${esc(loc.name)}</button><div class="tiny">${esc(c?.billTo || c?.name || "")} · ${esc(loc.address || "")}</div>`
+        : `<span class="muted">Not attached to a location</span>`;
+      return `<div class="fit-row trap-asset-row">
+        <div>
+          <strong>${esc(trapName(t))}</strong> · ${statusBadge(trapStatusKey(t))}
+          <div class="tiny">${esc(t.serial || "")} · ${esc(trapStatusLabel(t))} · last ${esc(t.lastSeen || "—")}${t.note ? ` · ${esc(t.note)}` : ""} · ${money(t.value || 80)}</div>
+          ${opts.fromLocation ? "" : `<div class="tiny" style="margin-top:4px">${locLine}</div>`}
+        </div>
+        <div class="actions trap-asset-actions">
+          ${t.status !== "retrieved" ? btn("trap.update", "Retrieved", "trap-status", `data-id="${t.id}" data-status="retrieved"`, "btn-ghost btn-small") : ""}
+          ${t.status === "deployed" ? btn("trap.update", "Missing", "trap-status", `data-id="${t.id}" data-status="missing"`, "btn-warn btn-small") : ""}
+          ${t.status === "out" ? btn("trap.update", "Still out", "trap-status", `data-id="${t.id}" data-status="out"`, "btn-ghost btn-small") : ""}
+          ${can("trap.update") ? `<button class="btn btn-ghost btn-small" data-act="remove-trap" data-id="${esc(t.id)}">Remove</button>` : ""}
+        </div>
+      </div>`;
+    }).join("");
+  }
+
   function viewTraps() {
     const traps = state.data.traps || [];
-    const valueOut = traps.filter((t) => t.status !== "retrieved").reduce((s, t) => s + t.value, 0);
+    const attached = traps.filter((t) => t.locationId);
+    const stock = traps.filter((t) => !t.locationId);
+    const valueOut = traps.filter((t) => t.status !== "retrieved").reduce((s, t) => s + Number(t.value || 0), 0);
     return `
-      ${head("Trap assets", "Traps run about $80 each. Track where they are and pull them when the contract ends.")}
+      ${head("Trap assets", "Add a trap with or without a location. Attach it to a property later, or from the location record — remove from either screen.")}
       ${writeBar("trap.update", "Update trap")}
       <div class="grid-3">
-        ${stat("In the field", traps.filter((t) => t.status === "deployed" || t.status === "out").length, "Need a location")}
-        ${stat("Missing / retrieve", traps.filter((t) => t.status === "missing" || t.status === "out").length, "Contract ended or lost", "alert")}
+        ${stat("On properties", attached.filter((t) => t.status === "deployed" || t.status === "out").length, "Attached to a location")}
+        ${stat("Yard / unattached", stock.length, "Ready to attach")}
         ${stat("Value still out", money(valueOut), "Not retrieved")}
       </div>
+      <div class="actions section-gap">${btn("trap.update", "Add trap asset", "add-trap", "", "btn-primary btn-small")}</div>
       <div class="card section-gap">
-        ${traps.map((t) => {
-          const c = custBy(t.customerId);
-          const loc = locBy(t.customerId, t.locationId);
-          return `<div class="fit-row">
-            <div>
-              <strong>${esc(t.serial)}</strong> · ${statusBadge(t.status === "deployed" ? "active" : t.status === "retrieved" ? "paid" : t.status === "missing" ? "failed" : "inquiry")}
-              <div class="tiny">${esc(c?.name || "—")} · ${esc(loc?.name || loc?.address || "—")} · last ${esc(t.lastSeen)} · ${esc(t.note)}</div>
-            </div>
-            <div class="actions">
-              ${t.status !== "retrieved" ? btn("trap.update", "Mark retrieved", "trap-status", `data-id="${t.id}" data-status="retrieved"`, "btn-ghost") : ""}
-              ${t.status === "deployed" ? btn("trap.update", "Missing", "trap-status", `data-id="${t.id}" data-status="missing"`, "btn-warn") : ""}
-              ${t.status === "out" ? btn("trap.update", "Still out", "trap-status", `data-id="${t.id}" data-status="out"`, "btn-ghost") : ""}
-            </div>
-          </div>`;
-        }).join("")}
+        <h3>Attached to locations</h3>
+        ${trapAssetListHtml(attached) || `<p class="muted">No traps on properties yet. Add one and pick a location, or attach from the property.</p>`}
+      </div>
+      <div class="card section-gap">
+        <h3>Yard / not attached</h3>
+        ${trapAssetListHtml(stock) || `<p class="muted">Nothing in stock. Add a trap without a location, or retrieve one from a property.</p>`}
       </div>
     `;
   }
 
   function viewReports() {
     const ops = ["Duration vs scheduled", "Route / workload", "Monthly removals"];
-    const adm = ["Payment register", "Failed auto-pay", "Renewals (30 / 60 days)", "Hours per account / PO (municipal)", "Commission by technician"];
+    const adm = ["Payment register", "Failed auto-pay", "Renewals (30 / 60 days)", "Hours per account / PO (municipal)", "Trapper bonuses"];
     const own = ["Non-renewals by technician", "Closing rate"];
     const show = [];
     if (["owner", "ops"].includes(state.role)) show.push(...ops);
@@ -6635,7 +8139,7 @@
         ${canPage("removals") ? `<button class="btn btn-ghost" data-act="nav" data-page="removals">Open removals</button>` : ""}
         ${canPage("payments") ? `<button class="btn btn-ghost" data-act="nav" data-page="payments">Open register</button>` : ""}
         ${canPage("renewals") ? `<button class="btn btn-ghost" data-act="nav" data-page="renewals">Open renewals</button>` : ""}
-        ${canPage("commission") ? `<button class="btn btn-ghost" data-act="nav" data-page="commission">Open commission</button>` : ""}
+        ${canPage("commission") ? `<button class="btn btn-ghost" data-act="nav" data-page="commission">Open trapper bonuses</button>` : ""}
       </div>
     `;
   }
@@ -6672,10 +8176,14 @@
       <div class="split">
         <div class="card">
           <h3>No-show reasons</h3>
-          <ul class="settings-list">${allReasons().map((r) => `<li><span>${esc(r.label)}</span><span class="muted">${esc(r.fault)}</span></li>`).join("")}</ul>
+          <ul class="settings-list">${allReasons().map((r) => `<li><span>${esc(r.label)}</span><span class="muted">${esc(reasonRuleLabel(r))}</span></li>`).join("")}</ul>
           <div class="field"><label>New reason</label><input id="new-reason" placeholder="Flooded yard"></div>
-          <div class="field"><label>Fault</label>
-            <select id="new-reason-fault"><option value="customer">Customer</option><option value="company">Company</option></select>
+          <div class="field"><label>Business rule</label>
+            <select id="new-reason-fault">
+              <option value="customer">Customer — no extension</option>
+              <option value="company">Company/tech — auto +1 visit</option>
+              <option value="review">Review — Rick approves</option>
+            </select>
           </div>
           ${btn("lists.edit", "Add reason", "add-reason")}
         </div>
@@ -6726,13 +8234,13 @@
     const s = state.data.settings;
     const lock = can("settings.edit") ? "" : "disabled";
     return `
-      ${head("Company settings", "Office defaults — commission %, how early renewals show, and reminder channel.")}
+      ${head("Company settings", "Office defaults — trapper bonus %, how early renewals show, and reminder channel.")}
       ${writeBar("settings.edit", "Save")}
       <div class="card">
         <p class="tiny">These are company-wide defaults. Change a value, then hit <strong>Save settings</strong>.</p>
-        <div class="field"><label>Default commission %</label>
+        <div class="field"><label>Default trapper bonus %</label>
           <input id="set-comm" type="number" value="${s.commissionPct}" ${lock}>
-          <span class="tiny">Used when Christy enters a renewal bonus split</span>
+          <span class="tiny">Applied to paid renewal invoices. Staff split the pool on Trapper bonuses.</span>
         </div>
         <div class="field"><label>Renewal window (days)</label>
           <input id="set-win" type="number" value="${s.renewalWindow}" ${lock}>
@@ -6778,99 +8286,322 @@
     `;
   }
 
-  /* ---------- Mobile ---------- */
-  function renderMobile() {
+  /* ---------- Mobile (trapper phone) ---------- */
+  function ensureSeedFieldStops() {
+    const stops = state.data.stops || [];
+    const add = (row) => { if (!stops.some((s) => s.id === row.id)) stops.push(row); };
+    add({ id: "S-18", customerId: "C-1004", locationId: "L-1004a", techId: "johnny", day: "Thu", time: "09:50", durationMin: 20, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Retrieve trap IC-208", address: "1901 N Federal Hwy, Boca Raton, FL" });
+    add({ id: "S-20", customerId: null, locationId: null, techId: "johnny", day: "Thu", time: "11:40", durationMin: 25, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Iguana in garage — walk-up, Boca", address: "Near Mizner Park", taskType: "garage", x: "29%", y: "41%" });
+  }
+  function fieldStops() {
+    const techId = fieldTechId();
+    const day = fieldDay();
+    return (state.data.stops || [])
+      .filter((s) => s.techId === techId && s.day === day && !s.pending)
+      .slice()
+      .sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+  }
+  function fieldStamp() {
+    const d = new Date();
+    return `${TODAY} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  function fmtElapsed(ms) {
+    const sec = Math.max(0, Math.floor(Number(ms || 0) / 1000));
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+  function captureFieldDraft(id) {
+    const s = state.data.stops.find((x) => x.id === id);
+    if (!s) return;
+    if (document.getElementById("rem-count")) s.draftCount = val("rem-count");
+    if (document.getElementById("rem-wt")) s.draftWt = val("rem-wt");
+    if (document.getElementById("mto-text")) s.draftMto = val("mto-text");
+    if (document.getElementById("mto-dept")) s.draftDept = val("mto-dept");
+    if (document.getElementById("miss-reason")) s.draftReason = val("miss-reason");
+    if (document.getElementById("miss-note")) s.missNote = val("miss-note");
+  }
+  function fieldStopStatusLabel(s) {
+    if (s.status === "in_progress") return "In progress";
+    if (s.status === "complete") return "Done";
+    if (s.status === "missed") return "Missed · customer";
+    if (s.status === "noshow") return "No-show";
+    if (s.status === "blocked" || s.status === "blocked_off") return "Held";
+    return "Up next";
+  }
+  function fieldTab() {
+    return state.mobileTab || "route";
+  }
+  function fieldDummyTerrain() {
+    return `
+      <div class="map-bg gmap"></div>
+      <div class="map-terrain" aria-hidden="true">
+        <div class="map-water gulf"></div>
+        <div class="map-water atlantic"></div>
+        <div class="map-water lake"></div>
+        <div class="map-land-patch" style="left:28%;top:28%;width:22%;height:18%"></div>
+        <div class="map-land-patch" style="left:52%;top:44%;width:18%;height:16%"></div>
+      </div>
+      <div class="map-label gmap-label water" style="left:3%;top:14%">Gulf</div>
+      <div class="map-label gmap-label water" style="right:4%;top:10%;left:auto">Atlantic</div>
+      <div class="map-label gmap-label city" style="left:30%;top:48%">Fort Lauderdale</div>
+      <div class="map-label gmap-label city" style="left:26%;top:36%">Boca Raton</div>
+      <div class="map-label gmap-label city" style="left:36%;top:22%">West Palm</div>
+    `;
+  }
+  function fieldMapFit(points) {
+    const xs = points.map((p) => pct(p.x));
+    const ys = points.map((p) => pct(p.y));
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const pad = 16;
+    const dx = Math.max(10, maxX - minX);
+    const dy = Math.max(10, maxY - minY);
+    return points.map((p, i) => {
+      const jx = (i % 3) * 1.2;
+      const jy = (i % 2) * 1.4;
+      return {
+        ...p,
+        lx: pad + ((pct(p.x) - minX) / dx) * (100 - pad * 2) + jx,
+        ly: pad + ((pct(p.y) - minY) / dy) * (100 - pad * 2) + jy,
+      };
+    });
+  }
+  function renderFieldRouteMap(opts) {
+    const compact = !!(opts && opts.compact);
+    const focusId = (opts && opts.focusId) || state.mobileFocusId || state.mobileStop;
+    const tech = techBy(fieldTechId());
+    const stops = fieldStops();
+    const raw = [
+      { kind: "home", x: tech?.x || "28%", y: tech?.y || "42%" },
+      ...stops.map((s) => {
+        const c = stopCoords(s);
+        return { kind: "stop", s, x: c.x, y: c.y };
+      }),
+    ];
+    const laid = fieldMapFit(raw);
+    const pts = laid.map((p) => `${p.lx},${p.ly}`);
+    const home = laid[0];
+    const pins = [`<div class="mob-map-pin home" style="left:${home.lx}%;top:${home.ly}%"><span class="mob-map-dot" style="background:${tech?.color || "#2d6a4c"}"></span><span class="mob-map-lab">Home</span></div>`];
+    laid.slice(1).forEach((p, i) => {
+      const s = p.s;
+      const on = s.id === focusId;
+      const done = s.status === "complete";
+      const miss = s.status === "missed" || s.status === "noshow";
+      const short = String(stopLabel(s) || "").split("—")[0].trim();
+      pins.push(`<button type="button" class="mob-map-pin stop ${on ? "on" : ""} ${done ? "is-done" : ""} ${miss ? "is-miss" : ""}" data-act="open-stop" data-id="${s.id}" style="left:${p.lx}%;top:${p.ly}%"><span class="mob-map-num">${i + 1}</span>${compact && !on ? "" : `<span class="mob-map-lab">${esc(short)}</span>`}</button>`);
+    });
+    const color = tech?.color || "#2d6a4c";
+    const line = `<svg class="route-svg" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline fill="none" stroke="${color}" stroke-width="${compact ? 1.6 : 1.35}" stroke-linecap="round" stroke-linejoin="round" points="${pts.join(" ")}" /></svg>`;
+    return `<div class="mob-map ${compact ? "compact" : ""}">${fieldDummyTerrain()}${line}${pins.join("")}</div>`;
+  }
+  function fieldMissBlock(s) {
+    return `
+      <div class="mob-card miss-card">
+        <h3>Log miss / no-show</h3>
+        <p class="tiny">Use this if you cannot work the stop — gate, not home, breakdown. Rick sees it on Missed visits.</p>
+        <div class="field"><label>Reason</label>
+          <select id="miss-reason">${allReasons().map((r) => `<option value="${esc(r.id)}" ${s.draftReason === r.id ? "selected" : ""}>${esc(r.label)} — ${esc(reasonRuleLabel(r))}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Note</label>
+          <textarea id="miss-note" rows="2" placeholder="Waited at gate, no answer…">${esc(s.missNote || "")}</textarea>
+        </div>
+        <button class="btn btn-warn" data-act="miss-stop" data-id="${s.id}">Log miss / no-show</button>
+      </div>
+    `;
+  }
+  function renderMobileFrame(body, opts) {
     const r = role();
-    const stops = state.data.stops.filter((s) => s.techId === r.techId && s.day === "Thu" && !s.pending);
-    if (state.mobileStop) return renderMobileStop(stops.find((s) => s.id === state.mobileStop) || stops[0]);
+    const tab = fieldTab();
+    const title = (opts && opts.title) || "Route";
+    const back = !!(opts && opts.back);
+    const mapFill = !!(opts && opts.mapFill);
+    const routeOn = tab === "route" || (!!state.mobileStop && tab !== "map" && tab !== "profile");
+    const mapOn = tab === "map" && !state.mobileStop;
     return `
       <div class="mobile-shell">
         <div class="phone">
-          <div class="phone-bar">
-            <small>Thu 27 Aug · Field app</small>
-            <h2>Johnny’s route</h2>
-            <div class="tiny">Starts/ends at Deerfield Beach · no pricing, no invoices</div>
-          </div>
-          <div class="phone-body">
-            ${stops.map((s) => {
-              const c = s.customerId ? custBy(s.customerId) : null;
-              const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
-              return `
-                <button class="stop-card ${s.status === "scheduled" ? "active" : ""}" data-act="open-stop" data-id="${s.id}" style="width:100%;text-align:left">
-                  <h3>${esc(stopLabel(s))}</h3>
-                  <div class="meta">${esc(s.time || "Live")} · ${esc(loc?.address || s.address || "")} · ${s.durationMin}m</div>
-                  ${statusBadge(s.status)}
-                  ${s.type === "oneoff" ? `<div class="hidden-note">One-off dropped onto your live route</div>` : ""}
-                  ${c?.notes && state.role === "tech" ? `<div class="hidden-note">${esc(c.notes)}</div>` : ""}
-                </button>
-              `;
-            }).join("") || `<p class="muted">No Thursday stops.</p>`}
-          </div>
-          <div class="phone-foot">
-            <span>${esc(r.name)}</span>
-            <button class="btn btn-ghost" data-act="switch-role-btn" data-role="ops">Office login</button>
-          </div>
+          <div class="mob-status" aria-hidden="true"><span>9:41</span><span>Field</span></div>
+          <header class="mob-top">
+            ${back
+              ? `<button type="button" class="mob-icon-btn" data-act="field-back" aria-label="Back">${ICONS.back}</button>`
+              : `<span class="mob-icon-btn spacer" aria-hidden="true"></span>`}
+            <div class="mob-top-title">
+              <small>${esc(fieldDay())} · ${esc(TODAY)}</small>
+              <strong>${esc(title)}</strong>
+            </div>
+            <button type="button" class="mob-avatar ${tab === "profile" ? "on" : ""}" data-act="field-tab" data-tab="profile" aria-label="Profile" style="background:${r.color}">${esc(r.initials)}</button>
+          </header>
+          <div class="phone-body ${mapFill ? "is-map" : ""}" data-keep-scroll="field">${body}</div>
+          <nav class="mob-tabs">
+            <button type="button" class="${routeOn ? "on" : ""}" data-act="field-tab" data-tab="route">${ICONS.list}<span>Route</span></button>
+            <button type="button" class="${mapOn ? "on" : ""}" data-act="field-tab" data-tab="map">${ICONS.map}<span>Map</span></button>
+          </nav>
         </div>
       </div>
     `;
   }
-
-  function renderMobileStop(s) {
-    if (!s) {
+  function renderFieldRoute() {
+    const tech = techBy(fieldTechId());
+    const stops = fieldStops();
+    const done = stops.filter((s) => s.status === "complete").length;
+    const open = stops.filter((s) => s.status === "scheduled" || s.status === "in_progress").length;
+    const next = stops.find((s) => s.status === "scheduled" || s.status === "in_progress");
+    return `
+      <div class="mob-hero-map">
+        ${renderFieldRouteMap({ compact: true, focusId: next?.id })}
+        <button type="button" class="mob-hero-fade" data-act="field-tab" data-tab="map"><span>Today’s route from ${esc(tech?.home || "home")}</span><strong>Open map</strong></button>
+      </div>
+      <div class="mob-summary">
+        <span><strong>${stops.length}</strong> stops</span>
+        <span><strong>${done}</strong> done</span>
+        <span><strong>${open}</strong> left</span>
+      </div>
+      ${next ? `<p class="mob-next">Next · ${esc(stopLabel(next))} · ${esc(fmtClockTime(next.time))}</p>` : `<p class="mob-next">Route finished for today.</p>`}
+      ${stops.map((s, i) => {
+        const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+        const cls = s.status === "in_progress" ? "active" : s.status === "complete" ? "done" : (s.status === "missed" || s.status === "noshow") ? "miss" : "";
+        return `
+          <button type="button" class="stop-card ${cls}" data-act="open-stop" data-id="${s.id}">
+            <div class="stop-rail"><span class="stop-num">${i + 1}</span></div>
+            <div class="stop-main">
+              <div class="mob-stop-top">
+                <strong>${esc(fmtClockTime(s.time))}</strong>
+                ${statusBadge(s.status === "scheduled" ? "scheduled" : s.status)}
+              </div>
+              <h3>${esc(stopLabel(s))}</h3>
+              <div class="meta">${esc(loc?.address || s.address || "")}</div>
+              ${s.status === "complete" ? `<div class="hidden-note">Clocked ${fmtHours(s.actualMin)} · ${(s.removals?.count || 0)} iguana${(s.removals?.count || 0) === 1 ? "" : "s"} · ${s.removals?.weight || 0} lb</div>` : ""}
+              ${(s.status === "missed" || s.status === "noshow") ? `<div class="hidden-note">${esc(s.reason || "Miss")} — office sees this on Missed visits</div>` : ""}
+            </div>
+          </button>
+        `;
+      }).join("") || `<p class="muted">No stops on your book today.</p>`}
+    `;
+  }
+  function renderFieldMapPage() {
+    const next = fieldStops().find((s) => s.status === "scheduled" || s.status === "in_progress");
+    return `
+      ${renderFieldRouteMap({ focusId: state.mobileFocusId || next?.id })}
+      <div class="mob-map-legend">
+        <span>Green line is today’s drive order from home.</span>
+        <span>Tap a pin to open the stop.</span>
+      </div>
+    `;
+  }
+  function renderFieldProfile() {
+    const r = role();
+    const tech = techBy(fieldTechId());
+    const stops = fieldStops();
+    const done = stops.filter((s) => s.status === "complete").length;
+    return `
+      <div class="mob-profile">
+        <div class="mob-avatar-lg" style="background:${r.color}">${esc(r.initials)}</div>
+        <h2>${esc(r.name)}</h2>
+        <p class="muted">${esc(r.title)} · ${esc(tech?.home || "")}</p>
+        <div class="mob-card">
+          <div class="mob-kv"><span>Today</span><strong>${esc(fieldDay())} ${esc(TODAY)}</strong></div>
+          <div class="mob-kv"><span>Stops done</span><strong>${done} / ${stops.length}</strong></div>
+          <div class="mob-kv"><span>Home base</span><strong>${esc(tech?.home || "—")}</strong></div>
+        </div>
+        <p class="tiny" style="text-align:center">No prices or invoices on the field phone.</p>
+        <button type="button" class="btn btn-warn" data-act="logout">Log out</button>
+      </div>
+    `;
+  }
+  function fieldMtoForm(s) {
+    return `
+      <div class="mob-card">
+        <h3>Memo to Office</h3>
+        <p class="tiny">Internal only. The customer never sees this. Send property/service issues to Operations; billing or renewal talk to Administration.</p>
+        <div class="field"><label>Send to</label>
+          <select id="mto-dept"><option value="ops" ${s.draftDept === "admin" ? "" : "selected"}>Operations</option><option value="admin" ${s.draftDept === "admin" ? "selected" : ""}>Administration</option></select>
+        </div>
+        <textarea id="mto-text" rows="3" placeholder="Could not access backyard. Gate was locked.">${esc(s.draftMto || "")}</textarea>
+        <button type="button" class="btn btn-ghost" data-act="send-field-mto" data-id="${s.id}" style="margin-top:8px">Send memo</button>
+      </div>`;
+  }
+  function renderMobile() {
+    const stops = fieldStops();
+    if (state.mobileStop) {
+      const s = stops.find((x) => x.id === state.mobileStop) || state.data.stops.find((x) => x.id === state.mobileStop);
+      if (s) return renderMobileFrame(renderMobileStopBody(s), { title: stopLabel(s), back: true });
       state.mobileStop = null;
-      return renderMobile();
     }
+    const tab = fieldTab();
+    if (tab === "map") return renderMobileFrame(renderFieldMapPage(), { title: "Today’s map", back: true, mapFill: true });
+    if (tab === "profile") return renderMobileFrame(renderFieldProfile(), { title: "Profile", back: true });
+    return renderMobileFrame(renderFieldRoute(), { title: "Today’s route", back: false });
+  }
+
+  function renderMobileStopBody(s) {
     const c = s.customerId ? custBy(s.customerId) : null;
     const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
     const started = s.status === "in_progress";
+    const done = s.status === "complete";
+    const missed = s.status === "missed" || s.status === "noshow";
+    const traps = s.customerId && s.locationId ? trapsForLocation(s.customerId, s.locationId) : [];
+    const notes = [c?.opsNote, loc?.instructions].filter(Boolean);
+    const elapsed = started && s.startedAt ? Date.now() - Number(s.startedAt) : 0;
+    const canAct = s.status === "scheduled" || started;
     return `
-      <div class="mobile-shell">
-        <div class="phone">
-          <div class="phone-bar">
-            <small><button class="btn btn-ghost" data-act="close-stop" style="color:#fff;border-color:transparent">← Route</button></small>
-            <h2>${esc(stopLabel(s))}</h2>
-            <div class="tiny">${esc(loc?.address || s.address || "")}</div>
-          </div>
-          <div class="phone-body">
-            <div class="notice">No invoice, price, or payment on this screen.</div>
-            ${(() => {
-              const gps = loc?.gps || (loc ? approxGps(loc) : "");
-              return gps ? `
-                <p class="muted">GPS ${esc(gps)}${loc?.manualPin ? " · manual pin" : ""}</p>
-                <div class="actions">
-                  <button class="btn btn-primary" data-act="navigate" data-gps="${esc(gps)}">Open in Maps</button>
-                  <button class="btn btn-ghost" data-act="copy-gps" data-gps="${esc(gps)}">Copy lat/long</button>
-                </div>
-                <p class="tiny">Copy-paste into Google Maps — the old field app blocked that.</p>
-              ` : "";
-            })()}
-            <div class="stack section-gap">
-              ${!started && s.status === "scheduled" ? `<button class="btn btn-primary" data-act="start-stop" data-id="${s.id}">Start activity</button>` : ""}
-              ${started ? `
-                <div class="card">
-                  <h3>Wildlife removal</h3>
-                  <div class="removal-grid">
-                    <div class="field"><label>Count</label><input id="rem-count" type="number" value="${esc(s.draftCount ?? 0)}"></div>
-                    <div class="field"><label>Weight (lb)</label><input id="rem-wt" type="number" step="0.1" value="${esc(s.draftWt ?? 0)}"></div>
-                  </div>
-                  <button class="btn btn-ghost" data-act="add-photo" data-id="${s.id}" style="margin-top:8px">Attach photo</button>
-                  ${(s.photos || []).map((p) => `<div class="tiny">${esc(p)}</div>`).join("")}
-                </div>
-                <div class="field"><label>Memo to Office</label>
-                  <select id="mto-dept"><option value="ops" ${s.draftDept === "admin" ? "" : "selected"}>Route to Operations</option><option value="admin" ${s.draftDept === "admin" ? "selected" : ""}>Route to Administration</option></select>
-                  <textarea id="mto-text" rows="3" placeholder="Internal only — never on the customer report">${esc(s.draftMto || "")}</textarea>
-                </div>
-                <div class="field"><label>If incomplete / no-show</label>
-                  <select id="miss-reason">${allReasons().map((r) => `<option value="${r.id}">${esc(r.label)} (${esc(r.fault)})</option>`).join("")}</select>
-                </div>
-                <button class="btn btn-primary" data-act="complete-stop" data-id="${s.id}">Complete</button>
-                <button class="btn btn-warn" data-act="miss-stop" data-id="${s.id}">Log no-show</button>
-              ` : ""}
-              ${s.status === "complete" ? `<div class="notice">Clocked ${s.actualMin} min. Removals: ${s.removals?.count || 0} / ${s.removals?.weight || 0} lb.${(s.photos || []).length ? " Photos: " + s.photos.length : ""}</div>` : ""}
+      <div class="mob-stop-map">${renderFieldRouteMap({ compact: true, focusId: s.id })}</div>
+      <div class="mob-addr">
+        <strong>${esc(fmtClockTime(s.time))} · ${fmtHours(s.durationMin)} scheduled</strong>
+        <p>${esc(loc?.address || s.address || "")}</p>
+        ${c?.phone ? `<a class="mob-call" href="tel:${esc(c.phone.replace(/[^\d+]/g, ""))}">Call ${esc(c.name)}</a>` : ""}
+      </div>
+      ${notes.length ? `<div class="mob-card note-card">${notes.map((n) => esc(n)).join("<br>")}</div>` : ""}
+      ${traps.length ? `
+        <div class="mob-card">
+          <h3>Traps here</h3>
+          ${traps.map((t) => `
+            <div class="fit-row">
+              <div><strong>${esc(trapName(t))}</strong><div class="tiny">${esc(t.serial)} · ${esc(trapStatusLabel(t))}</div></div>
+              ${t.status !== "retrieved" && canAct ? `<button type="button" class="btn btn-ghost btn-small" data-act="field-retrieve-trap" data-id="${esc(t.id)}">Retrieved</button>` : ""}
             </div>
+          `).join("")}
+        </div>` : ""}
+      ${s.status === "scheduled" ? `
+        ${fieldMissBlock(s)}
+        <p class="tiny" style="margin:4px 2px 10px">If you can work, start the clock when you arrive.</p>
+        <button type="button" class="btn btn-primary" data-act="start-stop" data-id="${s.id}">Start work</button>
+      ` : ""}
+      ${started ? `
+        <div class="mob-timer-card">
+          <div class="tiny">On the clock</div>
+          <div class="mob-timer" id="mob-timer" data-started="${esc(s.startedAt)}">${fmtElapsed(elapsed)}</div>
+          <div class="tiny">Scheduled ${fmtHours(s.durationMin)}</div>
+        </div>
+        <div class="mob-card">
+          <h3>Iguanas caught</h3>
+          <div class="removal-grid">
+            <div class="field"><label>Count</label><input id="rem-count" type="number" min="0" value="${esc(s.draftCount ?? s.removals?.count ?? 0)}"></div>
+            <div class="field"><label>Weight (lb)</label><input id="rem-wt" type="number" min="0" step="0.1" value="${esc(s.draftWt ?? s.removals?.weight ?? 0)}"></div>
+          </div>
+          <label class="doc-file-pick" style="margin-top:10px">
+            <input type="file" id="mob-photo" accept="image/*" capture="environment" data-id="${esc(s.id)}">
+            <span class="doc-file-btn">Add catch photo</span>
+          </label>
+          <div class="mob-photo-grid">
+            ${(s.photos || []).map((p) => {
+              const src = typeof p === "string" ? "" : (p.dataUrl || "");
+              const name = typeof p === "string" ? p : (p.name || "photo");
+              return src
+                ? `<img class="mob-photo" src="${src}" alt="${esc(name)}">`
+                : `<div class="tiny">${esc(name)}</div>`;
+            }).join("")}
           </div>
         </div>
-      </div>
+        ${fieldMtoForm(s)}
+        <button type="button" class="btn btn-primary" data-act="complete-stop" data-id="${s.id}">Stop clock · complete</button>
+      ` : ""}
+      ${done ? `<div class="mob-card done-card">Clocked ${fmtHours(s.actualMin)}. Catch: ${s.removals?.count || 0} iguana${(s.removals?.count || 0) === 1 ? "" : "s"} · ${s.removals?.weight || 0} lb.${(s.photos || []).length ? " Photos: " + s.photos.length : ""}</div>${fieldMtoForm(s)}` : ""}
+      ${missed ? `<div class="mob-card miss-card">Logged ${esc(s.reason || "miss")}. Rick sees this on Missed visits.${s.missNote ? " " + esc(s.missNote) : ""}</div>${fieldMtoForm(s)}` : ""}
     `;
   }
 
@@ -6989,6 +8720,10 @@
       act(el.dataset.act, el.dataset);
     };
     $app.onchange = (e) => {
+      if (e.target.id === "mob-photo" && e.target.files && e.target.files[0]) {
+        addStopPhotoFile(e.target.dataset.id, e.target.files[0]);
+        return;
+      }
       if (e.target.dataset.listFilter) {
         applyListFilters(e.target.dataset.listFilter);
         return;
@@ -7108,6 +8843,31 @@
       syncBillToMode();
       syncCompanyField();
     }
+    bindFieldTimer();
+    const mtoFocus = state.mtoFocusId && document.getElementById("mto-" + state.mtoFocusId);
+    if (mtoFocus) mtoFocus.scrollIntoView({ block: "nearest" });
+  }
+
+  function bindFieldTimer() {
+    if (window._fieldTimer) {
+      clearInterval(window._fieldTimer);
+      window._fieldTimer = null;
+    }
+    const el = document.getElementById("mob-timer");
+    if (!el) return;
+    const started = Number(el.dataset.started || 0);
+    if (!started) return;
+    const tick = () => {
+      const node = document.getElementById("mob-timer");
+      if (!node) {
+        if (window._fieldTimer) clearInterval(window._fieldTimer);
+        window._fieldTimer = null;
+        return;
+      }
+      node.textContent = fmtElapsed(Date.now() - started);
+    };
+    tick();
+    window._fieldTimer = setInterval(tick, 1000);
   }
 
   function bindMapPins() {
@@ -7383,6 +9143,8 @@
         state.page = ds.page;
         state.selectedCustomer = null;
         ensureNavGroupOpenForPage(ds.page);
+        if (ds.page === "workload") state.workloadTech = ds.tech || null;
+        if (ds.page === "optimizer" && state.page !== "optimizer") state.optimizerScreen = "setup";
         if (ds.page === "map") {
           state.mapClient = null;
           state.mapLoc = null;
@@ -7391,16 +9153,24 @@
         }
         render();
       },
+      "open-workload": () => {
+        state.workloadTech = ds.tech || null;
+        state.page = "workload";
+        ensureNavGroupOpenForPage("workload");
+        render();
+      },
       "clear-list-filters": () => clearListFilters(ds.prefix),
       "nav-toggle": () => toggleNavGroup(ds.group),
       "switch-role-btn": () => switchRole(ds.role),
-      "open-customer": () => { state.selectedCustomer = ds.id; state.selectedLocation = null; state.page = "customer"; state.payFocusId = null; render(); },
+      "open-customer": () => { state.modal = null; state.bonusDraft = null; state.selectedCustomer = ds.id; state.selectedLocation = null; state.page = "customer"; state.payFocusId = null; render(); },
       "select-customer-location": () => {
         state.selectedCustomer = ds.id;
         state.selectedLocation = ds.loc;
         render();
       },
       "open-location": () => {
+        state.modal = null;
+        state.bonusDraft = null;
         state.selectedCustomer = ds.id;
         state.selectedLocation = ds.loc;
         state.page = "location";
@@ -7523,12 +9293,16 @@
       "stop-service": () => openStopService(ds.id),
       "confirm-stop-service": () => confirmStopService(ds.id),
       "sched-view": () => { state.schedView = ds.view; render(); },
-      "optimizer-run": () => { state.optimizerAnchors = {}; runOptimizer(readOptimizerConfig()); },
+      "optimizer-run": () => { state.optimizerAnchors = {}; state.optimizerFocusTech = null; state.optimizerFocusDay = null; runOptimizer(readOptimizerConfig()); },
       "optimizer-detail": () => openOptimizerDetail(ds.date, ds.tech),
+      "optimizer-hide": () => { state.optimizerFocusTech = null; state.optimizerFocusDay = null; render(); },
       "optimizer-anchor": () => anchorOptimizerRoute(ds.date, ds.tech, ds.stop),
       "optimizer-history": () => openOptimizerHistory(),
+      "optimizer-new": () => openOptimizerNew(),
+      "optimizer-view-run": () => viewSavedOptimizerRun(ds.id),
+      "optimizer-delete-run": () => deleteOptimizerRun(ds.id),
       "optimizer-commit": () => commitOptimizerRun(),
-      "optimizer-clear": () => { state.optimizerPreview = null; state.optimizerAnchors = {}; render(); },
+      "optimizer-clear": () => { state.optimizerPreview = null; state.optimizerAnchors = {}; state.optimizerFocusTech = null; state.optimizerFocusDay = null; render(); },
       "focus-tech": () => { state.assignFocus = ds.tech; render(); },
       "confirm-assign": () => confirmAssign(ds.id, ds.tech, ds.loc),
       "confirm-bestfit": () => confirmAssign(ds.id, ds.tech, ds.loc),
@@ -7624,11 +9398,20 @@
       "bulk-move": () => bulkMove(ds.tech),
       "bulk-days": () => bulkDays(ds.days),
       "trap-status": () => trapStatus(ds.id, ds.status),
+      "add-trap": () => openAddTrap(),
+      "attach-trap": () => openAddTrap(ds.id, ds.loc),
+      "save-trap": () => saveTrapAsset(ds.id, ds.loc),
+      "remove-trap": () => removeTrapAsset(ds.id),
       "ext-yes": () => decideExtension(ds.id, true),
       "ext-no": () => decideExtension(ds.id, false),
       "send-notices": () => sendNotices(),
       "copy-gps": () => copyGps(ds.gps),
       "macro-block": () => macroBlock(),
+      "add-blackout": () => addCalendarBlock(),
+      "remove-blackout": () => removeCalendarBlock(ds.kind, ds.date),
+      "bulk-noshow": () => bulkNoShowFromForm(),
+      "open-mark-stop": () => openMarkStop(ds.id),
+      "save-mark-stop": () => saveMarkStop(ds.id),
       "noshow-company": () => noshowCompany(),
       "noshow-customer": () => noshowCustomer(),
       "post-pay": () => postPayCustomer(ds.id),
@@ -7649,7 +9432,15 @@
       "apply-mail-pay": () => applyMatchPay(ds.id),
       "record-pay": () => openRecordPay(ds.id),
       "confirm-record-pay": () => confirmRecordPay(ds.id),
-      "enter-comm": () => enterComm(),
+      "enter-comm": () => { state.page = "commission"; state.bonusFilter = "pending"; render(); },
+      "bonus-filter": () => { state.bonusFilter = ds.filter || "pending"; render(); },
+      "open-bonus": () => openBonus(ds.id),
+      "save-bonus-alloc": () => saveBonusAlloc(ds.id),
+      "approve-bonus": () => saveBonusAlloc(ds.id, { approve: true }),
+      "export-bonus": () => saveBonusAlloc(ds.id, { exportPaid: true }),
+      "bonus-add-trapper": () => bonusAddTrapper(ds.id),
+      "bonus-remove-trapper": () => bonusRemoveTrapper(ds.id, ds.tech),
+      "open-invoice": () => openInvoice(ds.id),
       "edit-memo": () => openMemo(ds.id),
       "save-memo": () => saveMemo(ds.id),
       "add-comm": () => addComm(ds.id),
@@ -7667,14 +9458,42 @@
       "add-program": () => addProgram(),
       "add-service-type": () => addServiceType(),
       "preview-tpl": () => previewTpl(ds.name, ds.key),
-      "close-modal": () => { captureCreateServiceDraft(); captureOneoffDraft(); state.modal = null; render(); },
-      "open-stop": () => { state.mobileStop = ds.id; render(); },
-      "close-stop": () => { state.mobileStop = null; render(); },
+      "close-modal": () => { captureCreateServiceDraft(); captureOneoffDraft(); state.modal = null; state.bonusDraft = null; state.bonusFocusId = null; render(); },
+      "open-stop": () => { state.mobileStop = ds.id; state.mobileFocusId = ds.id; render(); },
+      "close-stop": () => { if (state.mobileStop) captureFieldDraft(state.mobileStop); state.mobileStop = null; render(); },
+      "field-tab": () => {
+        if (state.mobileStop) captureFieldDraft(state.mobileStop);
+        state.mobileStop = null;
+        state.mobileTab = ds.tab || "route";
+        render();
+      },
+      "field-back": () => {
+        if (state.mobileStop) {
+          captureFieldDraft(state.mobileStop);
+          state.mobileStop = null;
+        } else {
+          state.mobileTab = "route";
+        }
+        render();
+      },
       "start-stop": () => startStop(ds.id),
       "complete-stop": () => completeStop(ds.id),
       "miss-stop": () => missStop(ds.id),
       "add-photo": () => addPhoto(ds.id),
-      navigate: () => toast("Would open Maps at " + ds.gps + "."),
+      "send-field-mto": () => sendFieldMto(ds.id),
+      "mto-filter": () => { state.mtoFilter = ds.filter || "unread"; render(); },
+      "mto-read": () => { markMtoRead(ds.id); persist(); render(); },
+      "open-mto": () => {
+        markMtoRead(ds.id);
+        persist();
+        state.mtoFocusId = ds.id;
+        state.page = "mtos";
+        state.modal = null;
+        ensureNavGroupOpenForPage("mtos");
+        render();
+      },
+      "field-retrieve-trap": () => fieldRetrieveTrap(ds.id),
+      navigate: () => { state.mobileTab = "map"; state.mobileStop = null; render(); },
     };
     (actions[name] || (() => {}))();
   }
@@ -8361,30 +10180,6 @@
       : `${n} invoices sent · waiting for payment on each property.`);
     state.page = "customer";
     state.selectedCustomer = c.id;
-    render();
-  }
-
-  function openInvoice(id) {
-    const inv = state.data.invoices.find((i) => i.id === id);
-    const c = custBy(inv.customerId);
-    const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : c?.locations?.[0];
-    const plan = locPlan(c, loc);
-    state.modal = {
-      html: `
-        <h3>Invoice preview</h3>
-        <div class="invoice-sheet">
-          <h3>Invoice ${esc(inv.id)}</h3>
-          <p>Bill-To ${esc(c.billTo || c.name)}</p>
-          <p>Property ${esc(loc?.name || "—")} · ${esc(loc?.address || "")}</p>
-          <p>${esc(progBy(plan.programId)?.name || "Program")} · ${money(inv.amount)}</p>
-          <p class="tiny">This invoice is only for this property. Other properties on the same Bill-To have their own invoices and can be paid separately.</p>
-        </div>
-        <div class="actions" style="margin-top:14px">
-          <button class="btn btn-ghost" data-act="close-modal">Back</button>
-          ${inv.status === "draft" ? `<button class="btn btn-primary" data-act="confirm-invoice" data-id="${id}">Send invoice</button>` : btn("payment.post", "Post payment to this invoice", "open-record-pay", `data-id="${id}"`)}
-        </div>
-      `,
-    };
     render();
   }
 
@@ -9897,14 +11692,7 @@
     queue.forEach((svc) => {
       const c = custBy(svc.customerId);
       const loc = locBy(svc.customerId, svc.locationId);
-      patternDays(svc.days).forEach((d) => {
-        state.data.stops.push({
-          id: nid("S"), customerId: svc.customerId, locationId: svc.locationId,
-          techId: svc.techId, day: d, time: nextSlot(svc.techId, d),
-          durationMin: svc.durationMin || c?.durationMin || 20, type: "service",
-          status: "scheduled", actualMin: null, removals: null,
-        });
-      });
+      patternDays(svc.days).forEach((d) => addLiveStop(c, loc, svc.techId, d, svc.durationMin || loc?.durationMin || 20));
       svc.generated = true;
       svc.status = "live";
       if (loc) {
@@ -10064,34 +11852,30 @@
   }
 
   function macroBlock() {
-    if (!state.data.blackout.includes("2026-08-28")) state.data.blackout.push("2026-08-28");
-    state.data.stops.forEach((s) => {
-      if (s.day === "Fri" && s.status === "scheduled") s.status = "blocked_off";
-    });
-    toast("Friday blocked company-wide. Existing stops aren’t marked missed and contracts aren’t extended.");
-    render();
+    const dateEl = document.getElementById("bo-date");
+    const kindEl = document.getElementById("bo-kind");
+    const reasonEl = document.getElementById("bo-reason");
+    if (dateEl && !dateEl.value) dateEl.value = "2026-08-28";
+    if (kindEl) kindEl.value = "meeting";
+    if (reasonEl && !reasonEl.value) reasonEl.value = "Company meeting";
+    addCalendarBlock();
   }
 
   function noshowCompany() {
-    const list = state.data.stops.filter((s) => s.techId === "johnny" && s.day === "Thu" && s.status === "scheduled");
-    list.forEach((s) => {
-      s.status = "noshow";
-      s.fault = "company";
-      s.reason = "Technician illness";
-      s.extended = false;
-      s.pendingExt = true;
-    });
-    toast(`${list.length} stop(s) logged. Approve or deny a contract extension — a make-up visit is not added automatically.`);
+    const list = bulkNoShowTech("johnny", "Thu", "sick", true);
+    toast(list.length
+      ? `${list.length} of Johnny’s Thursday stops marked technician illness. Contracts extended by one visit.`
+      : "No open Thursday stops for Johnny.");
     render();
   }
 
   function noshowCustomer() {
     const s = state.data.stops.find((x) => x.id === "S-3");
-    if (!s) return;
-    s.status = "missed";
-    s.fault = "customer";
-    s.reason = "Gated — no answer";
-    s.extended = false;
+    if (!s || (s.status !== "scheduled" && s.status !== "in_progress")) {
+      toast("Walsh Wednesday is not an open stop.");
+      return;
+    }
+    applyNoShow(s, "gate", "Waited at gate, no answer");
     toast("Customer-fault miss logged. Contract is not extended.");
     render();
   }
@@ -10317,18 +12101,8 @@
   }
 
   function enterComm() {
-    if (!can("commission.enter")) return;
-    if (state.data.commissions.some((b) => b.customerId === "C-1091" && b.period === "2026-08")) {
-      toast("Split already entered for Sarah Chen this period.");
-      return;
-    }
-    const c = custBy("C-1091");
-    const bonus = +(c.amount * state.data.settings.commissionPct / 100).toFixed(2);
-    state.data.commissions.push({
-      id: nid("B"), paymentId: "pending", customerId: "C-1091", amount: bonus,
-      splits: [{ techId: "pedro", pct: 100, dollars: bonus }], period: "2026-08",
-    });
-    toast(`Bonus ${money2(bonus)} on Sarah Chen’s renewal — 100% Pedro. First-term payments never generate this.`);
+    state.page = "commission";
+    state.bonusFilter = "pending";
     render();
   }
 
@@ -10555,14 +12329,15 @@
   function addReason() {
     if (!can("lists.edit") && state.role !== "owner") return;
     const label = val("new-reason") || "Flooded yard";
-    const fault = val("new-reason-fault") || "customer";
+    const faultRaw = val("new-reason-fault") || "customer";
     const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "custom";
     if (allReasons().some((r) => r.id === id || r.label.toLowerCase() === label.toLowerCase())) {
       toast("That reason is already on the list.");
       return;
     }
     if (!state.data.settings.extraReasons) state.data.settings.extraReasons = [];
-    state.data.settings.extraReasons.push({ id, label, fault });
+    const extension = faultRaw === "customer" ? "none" : faultRaw === "review" ? "review" : "auto";
+    state.data.settings.extraReasons.push({ id, label, fault: faultRaw === "review" ? "review" : faultRaw, extension });
     toast("Reason saved.");
     render();
   }
@@ -10721,52 +12496,164 @@
   }
 
   function startStop(id) {
+    if (!isFieldRole() && !can("mobile.act")) return;
     const s = state.data.stops.find((x) => x.id === id);
+    if (!s) return;
+    const other = (state.data.stops || []).find((x) => x.techId === s.techId && x.status === "in_progress" && x.id !== s.id);
+    if (other) {
+      toast(`Finish ${stopLabel(other)} before starting another stop.`);
+      return;
+    }
     s.status = "in_progress";
     s.startedAt = Date.now();
+    persist();
     toast("Clock started.");
     render();
   }
 
   function completeStop(id) {
+    if (!isFieldRole() && !can("mobile.act")) return;
     const s = state.data.stops.find((x) => x.id === id);
+    if (!s) return;
+    captureFieldDraft(id);
+    const ms = s.startedAt ? Date.now() - Number(s.startedAt) : 0;
+    const mins = Math.max(1, Math.round(ms / 60000) || 1);
     s.status = "complete";
-    s.actualMin = 22;
-    s.removals = { count: Number(val("rem-count") || 0), weight: Number(val("rem-wt") || 0) };
-    const text = val("mto-text");
-    if (text) {
-      state.data.mtos.unshift({
-        id: nid("M"), from: "johnny", dept: val("mto-dept") || "ops",
-        customerId: s.customerId, text, date: TODAY + " 11:05", read: false,
-      });
-    }
+    s.endedAt = Date.now();
+    s.actualMin = mins;
+    s.actualSec = Math.round(ms / 1000);
+    s.removals = { count: Number(val("rem-count") || s.draftCount || 0), weight: Number(val("rem-wt") || s.draftWt || 0) };
     state.mobileStop = null;
-    toast("Stop complete. Duration stored for the report. Monthly customer report will only list dates with actual removals.");
+    persist();
+    toast(`Stop complete · ${fmtHours(mins)} on the clock. Catch ${s.removals.count} / ${s.removals.weight} lb.`);
+    render();
+  }
+
+  function pushFieldMto(s, text, dept) {
+    if (!text || !s) return null;
+    const dest = dept === "admin" ? "admin" : "ops";
+    if (!Array.isArray(state.data.mtos)) state.data.mtos = [];
+    const m = {
+      id: nid("M"),
+      from: fieldTechId(),
+      dept: dest,
+      customerId: s.customerId || null,
+      locationId: s.locationId || null,
+      stopId: s.id || null,
+      text,
+      date: fieldStamp(),
+      read: false,
+      readAt: "",
+      reply: "",
+    };
+    state.data.mtos.unshift(m);
+    const c = s.customerId ? custBy(s.customerId) : null;
+    const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+    const place = loc?.name || loc?.address || s.address || stopLabel(s);
+    const who = techName(fieldTechId());
+    const snippet = text.length > 120 ? text.slice(0, 117) + "…" : text;
+    pushNotify({
+      type: "MTO",
+      severity: "alert",
+      title: `New memo from ${who}`,
+      text: `${c?.name || stopLabel(s)} · ${place}. ${snippet}`,
+      customerId: s.customerId || null,
+      locationId: s.locationId || null,
+      dept: dest,
+      mtoId: m.id,
+      date: fieldStamp(),
+    });
+    return m;
+  }
+
+  function sendFieldMto(id) {
+    if (!isFieldRole() && !can("mobile.act")) return;
+    const s = state.data.stops.find((x) => x.id === id);
+    if (!s) return;
+    captureFieldDraft(id);
+    const text = (val("mto-text") || "").trim();
+    if (!text) {
+      toast("Write a memo first.");
+      return;
+    }
+    const dest = val("mto-dept") || "ops";
+    pushFieldMto(s, text, dest);
+    s.draftMto = "";
+    persist();
+    toast(dest === "admin"
+      ? "Memo sent to Administration. Christy is notified."
+      : "Memo sent to Operations. Rick is notified.");
     render();
   }
 
   function addPhoto(id) {
+    if (!isFieldRole() && !can("mobile.act")) return;
     const s = state.data.stops.find((x) => x.id === id);
+    if (!s) return;
+    captureFieldDraft(id);
     s.photos = s.photos || [];
-    s.photos.push("photo-" + (s.photos.length + 1) + ".jpg");
-    s.draftCount = val("rem-count");
-    s.draftWt = val("rem-wt");
-    s.draftMto = val("mto-text");
-    s.draftDept = val("mto-dept");
+    s.photos.push({ name: "catch-" + (s.photos.length + 1) + ".jpg", at: fieldStamp() });
+    persist();
     toast("Photo added on this stop.");
     render();
   }
 
-  function missStop(id) {
+  function addStopPhotoFile(id, file) {
+    if (!file || !isFieldRole()) return;
     const s = state.data.stops.find((x) => x.id === id);
-    const reason = REASONS.find((r) => r.id === val("miss-reason")) || REASONS.find((r) => r.id === "gate");
-    s.status = reason.fault === "company" ? "noshow" : "missed";
-    s.fault = reason.fault;
-    s.reason = reason.label;
-    s.extended = false;
-    s.pendingExt = true;
+    if (!s) return;
+    captureFieldDraft(id);
+    const reader = new FileReader();
+    reader.onload = () => {
+      s.photos = s.photos || [];
+      s.photos.push({ name: file.name || "catch.jpg", dataUrl: reader.result, at: fieldStamp() });
+      if (s.customerId) {
+        if (!Array.isArray(state.data.documents)) state.data.documents = [];
+        state.data.documents.unshift({
+          id: nid("D"),
+          customerId: s.customerId,
+          locationId: s.locationId || null,
+          kind: "photo",
+          name: file.name || "Field catch photo.jpg",
+          by: techName(fieldTechId()),
+          date: TODAY,
+          note: `Catch photo from ${stopLabel(s)}.`,
+          dataUrl: reader.result,
+          mime: file.type || "image/jpeg",
+        });
+      }
+      persist();
+      toast("Catch photo saved on this stop.");
+      render();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function missStop(id) {
+    if (!isFieldRole() && !can("mobile.act")) return;
+    const s = state.data.stops.find((x) => x.id === id);
+    if (!s) return;
+    captureFieldDraft(id);
+    const policy = applyNoShow(s, val("miss-reason") || s.draftReason || "gate", val("miss-note") || s.missNote);
     state.mobileStop = null;
-    toast("Miss logged for the office. Rick approves or denies a contract extension — a visit is not auto-added.");
+    persist();
+    const ext = policy.extension === "auto"
+      ? " Office extended the contract by one visit."
+      : policy.extension === "review"
+        ? " Office will approve or deny an extra visit."
+        : " Contract is not extended.";
+    toast(`Miss logged: ${policy.label}. Rick sees it on Missed visits.${ext}`);
+    render();
+  }
+
+  function fieldRetrieveTrap(id) {
+    if (!isFieldRole() && !can("mobile.act")) return;
+    const t = (state.data.traps || []).find((x) => x.id === id);
+    if (!t) return;
+    t.status = "retrieved";
+    t.lastSeen = TODAY;
+    persist();
+    toast(`${trapName(t)} marked retrieved.`);
     render();
   }
 
@@ -10776,9 +12663,12 @@
     if (!s) return;
     s.pendingExt = false;
     s.extended = !!yes;
-    const c = custBy(s.customerId);
-    if (yes && c?.expires) c.expires = addDays(c.expires, 14);
-    toast(yes ? `Extension approved for ${stopLabel(s)}. Contract +1 visit — not an extra generated stop.` : `Extension denied for ${stopLabel(s)}. Miss stays on the log only.`);
+    if (yes && s.customerId) {
+      s.extendedUntil = extendServiceByOneVisit(s.customerId, s.locationId);
+    }
+    toast(yes
+      ? `Extension approved for ${stopLabel(s)}. One extra visit added${s.extendedUntil ? " — service through " + s.extendedUntil : ""}.`
+      : `Extension denied for ${stopLabel(s)}. The miss stays on the history.`);
     render();
   }
 
@@ -10788,7 +12678,121 @@
     if (!t) return;
     t.status = status;
     t.lastSeen = TODAY;
-    toast(status === "retrieved" ? `${t.serial} retrieved — $${t.value} asset back.` : `${t.serial} marked ${status}.`);
+    persist();
+    toast(status === "retrieved" ? `${trapName(t)} retrieved — $${t.value} asset back.` : `${trapName(t)} marked ${status}.`);
+    render();
+  }
+
+  function openAddTrap(customerId, locationId) {
+    if (!can("trap.update")) return;
+    const choices = locationTrapChoices();
+    const stock = unassignedTraps();
+    const attaching = Boolean(customerId && locationId);
+    state.modal = {
+      html: `
+        <h3>${attaching ? "Attach trap to this property" : "Add trap asset"}</h3>
+        <p>${attaching
+          ? "It will show on this location and on Trap assets."
+          : "Location is optional. Leave it blank to keep the trap in yard stock until you attach it to a property."}</p>
+        ${attaching && stock.length ? `
+          <div class="field"><label>Attach from yard stock</label>
+            <select id="trap-existing">
+              <option value="">New trap — enter serial below</option>
+              ${stock.map((t) => `<option value="${esc(t.id)}">${esc(trapName(t))} · ${esc(t.serial)}</option>`).join("")}
+            </select>
+          </div>` : ""}
+        <div class="field"><label>Trap name</label><input id="trap-name" placeholder="Back canal, dock left, pond"></div>
+        <div class="field"><label>Serial</label><input id="trap-serial" value="${esc(nextTrapSerial())}" placeholder="IC-614"></div>
+        ${attaching ? "" : `
+          <div class="field"><label>Location <span class="muted">(optional)</span></label>
+            <select id="trap-location">
+              <option value="">Yard / not attached yet</option>
+              ${choices.map((x) => `<option value="${esc(x.customerId)}:${esc(x.locationId)}">${esc(x.label)}</option>`).join("")}
+            </select>
+          </div>`}
+        <div class="field"><label>Note</label><input id="trap-note" placeholder="Canal bank, left of dock"></div>
+        <div class="actions">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="save-trap" ${attaching ? `data-id="${esc(customerId)}" data-loc="${esc(locationId)}"` : ""}>Save trap</button>
+        </div>
+      `,
+    };
+    render();
+  }
+
+  function saveTrapAsset(customerId, locationId) {
+    if (!can("trap.update")) return;
+    if (!Array.isArray(state.data.traps)) state.data.traps = [];
+    const existingId = val("trap-existing");
+    let cid = customerId || "";
+    let lid = locationId || "";
+    if (!lid) {
+      const picked = (val("trap-location") || "").split(":");
+      cid = picked[0] || "";
+      lid = picked[1] || "";
+    }
+    const loc = cid && lid ? locBy(cid, lid) : null;
+    if (lid && !loc) {
+      toast("That location is not on file.");
+      return;
+    }
+    if (existingId && !loc) {
+      toast("Pick a location to attach this trap.");
+      return;
+    }
+    if (existingId) {
+      const t = state.data.traps.find((x) => x.id === existingId);
+      if (!t) return;
+      t.customerId = cid;
+      t.locationId = lid;
+      t.status = "deployed";
+      t.lastSeen = TODAY;
+      const name = (val("trap-name") || "").trim();
+      const note = (val("trap-note") || "").trim();
+      if (name) t.name = name;
+      if (note) t.note = note;
+      state.modal = null;
+      persist();
+      toast(`${trapName(t)} attached to ${loc.name}.`);
+      render();
+      return;
+    }
+    const serial = (val("trap-serial") || "").trim().toUpperCase();
+    const name = (val("trap-name") || "").trim() || serial;
+    if (!serial) {
+      toast("Enter a serial.");
+      return;
+    }
+    if (state.data.traps.some((t) => String(t.serial || "").toUpperCase() === serial)) {
+      toast(`${serial} is already in inventory.`);
+      return;
+    }
+    const onProperty = Boolean(loc);
+    state.data.traps.unshift({
+      id: nid("T"),
+      serial,
+      name,
+      customerId: onProperty ? cid : null,
+      locationId: onProperty ? lid : null,
+      status: onProperty ? "deployed" : "retrieved",
+      value: 80,
+      lastSeen: TODAY,
+      note: (val("trap-note") || "").trim() || (onProperty ? "Deployed from the office." : "Yard stock — not on a property yet."),
+    });
+    state.modal = null;
+    persist();
+    toast(onProperty ? `${name} attached to ${loc.name}.` : `${name} added to yard stock.`);
+    render();
+  }
+
+  function removeTrapAsset(id) {
+    if (!can("trap.update")) return;
+    const list = state.data.traps || [];
+    const t = list.find((x) => x.id === id);
+    if (!t) return;
+    state.data.traps = list.filter((x) => x.id !== id);
+    persist();
+    toast(`${trapName(t)} removed from inventory.`);
     render();
   }
 
@@ -11096,7 +13100,7 @@
   }
 
   function sendNotices() {
-    state.data.stops.filter((s) => s.day === "Fri" && !s.pending).forEach((s) => { s.noticed = true; });
+    state.data.stops.filter((s) => s.day === "Fri" && !s.pending && s.status !== "blocked_off").forEach((s) => { s.noticed = true; });
     toast("Friday visit notices queued — templated, two days ahead, no-reply.");
     render();
   }
