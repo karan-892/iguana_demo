@@ -380,12 +380,12 @@
   }
 
   const REASONS = [
-    { id: "mechanical", label: "Mechanical failure", fault: "company", extension: "auto" },
-    { id: "sick", label: "Technician illness", fault: "company", extension: "auto" },
+    { id: "mechanical", label: "Mechanical failure", fault: "company", extension: "review" },
+    { id: "sick", label: "Technician illness", fault: "company", extension: "review" },
     { id: "weather", label: "Weather", fault: "company", extension: "review" },
-    { id: "gate", label: "Gated — no answer", fault: "customer", extension: "none" },
-    { id: "nothome", label: "Not home / no access", fault: "customer", extension: "none" },
-    { id: "dog", label: "Aggressive dog / unsafe", fault: "customer", extension: "none" },
+    { id: "gate", label: "Gated — no answer", fault: "customer", extension: "review" },
+    { id: "nothome", label: "Not home / no access", fault: "customer", extension: "review" },
+    { id: "dog", label: "Aggressive dog / unsafe", fault: "customer", extension: "review" },
   ];
   const HOLIDAY_NAMES = {
     "2026-09-07": "Labor Day",
@@ -3339,16 +3339,13 @@
   }
   function reasonPolicy(reason) {
     const r = typeof reason === "string" ? reasonById(reason) : reason;
-    if (!r) return { id: "", label: "No-show", fault: "customer", extension: "none" };
-    const extension = r.extension || (r.fault === "customer" ? "none" : r.fault === "review" ? "review" : "auto");
+    if (!r) return { id: "", label: "No-show", fault: "customer", extension: "review" };
     const fault = r.fault === "review" ? "company" : (r.fault || "company");
-    return { id: r.id, label: r.label, fault, extension };
+    return { id: r.id, label: r.label, fault, extension: "review" };
   }
   function reasonRuleLabel(r) {
     const p = reasonPolicy(r);
-    if (p.extension === "auto") return "Company/tech · +1 visit";
-    if (p.extension === "none") return "Customer · no extension";
-    return "Review · approve or deny";
+    return p.fault === "customer" ? "Customer · Rick decides +1" : "Company/tech · Rick decides +1";
   }
   function nextServiceOccurrence(iso, days) {
     const wanted = (days && days.length) ? days : DAYS;
@@ -3450,14 +3447,12 @@
     stop.reason = policy.label;
     stop.reasonId = policy.id;
     stop.missNote = note || "";
+    stop.loggedBy = (typeof isFieldRole === "function" && isFieldRole())
+      ? `${techName(fieldTechId())} · phone`
+      : `${(role() && role().name) || "Office"} · office`;
     stop.extended = false;
-    stop.pendingExt = policy.extension === "review";
+    stop.pendingExt = !!stop.customerId;
     stop.extendedUntil = "";
-    if (policy.extension === "auto" && stop.customerId) {
-      const until = extendServiceByOneVisit(stop.customerId, stop.locationId);
-      stop.extended = true;
-      stop.extendedUntil = until;
-    }
     return policy;
   }
   function bulkNoShowTech(techId, day, reasonId, remainingOnly) {
@@ -3486,12 +3481,7 @@
       toast("No open stops for that trapper on that day.");
       return;
     }
-    const ext = policy.extension === "auto"
-      ? " Affected contracts extended by one visit."
-      : policy.extension === "review"
-        ? " Extension is waiting on your approval."
-        : " Contracts are not extended.";
-    toast(`${list.length} stop${list.length === 1 ? "" : "s"} marked no-show (${policy.label}).${ext}`);
+    toast(`${list.length} stop${list.length === 1 ? "" : "s"} marked no-show (${policy.label}). Rick decides whether each gets +1 visit.`);
     render();
   }
   function openMarkStop(id) {
@@ -3524,12 +3514,7 @@
     if (!s) return;
     const policy = applyNoShow(s, val("mark-reason"), val("mark-note"));
     state.modal = null;
-    const ext = policy.extension === "auto"
-      ? (s.extendedUntil ? ` Contract extended by one visit through ${s.extendedUntil}.` : " Contract extended by one visit.")
-      : policy.extension === "review"
-        ? " Approve or deny the extension below."
-        : " Contract is not extended.";
-    toast(`${stopLabel(s)} logged as ${policy.label}.${ext}`);
+    toast(`${stopLabel(s)} logged as ${policy.label}. Rick decides whether to add +1 visit.`);
     render();
   }
   function visitOutcomeHtml(s) {
@@ -6804,40 +6789,37 @@
     const marked = state.data.stops.filter((s) => s.status === "noshow" || s.status === "missed");
     const blockedOff = state.data.stops.filter((s) => s.status === "blocked_off" && !s.pending);
     const pendingExt = state.data.stops.filter((s) => s.pendingExt);
-    const openStops = state.data.stops
-      .filter((s) => !s.pending && (s.status === "scheduled" || s.status === "in_progress"))
-      .sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || String(a.time).localeCompare(String(b.time)));
     const blocks = calendarBlocks();
     const thisWeekBlocked = DAYS.filter(isDayBlocked);
     return `
-      ${head("Missed visits & blocked dates", "A company meeting or holiday is a non-service day — no visit is created, nothing is marked missed, and contracts are not extended. A no-show is a visit that was scheduled and could not be performed.")}
+      ${head("Missed visits & blocked dates", "The trapper picks a reason and posts the miss. Rick then decides whether to add one extra visit. Nothing is automatic. Company days off and a trapper out sick are still office tools.")}
       ${writeBar("noshow.mark", "Mark no-show")}
       <div class="ns-rules">
         <div class="ns-rule">
           <span class="badge badge-mute">Blocked date</span>
           <strong>Company meeting / holiday</strong>
-          <p>Known in advance. Master calendar excludes the day. No appointment, no miss, no extension.</p>
+          <p>Office blocks the day on the calendar. No visit is created, so nobody marks a miss.</p>
         </div>
         <div class="ns-rule">
-          <span class="badge badge-warn">Company / tech</span>
-          <strong>Sick, mechanical</strong>
-          <p>The stop existed. Mark no-show. Contract gets +1 visit. Bulk-mark a trapper’s remaining stops.</p>
+          <span class="badge badge-sea">Field</span>
+          <strong>Trapper posts the miss</strong>
+          <p>Picks the reason on the phone and posts. That does not add an extra visit.</p>
         </div>
         <div class="ns-rule">
-          <span class="badge badge-bad">Customer fault</span>
-          <strong>Gate / not home</strong>
-          <p>Technician arrived. Log reason and note. Contract is not extended.</p>
+          <span class="badge badge-ok">Rick</span>
+          <strong>+1 visit</strong>
+          <p>Rick approves or denies the extra visit. The reason is only context for that decision.</p>
         </div>
         <div class="ns-rule">
-          <span class="badge badge-sea">Weather / other</span>
-          <strong>Review</strong>
-          <p>Log the miss. Rick approves or denies an extra visit — it is not automatic.</p>
+          <span class="badge badge-warn">Office</span>
+          <strong>Sick / mechanical day</strong>
+          <p>If a trapper is out, office bulk-posts remaining stops. Rick still decides +1 on each.</p>
         </div>
       </div>
       ${pendingExt.length ? `
         <div class="card" style="margin-bottom:16px">
-          <h3>Waiting on an extension decision</h3>
-          <p class="tiny">Weather and unusual reasons wait here. Company/tech fault already extended; customer fault never does.</p>
+          <h3>Waiting on Rick — +1 visit?</h3>
+          <p class="tiny">The trapper already posted the miss. Approve one extra visit or deny. Nothing is added until you decide.</p>
           ${pendingExt.map((s) => `
             <div class="fit-row">
               <div><strong>${esc(stopLabel(s))}</strong><div class="tiny">${esc(s.day)} · ${esc(techName(s.techId))} · ${esc(s.reason || "Miss")}${s.missNote ? " · " + esc(s.missNote) : ""}</div></div>
@@ -6849,6 +6831,21 @@
           `).join("")}
         </div>
       ` : ""}
+      <div class="card" style="margin-bottom:16px">
+        <h3>Misses logged from the field</h3>
+        <p class="tiny">The trapper already sent the reason. Rick does not re-enter it — he only decides +1 visit on the queue above.</p>
+        ${marked.length ? table(
+          ["Day", "Stop", "Logged by", "Reason", "Fault", "Contract"],
+          marked.map((s) => [
+            s.day,
+            esc(stopLabel(s)),
+            esc(s.loggedBy || `${techName(s.techId)} · phone`),
+            `${esc(s.reason || "—")}${s.missNote ? `<div class="tiny">${esc(s.missNote)}</div>` : ""}`,
+            s.fault === "customer" ? "Customer" : "Company / tech",
+            s.pendingExt ? "Awaiting decision" : s.extended ? `+1 visit${s.extendedUntil ? " through " + s.extendedUntil : ""}` : "Not extended",
+          ])
+        ) : `<p class="muted">None yet. Sign in as Johnny, open a stop, and tap Log miss / no-show — it will appear here with the reason he sent.</p>`}
+      </div>
       <div class="split">
         <div class="card">
           <h3>Master calendar · OPS-12a / OPS-13</h3>
@@ -6895,22 +6892,8 @@
           </div>
           <label class="ns-check"><input type="checkbox" id="ns-remaining" checked> Only remaining stops (leave completed visits alone)</label>
           ${btn("noshow.mark", "Mark those stops no-show", "bulk-noshow")}
-          <p class="tiny" style="margin-top:8px">If another trapper can take the work, reassign the stop on the map instead of skipping it.</p>
+          <p class="tiny" style="margin-top:8px">A single missed stop is logged by the trapper. Use this only when that person is out and will not work the rest of the day. If another trapper can take the work, reassign on the map instead.</p>
         </div>
-      </div>
-      <div class="card section-gap">
-        <h3>Scheduled this week — mark one stop</h3>
-        <p class="tiny">Customer-fault (gate, not home) does not extend the contract. Mechanical / illness does. Weather waits for approval.</p>
-        ${openStops.length ? table(
-          ["Day", "Time", "Stop", "Trapper", ""],
-          openStops.map((s) => [
-            s.day,
-            s.time || "—",
-            esc(stopLabel(s)),
-            esc(techName(s.techId)),
-            btn("noshow.mark", "No-show", "open-mark-stop", `data-id="${s.id}"`, "btn-warn"),
-          ])
-        ) : `<p class="muted">No open stops this week.</p>`}
       </div>
       ${blockedOff.length ? `
         <div class="card section-gap">
@@ -6919,21 +6902,6 @@
           ${table(["Day", "Stop", "Trapper", "Reason"], blockedOff.map((s) => [s.day, esc(stopLabel(s)), esc(techName(s.techId)), esc(s.blockReason || blackoutForIso(DAY_DATES[s.day])?.reason || "Company day off")]))}
         </div>
       ` : ""}
-      <div class="card section-gap">
-        <h3>Service history · missed visits</h3>
-        <p class="tiny">A miss stays on the account so operations can later answer why a customer received an extra visit.</p>
-        ${marked.length ? table(
-          ["Day", "Stop", "Trapper", "Reason", "Fault", "Contract"],
-          marked.map((s) => [
-            s.day,
-            esc(stopLabel(s)),
-            esc(techName(s.techId)),
-            `${esc(s.reason || "—")}${s.missNote ? `<div class="tiny">${esc(s.missNote)}</div>` : ""}`,
-            s.fault === "customer" ? "Customer" : "Company / tech",
-            s.pendingExt ? "Awaiting decision" : s.extended ? `+1 visit${s.extendedUntil ? " through " + s.extendedUntil : ""}` : "Not extended",
-          ])
-        ) : `<p class="muted">No missed visits logged yet.</p>`}
-      </div>
     `;
   }
 
@@ -8180,9 +8148,8 @@
           <div class="field"><label>New reason</label><input id="new-reason" placeholder="Flooded yard"></div>
           <div class="field"><label>Business rule</label>
             <select id="new-reason-fault">
-              <option value="customer">Customer — no extension</option>
-              <option value="company">Company/tech — auto +1 visit</option>
-              <option value="review">Review — Rick approves</option>
+              <option value="customer">Customer fault — Rick decides +1</option>
+              <option value="company">Company/tech — Rick decides +1</option>
             </select>
           </div>
           ${btn("lists.edit", "Add reason", "add-reason")}
@@ -8403,9 +8370,9 @@
     return `
       <div class="mob-card miss-card">
         <h3>Log miss / no-show</h3>
-        <p class="tiny">Use this if you cannot work the stop — gate, not home, breakdown. Rick sees it on Missed visits.</p>
+        <p class="tiny">Pick the reason and post. You do not grant an extra visit — Rick decides that.</p>
         <div class="field"><label>Reason</label>
-          <select id="miss-reason">${allReasons().map((r) => `<option value="${esc(r.id)}" ${s.draftReason === r.id ? "selected" : ""}>${esc(r.label)} — ${esc(reasonRuleLabel(r))}</option>`).join("")}</select>
+          <select id="miss-reason">${allReasons().map((r) => `<option value="${esc(r.id)}" ${s.draftReason === r.id ? "selected" : ""}>${esc(r.label)}</option>`).join("")}</select>
         </div>
         <div class="field"><label>Note</label>
           <textarea id="miss-note" rows="2" placeholder="Waited at gate, no answer…">${esc(s.missNote || "")}</textarea>
@@ -8476,7 +8443,7 @@
               <h3>${esc(stopLabel(s))}</h3>
               <div class="meta">${esc(loc?.address || s.address || "")}</div>
               ${s.status === "complete" ? `<div class="hidden-note">Clocked ${fmtHours(s.actualMin)} · ${(s.removals?.count || 0)} iguana${(s.removals?.count || 0) === 1 ? "" : "s"} · ${s.removals?.weight || 0} lb</div>` : ""}
-              ${(s.status === "missed" || s.status === "noshow") ? `<div class="hidden-note">${esc(s.reason || "Miss")} — office sees this on Missed visits</div>` : ""}
+              ${(s.status === "missed" || s.status === "noshow") ? `<div class="hidden-note">${esc(s.reason || "Miss")} — Rick decides +1 visit</div>` : ""}
             </div>
           </button>
         `;
@@ -8601,7 +8568,7 @@
         <button type="button" class="btn btn-primary" data-act="complete-stop" data-id="${s.id}">Stop clock · complete</button>
       ` : ""}
       ${done ? `<div class="mob-card done-card">Clocked ${fmtHours(s.actualMin)}. Catch: ${s.removals?.count || 0} iguana${(s.removals?.count || 0) === 1 ? "" : "s"} · ${s.removals?.weight || 0} lb.${(s.photos || []).length ? " Photos: " + s.photos.length : ""}</div>${fieldMtoForm(s)}` : ""}
-      ${missed ? `<div class="mob-card miss-card">Logged ${esc(s.reason || "miss")}. Rick sees this on Missed visits.${s.missNote ? " " + esc(s.missNote) : ""}</div>${fieldMtoForm(s)}` : ""}
+      ${missed ? `<div class="mob-card miss-card">Logged ${esc(s.reason || "miss")}. Rick decides whether to add +1 visit.${s.missNote ? " " + esc(s.missNote) : ""}</div>${fieldMtoForm(s)}` : ""}
     `;
   }
 
@@ -11864,7 +11831,7 @@
   function noshowCompany() {
     const list = bulkNoShowTech("johnny", "Thu", "sick", true);
     toast(list.length
-      ? `${list.length} of Johnny’s Thursday stops marked technician illness. Contracts extended by one visit.`
+      ? `${list.length} of Johnny’s Thursday stops marked technician illness. Rick decides +1 visit on each.`
       : "No open Thursday stops for Johnny.");
     render();
   }
@@ -11876,7 +11843,7 @@
       return;
     }
     applyNoShow(s, "gate", "Waited at gate, no answer");
-    toast("Customer-fault miss logged. Contract is not extended.");
+    toast("Customer-fault miss logged. Rick decides whether to add +1 visit.");
     render();
   }
 
@@ -12336,8 +12303,8 @@
       return;
     }
     if (!state.data.settings.extraReasons) state.data.settings.extraReasons = [];
-    const extension = faultRaw === "customer" ? "none" : faultRaw === "review" ? "review" : "auto";
-    state.data.settings.extraReasons.push({ id, label, fault: faultRaw === "review" ? "review" : faultRaw, extension });
+    const extension = "review";
+    state.data.settings.extraReasons.push({ id, label, fault: faultRaw === "review" ? "company" : faultRaw, extension });
     toast("Reason saved.");
     render();
   }
@@ -12637,12 +12604,7 @@
     const policy = applyNoShow(s, val("miss-reason") || s.draftReason || "gate", val("miss-note") || s.missNote);
     state.mobileStop = null;
     persist();
-    const ext = policy.extension === "auto"
-      ? " Office extended the contract by one visit."
-      : policy.extension === "review"
-        ? " Office will approve or deny an extra visit."
-        : " Contract is not extended.";
-    toast(`Miss logged: ${policy.label}. Rick sees it on Missed visits.${ext}`);
+    toast(`Miss logged: ${policy.label}. Rick will decide on an extra visit.`);
     render();
   }
 
