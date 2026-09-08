@@ -1,14 +1,14 @@
 (() => {
   "use strict";
 
-  const DATA_KEY = "iguana-crm-data-v9";
+  const DATA_KEY = "iguana-crm-data-v10";
   const SESSION_KEY = "iguana-crm-session-v2";
 
   const ARRAY_KEYS = [
     "customers", "quotes", "invoices", "payments", "stops", "comms", "mtos", "mail",
     "documents", "users", "holidays", "commissions", "traps", "inbound", "services",
     "contracts", "billingPlans", "billingPeriods", "paymentAllocations", "autopayAuthorizations",
-    "renewals", "notifications", "tasks",
+    "renewals", "notifications", "tasks", "optimizerRuns",
   ];
 
   function load(seedFn) {

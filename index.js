@@ -115,6 +115,7 @@
     { id: "quotes", label: "Quotes", group: "Customers", icon: "mail", roles: ["sales", "owner", "admin"] },
 
     { id: "schedule", label: "Schedule", group: "Operations", icon: "cal", roles: ["owner", "ops"] },
+    { id: "optimizer", label: "Multi-Day Optimizer", group: "Operations", icon: "route", roles: ["owner", "ops"] },
     { id: "map", label: "Map & routing", group: "Operations", icon: "map", roles: ["owner", "ops"] },
     { id: "trappers", label: "Trappers", group: "Operations", icon: "people", roles: ["owner", "ops", "admin"] },
     { id: "oneoffs", label: "One-off jobs", group: "Operations", icon: "bolt", roles: ["owner", "ops"] },
@@ -158,6 +159,7 @@
     "schedule.assign": ["ops"],
     "schedule.reassign": ["ops"],
     "schedule.generate": ["ops"],
+    "schedule.optimize": ["ops"],
     "service.create": ["ops"],
     "service.edit": ["ops", "owner"],
     "service.stop": ["ops", "owner"],
@@ -279,6 +281,7 @@
     if (!Array.isArray(s.extraPrograms)) s.extraPrograms = [];
     if (!Array.isArray(s.extraServiceTypes)) s.extraServiceTypes = [];
     if (!Array.isArray(s.customTemplates)) s.customTemplates = [];
+    if (!Array.isArray(state.data.optimizerRuns)) state.data.optimizerRuns = [];
     if (!state.data.templates) state.data.templates = {};
     if (!state.data.integrations) state.data.integrations = { mapsKey: "", processor: "", sendgrid: "", notes: "" };
     (state.data.users || []).forEach((u) => {
@@ -768,6 +771,22 @@
         { id: "APA-1066", contractId: "CON-1066a", customerId: "C-1066", locationId: "L-1066a", status: "FAILED", method: "Credit Card", last4: "3301", failureCode: "CARD_DECLINED", failedAt: "2026-08-26T12:00:00" },
       ],
       renewals: [],
+      optimizerRuns: [
+        {
+          id: "OPT-1",
+          createdAt: "2026-08-25 16:40",
+          createdBy: "Rick Torgerson",
+          startDate: "2026-08-25",
+          endDate: "2026-08-26",
+          techIds: ["bobby", "johnny"],
+          stopCount: 6,
+          routeCount: 2,
+          beforeDrive: 72,
+          afterDrive: 42,
+          unreachable: 0,
+          committed: true,
+        },
+      ],
       notifications: [
         { id: "N-1", type: "AUTOPAY_FAILED", severity: "alert", title: "AutoPay declined", text: "Harbor Oaks · Campus · CARD_DECLINED ····3301. Monthly plan — service already exists. Contact customer; Rick can stop service if they will not pay.", customerId: "C-1066", locationId: "L-1066a", invoiceId: "INV-4488", date: "2026-08-26", read: false },
       ],
@@ -811,6 +830,9 @@
         { id: "S-12", customerId: "C-1112", locationId: "L-1112a", techId: "bobby", day: "Wed", time: "13:00", durationMin: 180, type: "service", status: "scheduled", actualMin: null, removals: null },
         { id: "S-13", customerId: "C-1210", locationId: "L-1210a", techId: "johnny", day: "Mon", time: "10:20", durationMin: 20, type: "service", status: "scheduled", actualMin: null, removals: null },
         { id: "S-14", customerId: "C-1210", locationId: "L-1210b", techId: "bobby", day: "Tue", time: "11:00", durationMin: 25, type: "service", status: "scheduled", actualMin: null, removals: null },
+        { id: "S-15", customerId: null, locationId: null, techId: "bobby", day: "Wed", time: "08:10", durationMin: 20, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Lakeview canal call-in", address: "Lakeview Dr, West Palm Beach", x: "50%", y: "25%" },
+        { id: "S-16", customerId: null, locationId: null, techId: "bobby", day: "Wed", time: "09:00", durationMin: 20, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Marina iguana pickup", address: "South Marina, Fort Lauderdale", x: "20%", y: "75%" },
+        { id: "S-17", customerId: null, locationId: null, techId: "bobby", day: "Wed", time: "10:00", durationMin: 20, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Northlake backyard visit", address: "Northlake Blvd, Palm Beach Gardens", x: "48%", y: "28%" },
       ],
       mtos: [
         { id: "M-1", from: "johnny", dept: "ops", customerId: "C-1042", text: "Gate keypad sticking. Side path still works. Property issue, not billing.", date: "2026-08-24 08:32", read: false },
@@ -925,6 +947,8 @@
     schedView: "week",
     navOpen: {},
     locCount: 1,
+    optimizerPreview: null,
+    optimizerAnchors: {},
   };
   normalizeDemoData();
 
@@ -2122,6 +2146,236 @@
       };
     }).sort((a, b) => a.score - b.score || a.homeMiles - b.homeMiles);
   }
+
+  function optimizerDates(startDate, endDate) {
+    const start = startDate || DAY_DATES.Tue;
+    const end = endDate || DAY_DATES.Wed;
+    return Object.entries(DAY_DATES)
+      .map(([day, date]) => ({ day, date }))
+      .filter((x) => x.date >= start && x.date <= end)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  function optimizerDriveMinutes(techId, stops) {
+    const tech = techBy(techId);
+    if (!tech || !stops.length) return 0;
+    let prev = { x: tech.x, y: tech.y };
+    let miles = 0;
+    stops.forEach((s) => {
+      const point = stopCoords(s);
+      miles += distMiles(prev.x, prev.y, point.x, point.y);
+      prev = point;
+    });
+    miles += distMiles(prev.x, prev.y, tech.x, tech.y);
+    return Math.round(miles * 2.3);
+  }
+
+  function optimizerProduction(s) {
+    if (!s?.customerId) return 0;
+    const c = custBy(s.customerId);
+    const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+    const plan = locPlan(c, loc);
+    if (Number(plan.amount) > 0) return Number(plan.amount);
+    const svc = s.locationId ? svcFor(s.customerId, s.locationId) : null;
+    const type = svc ? allServiceTypes().find((t) => t.id === svc.type) : null;
+    return Number(type?.price || c?.amount || 0);
+  }
+
+  function optimizerNearestOrder(techId, stops, anchorId) {
+    if (!stops.length) return [];
+    const tech = techBy(techId);
+    const remaining = stops.slice();
+    const ordered = [];
+    let prev = { x: tech?.x || "50%", y: tech?.y || "50%" };
+    if (anchorId) {
+      const index = remaining.findIndex((s) => s.id === anchorId);
+      if (index >= 0) {
+        const [anchor] = remaining.splice(index, 1);
+        ordered.push(anchor);
+        prev = stopCoords(anchor);
+      }
+    }
+    while (remaining.length) {
+      let bestIndex = 0;
+      let bestMiles = Infinity;
+      remaining.forEach((s, i) => {
+        const p = stopCoords(s);
+        const miles = distMiles(prev.x, prev.y, p.x, p.y);
+        if (miles < bestMiles) {
+          bestMiles = miles;
+          bestIndex = i;
+        }
+      });
+      const [next] = remaining.splice(bestIndex, 1);
+      ordered.push(next);
+      prev = stopCoords(next);
+    }
+    return ordered;
+  }
+
+  function optimizerTimes(techId, stops) {
+    const tech = techBy(techId);
+    let prev = { x: tech?.x || "50%", y: tech?.y || "50%" };
+    let cursor = 8 * 60;
+    return stops.map((s) => {
+      const p = stopCoords(s);
+      const drive = Math.round(distMiles(prev.x, prev.y, p.x, p.y) * 2.3);
+      const arrival = cursor + drive;
+      cursor = arrival + Number(s.durationMin || 20);
+      prev = p;
+      return { id: s.id, time: minToTime(arrival) };
+    });
+  }
+
+  function optimizerCapValue(config, key) {
+    const n = Number(config?.limits?.[key]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  function optimizerApplyCaps(techId, ordered, config) {
+    const reachable = [];
+    const unreachable = [];
+    const maxJobs = optimizerCapValue(config, "maxJobs");
+    const maxService = optimizerCapValue(config, "maxService");
+    const maxWorkingInput = optimizerCapValue(config, "maxWorking");
+    const maxDrive = optimizerCapValue(config, "maxDrive");
+    const maxProduction = optimizerCapValue(config, "maxProduction");
+    const leaveOpen = optimizerCapValue(config, "leaveOpen") || 0;
+    const maxWorking = Math.min(maxWorkingInput || Infinity, Math.max(0, 600 - leaveOpen));
+    ordered.forEach((s) => {
+      const proposed = reachable.concat(s);
+      const service = proposed.reduce((n, x) => n + Number(x.durationMin || 0), 0);
+      const drive = optimizerDriveMinutes(techId, proposed);
+      const working = service + drive;
+      const production = proposed.reduce((n, x) => n + optimizerProduction(x), 0);
+      const cannotFit =
+        (maxJobs && proposed.length > maxJobs)
+        || (maxService && service > maxService)
+        || (Number.isFinite(maxWorking) && working > maxWorking)
+        || (maxDrive && drive > maxDrive)
+        || (maxProduction && production > maxProduction);
+      (cannotFit ? unreachable : reachable).push(s);
+    });
+    const serviceMin = reachable.reduce((n, s) => n + Number(s.durationMin || 0), 0);
+    const driveMin = optimizerDriveMinutes(techId, reachable);
+    const production = reachable.reduce((n, s) => n + optimizerProduction(s), 0);
+    const warnings = [];
+    const minJobs = optimizerCapValue(config, "minJobs");
+    const minProduction = optimizerCapValue(config, "minProduction");
+    if (minJobs && reachable.length < minJobs) warnings.push(`Below minimum jobs (${reachable.length}/${minJobs})`);
+    if (minProduction && production < minProduction) warnings.push(`Below minimum production (${money(production)}/${money(minProduction)})`);
+    return {
+      reachable,
+      unreachable,
+      serviceMin,
+      driveMin,
+      workingMin: serviceMin + driveMin,
+      production,
+      warnings,
+    };
+  }
+
+  function optimizerIncrementalScore(techId, bucket, stop) {
+    const before = optimizerDriveMinutes(techId, bucket);
+    const after = optimizerDriveMinutes(techId, bucket.concat(stop));
+    return after - before + bucket.reduce((n, s) => n + Number(s.durationMin || 0), 0) / 240;
+  }
+
+  function buildOptimizerPreview(config) {
+    const dates = optimizerDates(config.startDate, config.endDate);
+    const techIds = config.techId && config.techId !== "all" ? [config.techId] : TECHS.map((t) => t.id);
+    const daySet = new Set(dates.map((d) => d.day));
+    const techSet = new Set(techIds);
+    const source = state.data.stops
+      .filter((s) =>
+        daySet.has(s.day)
+        && techSet.has(s.techId)
+        && !s.pending
+        && s.status === "scheduled"
+      )
+      .slice();
+    const originalById = Object.fromEntries(source.map((s) => [s.id, {
+      techId: s.techId,
+      day: s.day,
+      time: s.time,
+    }]));
+    const buckets = {};
+    dates.forEach(({ day, date }) => {
+      techIds.forEach((techId) => {
+        buckets[`${date}:${techId}`] = { date, day, techId, stops: [] };
+      });
+    });
+    source.slice().sort((a, b) => String(a.time || "").localeCompare(String(b.time || ""))).forEach((s) => {
+      const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+      const c = s.customerId ? custBy(s.customerId) : null;
+      const shared = !!(c && loc && locIsShared(c, loc));
+      const candidateDates = config.keepDate ? dates.filter((d) => d.day === s.day) : dates;
+      const candidateTechs = (config.keepTech || shared) ? techIds.filter((id) => id === s.techId) : techIds;
+      const candidates = [];
+      candidateDates.forEach(({ date }) => candidateTechs.forEach((techId) => {
+        const bucket = buckets[`${date}:${techId}`];
+        if (bucket) candidates.push(bucket);
+      }));
+      const best = candidates.sort((a, b) =>
+        optimizerIncrementalScore(a.techId, a.stops, s) - optimizerIncrementalScore(b.techId, b.stops, s)
+        || a.stops.length - b.stops.length
+      )[0];
+      if (best) best.stops.push(s);
+    });
+    const originalGroups = {};
+    source.forEach((s) => {
+      const date = DAY_DATES[s.day];
+      const key = `${date}:${s.techId}`;
+      if (!originalGroups[key]) originalGroups[key] = [];
+      originalGroups[key].push(s);
+    });
+    Object.values(originalGroups).forEach((list) => list.sort((a, b) => String(a.time || "").localeCompare(String(b.time || ""))));
+    const routes = Object.values(buckets)
+      .filter((b) => b.stops.length)
+      .sort((a, b) => a.date.localeCompare(b.date) || techName(a.techId).localeCompare(techName(b.techId)))
+      .map((bucket) => {
+        const original = (originalGroups[`${bucket.date}:${bucket.techId}`] || []).slice();
+        const anchorId = state.optimizerAnchors?.[`${bucket.date}:${bucket.techId}`] || null;
+        const ordered = optimizerNearestOrder(bucket.techId, bucket.stops, anchorId);
+        const capped = optimizerApplyCaps(bucket.techId, ordered, config);
+        return {
+          date: bucket.date,
+          day: bucket.day,
+          techId: bucket.techId,
+          anchorId,
+          originalStopIds: original.map((s) => s.id),
+          optimized: optimizerTimes(bucket.techId, capped.reachable),
+          unreachableIds: capped.unreachable.map((s) => s.id),
+          beforeDrive: optimizerDriveMinutes(bucket.techId, original),
+          afterDrive: capped.driveMin,
+          serviceMin: capped.serviceMin,
+          workingMin: capped.workingMin,
+          production: capped.production,
+          warnings: capped.warnings,
+        };
+      });
+    const beforeDrive = Object.entries(originalGroups).reduce((sum, [key, list]) => {
+      const techId = key.slice(key.lastIndexOf(":") + 1);
+      return sum + optimizerDriveMinutes(techId, list);
+    }, 0);
+    const afterDrive = routes.reduce((n, r) => n + r.afterDrive, 0);
+    const unreachable = routes.reduce((n, r) => n + r.unreachableIds.length, 0);
+    return {
+      id: nid("OPT"),
+      config: { ...config, techIds },
+      originalById,
+      routes,
+      stopCount: source.length,
+      routeCount: routes.length,
+      beforeDrive,
+      afterDrive,
+      unreachable,
+      committed: false,
+      createdAt: `${TODAY} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+      createdBy: role()?.name || "Rick Torgerson",
+    };
+  }
+
   function expiryFrom(start, typeId) {
     const t = allServiceTypes().find((x) => x.id === typeId);
     if (!start || t == null || !t.months) return start || "";
@@ -2861,6 +3115,7 @@
       customers: viewCustomers,
       quotes: viewQuotes,
       schedule: viewSchedule,
+      optimizer: viewOptimizer,
       map: viewMap,
       trappers: viewTrappers,
       assign: viewAssign,
@@ -4065,6 +4320,255 @@
         <div class="actions" style="margin-top:10px">${btn("schedule.assign", "Send Friday notices", "send-notices", "", "btn-ghost")}</div>
       </div>
     `;
+  }
+
+  function optimizerLimitField(id, label, unit, placeholder = "No limit") {
+    const key = id.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    const current = state.optimizerPreview?.config?.limits?.[key] || "";
+    return `<div class="field"><label for="opt-${id}">${esc(label)}</label><div class="opt-input-unit"><input id="opt-${id}" type="number" min="0" step="1" value="${esc(current)}" placeholder="${esc(placeholder)}"><span>${esc(unit)}</span></div></div>`;
+  }
+
+  function optimizerSummary(preview) {
+    const saved = preview.beforeDrive - preview.afterDrive;
+    return `
+      <div class="opt-summary">
+        <div class="stat"><span>Stops reviewed</span><strong>${preview.stopCount}</strong></div>
+        <div class="stat"><span>Routes</span><strong>${preview.routeCount}</strong></div>
+        <div class="stat"><span>Drive before</span><strong>${fmtDur(preview.beforeDrive)}</strong></div>
+        <div class="stat"><span>Drive after</span><strong>${fmtDur(preview.afterDrive)}</strong><small class="${saved >= 0 ? "good" : "bad"}">${saved >= 0 ? `${fmtDur(saved)} saved` : `${fmtDur(Math.abs(saved))} added`}</small></div>
+        <div class="stat"><span>Unreachable</span><strong>${preview.unreachable}</strong></div>
+      </div>`;
+  }
+
+  function optimizerResultRow(route) {
+    const reachable = route.optimized.length;
+    const saved = route.beforeDrive - route.afterDrive;
+    return `
+      <div class="opt-route-row">
+        <div>
+          <strong>${esc(techName(route.techId))}</strong>
+          <div class="tiny">${esc(route.day)} · ${esc(route.date)}</div>
+        </div>
+        <div><span class="tiny">Jobs</span><strong>${reachable}</strong></div>
+        <div><span class="tiny">Service</span><strong>${fmtDur(route.serviceMin)}</strong></div>
+        <div><span class="tiny">Working</span><strong>${fmtDur(route.workingMin)}</strong></div>
+        <div><span class="tiny">Drive</span><strong>${fmtDur(route.beforeDrive)} → ${fmtDur(route.afterDrive)}</strong><small class="${saved >= 0 ? "good" : "bad"}">${saved >= 0 ? "Shorter" : "Longer"}</small></div>
+        <div><span class="tiny">Production</span><strong>${money(route.production)}</strong></div>
+        <div>${route.unreachableIds.length ? `<span class="badge badge-bad">${route.unreachableIds.length} unreachable</span>` : `<span class="badge badge-ok">All fit</span>`}${route.warnings.map((w) => `<div class="tiny opt-warning">${esc(w)}</div>`).join("")}</div>
+        <button class="btn btn-ghost" data-act="optimizer-detail" data-date="${esc(route.date)}" data-tech="${esc(route.techId)}">Route details</button>
+      </div>`;
+  }
+
+  function viewOptimizer() {
+    const preview = state.optimizerPreview;
+    return `
+      ${head("Multi-Day Route Optimizer", "Build a route preview across several days. Nothing moves on the live schedule until you commit it.")}
+      ${writeBar("schedule.optimize", "Optimize routes")}
+      <div class="card opt-setup">
+        <div class="opt-fields">
+          <div class="field"><label for="opt-start">Start date</label><input id="opt-start" type="date" value="${esc(preview?.config.startDate || DAY_DATES.Tue)}"></div>
+          <div class="field"><label for="opt-end">End date</label><input id="opt-end" type="date" value="${esc(preview?.config.endDate || DAY_DATES.Wed)}"></div>
+          <div class="field"><label for="opt-tech">Trapper</label><select id="opt-tech"><option value="all">All trappers</option>${TECHS.map((t) => `<option value="${t.id}" ${preview?.config.techId === t.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select></div>
+        </div>
+        <div class="opt-locks">
+          <label class="check-row"><input id="opt-keep-date" type="checkbox" ${preview?.config.keepDate !== false ? "checked" : ""}> Keep each stop on its current date</label>
+          <label class="check-row"><input id="opt-keep-tech" type="checkbox" ${preview?.config.keepTech !== false ? "checked" : ""}> Keep each stop with its current trapper</label>
+        </div>
+        <details class="opt-limits">
+          <summary>Daily route limits <span class="tiny">Optional · applied to each trapper and day</span></summary>
+          <div class="opt-limit-grid">
+            ${optimizerLimitField("leave-open", "Leave open", "min")}
+            ${optimizerLimitField("min-jobs", "Minimum jobs", "jobs")}
+            ${optimizerLimitField("max-jobs", "Maximum jobs", "jobs")}
+            ${optimizerLimitField("max-service", "Maximum service", "min")}
+            ${optimizerLimitField("max-working", "Maximum working", "min")}
+            ${optimizerLimitField("max-drive", "Maximum drive", "min")}
+            ${optimizerLimitField("min-production", "Minimum production", "$")}
+            ${optimizerLimitField("max-production", "Maximum production", "$")}
+          </div>
+        </details>
+        <div class="actions opt-actions">
+          <button class="btn btn-primary" data-act="optimizer-run">Start Optimization</button>
+          <button class="btn btn-ghost" data-act="optimizer-history">View Run History</button>
+        </div>
+      </div>
+      ${preview ? `
+        <div class="opt-results">
+          <div class="opt-results-head">
+            <div><h2>Optimization preview</h2><p class="muted">Review every route and any stops that could not fit.</p></div>
+            <span class="badge badge-warn">Not committed</span>
+          </div>
+          ${optimizerSummary(preview)}
+          <div class="card opt-route-list">
+            ${preview.routes.map(optimizerResultRow).join("") || `<p class="muted">No scheduled stops matched these dates and trappers.</p>`}
+          </div>
+          <div class="actions opt-commit-bar">
+            <button class="btn btn-primary" data-act="optimizer-commit" ${preview.stopCount ? "" : "disabled"}>Commit This Run</button>
+            <button class="btn btn-ghost" data-act="optimizer-clear">Discard Preview</button>
+          </div>
+        </div>
+      ` : ""}
+    `;
+  }
+
+  function openOptimizerDetail(date, techId) {
+    const preview = state.optimizerPreview;
+    const route = preview?.routes.find((r) => r.date === date && r.techId === techId);
+    if (!route) return;
+    const current = route.originalStopIds.map((id) => state.data.stops.find((s) => s.id === id)).filter(Boolean);
+    const optimized = route.optimized.map((x) => ({ ...state.data.stops.find((s) => s.id === x.id), optimizedTime: x.time })).filter((s) => s.id);
+    const unreachable = route.unreachableIds.map((id) => state.data.stops.find((s) => s.id === id)).filter(Boolean);
+    const orderList = (rows, optimizedOrder = false) => rows.map((s, i) => `
+      <div class="opt-stop-row">
+        <span class="opt-order">${i + 1}</span>
+        <div><strong>${esc(stopLabel(s))}</strong><div class="tiny">${esc(optimizedOrder ? s.optimizedTime : s.time)} · ${Number(s.durationMin || 0)} min</div></div>
+        ${optimizedOrder ? `<button class="btn btn-ghost btn-small" data-act="optimizer-anchor" data-date="${esc(date)}" data-tech="${esc(techId)}" data-stop="${esc(s.id)}">${route.anchorId === s.id ? "Starting here" : "Optimize from here"}</button>` : ""}
+      </div>`).join("") || `<p class="muted">No stops.</p>`;
+    state.modal = {
+      wide: true,
+      html: `
+        <div class="modal-head"><div><h3>${esc(techName(techId))} · ${esc(route.day)} route</h3><p class="muted">${esc(date)} · starts and ends at ${esc(techBy(techId)?.home || "home")}</p></div><button class="icon-btn" data-act="close-modal">×</button></div>
+        <div class="opt-compare">
+          <div><h4>Current order</h4>${orderList(current)}</div>
+          <div><h4>Optimized order</h4>${orderList(optimized, true)}</div>
+        </div>
+        ${unreachable.length ? `<div class="notice locked section-gap"><strong>Unreachable</strong><p class="tiny">These stay on their original schedule when this run is committed.</p>${unreachable.map((s) => `<div>${esc(stopLabel(s))} · ${esc(s.time)}</div>`).join("")}</div>` : ""}
+        <div class="actions section-gap"><button class="btn btn-primary" data-act="close-modal">Done</button></div>`,
+    };
+    render();
+  }
+
+  function openOptimizerHistory() {
+    const rows = (state.data.optimizerRuns || []).slice().reverse();
+    state.modal = {
+      wide: true,
+      html: `
+        <div class="modal-head"><div><h3>Optimizer run history</h3><p class="muted">Previous previews and committed route changes.</p></div><button class="icon-btn" data-act="close-modal">×</button></div>
+        <div class="opt-history">
+          ${rows.map((run) => `
+            <div class="opt-history-row">
+              <div><strong>${esc(run.id)}</strong><div class="tiny">${esc(run.createdAt)} · ${esc(run.createdBy || "Rick Torgerson")}</div></div>
+              <div><span class="tiny">Dates</span><strong>${esc(run.startDate)} → ${esc(run.endDate)}</strong></div>
+              <div><span class="tiny">Stops</span><strong>${Number(run.stopCount || 0)}</strong></div>
+              <div><span class="tiny">Drive</span><strong>${fmtDur(run.beforeDrive)} → ${fmtDur(run.afterDrive)}</strong></div>
+              <div>${run.unreachable ? `<span class="badge badge-bad">${run.unreachable} unreachable</span>` : `<span class="badge badge-ok">All fit</span>`}</div>
+              <span class="badge ${run.committed ? "badge-ok" : "badge-mute"}">${run.committed ? "Committed" : "Preview only"}</span>
+            </div>`).join("") || `<p class="muted">No optimizer runs yet.</p>`}
+        </div>
+        <div class="actions section-gap"><button class="btn btn-primary" data-act="close-modal">Close</button></div>`,
+    };
+    render();
+  }
+
+  function readOptimizerConfig() {
+    let startDate = val("opt-start") || DAY_DATES.Tue;
+    let endDate = val("opt-end") || DAY_DATES.Wed;
+    if (startDate > endDate) [startDate, endDate] = [endDate, startDate];
+    const numberValue = (id) => {
+      const raw = val(id);
+      return raw === "" ? null : Math.max(0, Number(raw) || 0);
+    };
+    return {
+      startDate,
+      endDate,
+      techId: val("opt-tech") || "all",
+      keepDate: checked("opt-keep-date"),
+      keepTech: checked("opt-keep-tech"),
+      limits: {
+        leaveOpen: numberValue("opt-leave-open"),
+        minJobs: numberValue("opt-min-jobs"),
+        maxJobs: numberValue("opt-max-jobs"),
+        maxService: numberValue("opt-max-service"),
+        maxWorking: numberValue("opt-max-working"),
+        maxDrive: numberValue("opt-max-drive"),
+        minProduction: numberValue("opt-min-production"),
+        maxProduction: numberValue("opt-max-production"),
+      },
+    };
+  }
+
+  function compactOptimizerRun(preview) {
+    return {
+      id: preview.id,
+      createdAt: preview.createdAt,
+      createdBy: preview.createdBy,
+      startDate: preview.config.startDate,
+      endDate: preview.config.endDate,
+      techIds: preview.config.techIds,
+      stopCount: preview.stopCount,
+      routeCount: preview.routeCount,
+      beforeDrive: preview.beforeDrive,
+      afterDrive: preview.afterDrive,
+      unreachable: preview.unreachable,
+      committed: !!preview.committed,
+      routes: preview.routes.map((r) => ({
+        date: r.date,
+        day: r.day,
+        techId: r.techId,
+        jobs: r.optimized.length,
+        unreachable: r.unreachableIds.length,
+        beforeDrive: r.beforeDrive,
+        afterDrive: r.afterDrive,
+      })),
+    };
+  }
+
+  function saveOptimizerRun(preview) {
+    const record = compactOptimizerRun(preview);
+    const index = state.data.optimizerRuns.findIndex((r) => r.id === preview.id);
+    if (index >= 0) state.data.optimizerRuns[index] = record;
+    else state.data.optimizerRuns.push(record);
+    persist();
+  }
+
+  function runOptimizer(config, existingId) {
+    const dates = optimizerDates(config.startDate, config.endDate);
+    if (!dates.length) {
+      toast("Choose dates in the demo week: 24–28 Aug 2026.");
+      return;
+    }
+    const preview = buildOptimizerPreview(config);
+    if (existingId) {
+      preview.id = existingId;
+      preview.createdAt = state.optimizerPreview?.createdAt || preview.createdAt;
+    }
+    state.optimizerPreview = preview;
+    saveOptimizerRun(preview);
+    render();
+  }
+
+  function anchorOptimizerRoute(date, techId, stopId) {
+    const preview = state.optimizerPreview;
+    if (!preview) return;
+    state.optimizerAnchors[`${date}:${techId}`] = stopId;
+    state.modal = null;
+    runOptimizer(preview.config, preview.id);
+    openOptimizerDetail(date, techId);
+  }
+
+  function commitOptimizerRun() {
+    const preview = state.optimizerPreview;
+    if (!preview || !preview.stopCount) return;
+    const unreachable = new Set(preview.routes.flatMap((r) => r.unreachableIds));
+    let changed = 0;
+    preview.routes.forEach((route) => {
+      route.optimized.forEach((item) => {
+        if (unreachable.has(item.id)) return;
+        const stop = state.data.stops.find((s) => s.id === item.id);
+        if (!stop) return;
+        stop.techId = route.techId;
+        stop.day = route.day;
+        stop.time = item.time;
+        changed += 1;
+      });
+    });
+    preview.committed = true;
+    saveOptimizerRun(preview);
+    state.optimizerPreview = null;
+    state.optimizerAnchors = {};
+    persist();
+    toast(`${changed} stop${changed === 1 ? "" : "s"} committed. ${preview.unreachable ? `${preview.unreachable} stayed on the original schedule.` : "All stops fit."}`);
+    render();
   }
 
   function weekBoard() {
@@ -6236,6 +6740,12 @@
       "stop-service": () => openStopService(ds.id),
       "confirm-stop-service": () => confirmStopService(ds.id),
       "sched-view": () => { state.schedView = ds.view; render(); },
+      "optimizer-run": () => { state.optimizerAnchors = {}; runOptimizer(readOptimizerConfig()); },
+      "optimizer-detail": () => openOptimizerDetail(ds.date, ds.tech),
+      "optimizer-anchor": () => anchorOptimizerRoute(ds.date, ds.tech, ds.stop),
+      "optimizer-history": () => openOptimizerHistory(),
+      "optimizer-commit": () => commitOptimizerRun(),
+      "optimizer-clear": () => { state.optimizerPreview = null; state.optimizerAnchors = {}; render(); },
       "focus-tech": () => { state.assignFocus = ds.tech; render(); },
       "confirm-assign": () => confirmAssign(ds.id, ds.tech, ds.loc),
       "confirm-bestfit": () => confirmAssign(ds.id, ds.tech, ds.loc),
