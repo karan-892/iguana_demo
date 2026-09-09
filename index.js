@@ -98,7 +98,7 @@
       color: "#40916c",
       techId: "johnny",
       access: "Today’s route only. Drive to the stop, start the clock, log iguanas (count, weight, photos), send a memo, or mark a miss. No prices or payments.",
-      chips: ["Today’s route", "Clock in/out", "Catch photos"],
+      chips: ["Today’s route", "Next schedule", "Clock in/out"],
     },
     sysadmin: {
       id: "sysadmin",
@@ -117,13 +117,13 @@
     { id: "dashboard", label: "Dashboard", group: "Home", icon: "home", roles: ["owner", "ops", "admin", "sales", "sysadmin"] },
 
     { id: "customers", label: "Customers", group: "Customers", icon: "people", roles: ["owner", "ops", "admin", "sales"] },
-    { id: "locations", label: "Locations / Properties", group: "Customers", icon: "map", roles: ["owner", "ops", "admin", "sales"] },
+    { id: "locations", label: "Locations", group: "Customers", icon: "map", roles: ["owner", "ops", "admin", "sales"] },
     { id: "quotes", label: "Quotes", group: "Customers", icon: "mail", roles: ["sales", "owner", "admin"] },
 
     { id: "schedule", label: "Schedule", group: "Operations", icon: "cal", roles: ["owner", "ops"] },
     { id: "ready-schedule", label: "Ready to schedule", group: "Operations", icon: "list", roles: ["owner", "ops"] },
     { id: "optimizer", label: "Multi-Day Optimizer", group: "Operations", icon: "route", roles: ["owner", "ops"] },
-    { id: "map", label: "Map & routing", group: "Operations", icon: "map", roles: ["owner", "ops"] },
+    { id: "map", label: "Dispatch", group: "Operations", icon: "map", roles: ["owner", "ops"] },
     { id: "trappers", label: "Trappers", group: "Operations", icon: "people", roles: ["owner", "ops", "admin"] },
     { id: "oneoffs", label: "One-off jobs", group: "Operations", icon: "bolt", roles: ["owner", "ops"] },
     { id: "traps", label: "Trap assets", group: "Operations", icon: "trap", roles: ["owner", "ops"] },
@@ -315,7 +315,18 @@
     ensureSeedTrapperBonusDemo();
     syncTrapperBonuses();
     ensureSeedFieldStops();
+    ensureSeedDenseRoute();
+    ensureSeedOptimizerRuns();
     ensureSeedMtoDemo();
+    ensureSeedApplyPayDemo();
+  }
+  function ensureSeedApplyPayDemo() {
+    const payments = state.data.payments || [];
+    const addPay = (row) => { if (!payments.some((p) => p.id === row.id)) payments.push(row); };
+    addPay({ id: "P-1048", invoiceId: "INV-4510", customerId: "C-1091", locationId: "L-1091a", amount: 2000, method: "Check", checkNo: "1123", last4: "1123", source: "check", date: "2026-08-26", memo: "Check #1123 · Sarah Chen renewal", invoiceMarked: false, linkPay: false });
+    addPay({ id: "P-1042", invoiceId: null, customerId: "C-1091", locationId: "L-1091a", amount: 450, method: "ACH", last4: "", source: "ach", date: "2026-08-22", memo: "ACH · Sarah Chen · unapplied remainder", invoiceMarked: false, linkPay: false });
+    const portal = payments.find((p) => p.id === "P-9231");
+    if (portal && !portal.invoiceMarked) portal.method = portal.method === "Check" ? "Online" : (portal.method || "Online");
   }
   function programBillAmount(p) {
     if (!p) return 0;
@@ -379,6 +390,13 @@
     };
   }
 
+  const REASSIGN_REASONS = [
+    { id: "unavailable", label: "Trapper unavailable" },
+    { id: "sick", label: "Sick leave" },
+    { id: "holiday", label: "Holiday / time off" },
+    { id: "busy", label: "Too busy / overloaded" },
+    { id: "other", label: "Other" },
+  ];
   const REASONS = [
     { id: "mechanical", label: "Mechanical failure", fault: "company", extension: "review" },
     { id: "sick", label: "Technician illness", fault: "company", extension: "review" },
@@ -749,7 +767,9 @@
         { id: "P-9180", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-08-26", memo: "Declined — Harbor Oaks monthly installment 5", invoiceMarked: false, failed: true, linkPay: true, posted: true, status: "FAILED" },
         { id: "P-9260", invoiceId: "INV-4419", customerId: "C-1042", locationId: "L-1042a", amount: 2000, method: "Website", last4: "2291", source: "website", date: "2026-02-22", memo: "Website checkout · Diane Walsh", invoiceMarked: true, linkPay: true },
         { id: "P-9230", invoiceId: "INV-4531", customerId: "C-1077", locationId: "L-1077a", amount: 300, method: "Card", last4: "7712", source: "portal", date: "2026-08-26", memo: "Portal link · Rita Gomez — Christy marked paid", invoiceMarked: true, linkPay: true },
-        { id: "P-9231", invoiceId: "INV-4510", customerId: "C-1091", locationId: "L-1091a", amount: 2000, method: "Card", last4: "1091", source: "portal", date: "2026-08-27", memo: "Portal renewal link · Sarah Chen — on register, post payment", invoiceMarked: false, linkPay: true },
+        { id: "P-9231", invoiceId: "INV-4510", customerId: "C-1091", locationId: "L-1091a", amount: 2000, method: "Online", last4: "1091", source: "portal", date: "2026-08-27", memo: "Portal renewal link · Sarah Chen — on register, post payment", invoiceMarked: false, linkPay: true },
+        { id: "P-1048", invoiceId: "INV-4510", customerId: "C-1091", locationId: "L-1091a", amount: 2000, method: "Check", checkNo: "1123", last4: "1123", source: "check", date: "2026-08-26", memo: "Check #1123 · Sarah Chen renewal", invoiceMarked: false, linkPay: false },
+        { id: "P-1042", invoiceId: null, customerId: "C-1091", locationId: "L-1091a", amount: 450, method: "ACH", last4: "", source: "ach", date: "2026-08-22", memo: "ACH · Sarah Chen · unapplied remainder", invoiceMarked: false, linkPay: false },
         { id: "P-9288", invoiceId: "INV-4688", customerId: "C-1188", locationId: "L-1188a", amount: 1200, method: "Portal", last4: "1188", source: "portal", date: "2026-08-27", memo: "Portal link · Nina Patel Residence — on register, post payment", invoiceMarked: false, linkPay: true },
         { id: "P-9289", invoiceId: "INV-4689", customerId: "C-1188", locationId: "L-1188b", amount: 2000, method: "Check", last4: "9901", source: "check", date: "2026-08-27", memo: "Check #9901 · team entered · Nina Canal house — post payment", invoiceMarked: false, linkPay: false },
         { id: "P-9310", invoiceId: "INV-4710", customerId: "C-1210", locationId: "L-1210a", amount: 2000, method: "Card", last4: "1210", source: "portal", date: "2026-08-21", memo: "Portal · Jony Morales Boca — marked paid", invoiceMarked: true, linkPay: true },
@@ -816,6 +836,7 @@
       optimizerRuns: [
         {
           id: "OPT-1",
+          title: "Tue–Wed route",
           createdAt: "2026-08-09T18:31:13",
           startedAt: "2026-08-09T18:31:13",
           createdBy: "Rick Torgerson",
@@ -827,11 +848,13 @@
           beforeDrive: 208,
           afterDrive: 208,
           unreachable: 0,
+          status: "committed",
           committed: true,
           committedAt: "2026-08-25",
         },
         {
           id: "OPT-2",
+          title: "Tue–Wed route",
           createdAt: "2026-08-09T18:28:44",
           startedAt: "2026-08-09T18:28:44",
           createdBy: "Rick Torgerson",
@@ -843,11 +866,14 @@
           beforeDrive: 208,
           afterDrive: 200,
           unreachable: 0,
+          status: "superseded",
+          supersededBy: "OPT-1",
           committed: true,
           committedAt: "2026-08-25",
         },
         {
           id: "OPT-3",
+          title: "Tue–Wed route",
           createdAt: "2026-08-09T18:21:09",
           startedAt: "2026-08-09T18:21:09",
           createdBy: "Rick Torgerson",
@@ -859,6 +885,8 @@
           beforeDrive: 220,
           afterDrive: 208,
           unreachable: 0,
+          status: "superseded",
+          supersededBy: "OPT-1",
           committed: true,
           committedAt: "2026-08-25",
         },
@@ -909,6 +937,7 @@
         { id: "S-11", customerId: "C-1112", locationId: "L-1112a", techId: "johnny", day: "Mon", time: "13:00", durationMin: 180, type: "service", status: "scheduled", actualMin: null, removals: null },
         { id: "S-12", customerId: "C-1112", locationId: "L-1112a", techId: "bobby", day: "Wed", time: "13:00", durationMin: 180, type: "service", status: "scheduled", actualMin: null, removals: null },
         { id: "S-13", customerId: "C-1210", locationId: "L-1210a", techId: "johnny", day: "Mon", time: "10:20", durationMin: 20, type: "service", status: "scheduled", actualMin: null, removals: null },
+        { id: "S-21", customerId: null, locationId: null, techId: "johnny", day: "Fri", time: "07:45", durationMin: 25, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Canal check — Hillsboro", address: "Hillsboro Blvd & A1A, Deerfield Beach, FL", taskType: "canal", x: "27%", y: "40%", gps: "26.316, -80.078" },
         { id: "S-14", customerId: "C-1210", locationId: "L-1210b", techId: "bobby", day: "Tue", time: "11:00", durationMin: 25, type: "service", status: "scheduled", actualMin: null, removals: null },
         { id: "S-15", customerId: null, locationId: null, techId: "bobby", day: "Wed", time: "08:10", durationMin: 20, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Lakeview canal call-in", address: "Lakeview Dr, West Palm Beach", x: "50%", y: "25%" },
         { id: "S-16", customerId: null, locationId: null, techId: "bobby", day: "Wed", time: "09:00", durationMin: 20, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Marina iguana pickup", address: "South Marina, Fort Lauderdale", x: "20%", y: "75%" },
@@ -1033,14 +1062,19 @@
     bonusFocusId: null,
     mobileStop: null,
     schedView: "week",
+    schedDay: "",
+    schedTech: "",
+    schedOpen: null,
     navOpen: {},
-    locCount: 1,
+    locCount: 0,
     optimizerPreview: null,
     optimizerAnchors: {},
     optimizerFocusTech: null,
     optimizerFocusDay: null,
-    optimizerScreen: "setup",
-    workloadTech: null,
+    optimizerScreen: "history",
+    applyPay: null,
+    searchOpen: false,
+    customerTab: "overview",
   };
   normalizeDemoData();
   if (state.page === "location" && !locBy(state.selectedCustomer, state.selectedLocation)) {
@@ -1076,6 +1110,44 @@
   function fieldDay() {
     return weekdayFromIso(TODAY) || "Thu";
   }
+  function addDaysIso(iso, n) {
+    const d = new Date(String(iso || TODAY).slice(0, 10) + "T12:00:00");
+    d.setDate(d.getDate() + Number(n || 0));
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  function fieldDateForDay(day) {
+    const today = fieldDay();
+    const ti = DAYS.indexOf(today);
+    const di = DAYS.indexOf(day);
+    if (di < 0) return DAY_DATES[day] || "";
+    if (di === ti) return TODAY;
+    if (di > ti) return DAY_DATES[day];
+    return addDaysIso(DAY_DATES[day], 7);
+  }
+  function fieldStopsForDay(day) {
+    return (state.data.stops || [])
+      .filter((s) => s.techId === fieldTechId() && s.day === day && !s.pending)
+      .slice()
+      .sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+  }
+  function fieldUpcomingDays() {
+    const today = fieldDay();
+    const idx = Math.max(0, DAYS.indexOf(today));
+    const out = [];
+    for (let i = 1; i < DAYS.length; i++) {
+      const day = DAYS[(idx + i) % DAYS.length];
+      const wraps = idx + i >= DAYS.length;
+      out.push({
+        day,
+        date: wraps ? addDaysIso(DAY_DATES[day], 7) : DAY_DATES[day],
+        nextWeek: wraps,
+      });
+    }
+    return out;
+  }
   function resolveWho(id) {
     if (ROLES[id]) return id;
     const raw = String(id || "").trim().toLowerCase();
@@ -1098,7 +1170,7 @@
     state.mobileFocusId = null;
     state.inboundId = null;
     state.selectedCustomer = null;
-    state.locCount = 1;
+    state.locCount = 0;
     state.page = who === "admin" ? "payments" : who === "trapper" || who === "tech" ? "mobile" : "dashboard";
     state.payFilter = "month";
     state.payFocusId = null;
@@ -1117,6 +1189,7 @@
       if (!Array.isArray(c.locations)) c.locations = [];
       const anyLocProgram = c.locations.some((l) => l.programId);
       c.locations.forEach((l) => {
+        if (!l.locationType) l.locationType = c.type || c.billToType || "residential";
         if (l.programId || !c.programId) return;
         const hasBilling = !!(l.paid || l.amount != null || l.start || (d.invoices || []).some((i) => i.customerId === c.id && i.locationId === l.id));
         const legacyAllEmpty = !anyLocProgram && c.status !== "inquiry";
@@ -1149,6 +1222,9 @@
       if (q.locationId) return;
       if (q.locationIds?.[0]) q.locationId = q.locationIds[0];
     });
+    (d.stops || []).forEach((s) => {
+      if (!s.homeTechId) s.homeTechId = stopHomeTech(s) || s.techId;
+    });
     if (!Array.isArray(d.blackout)) d.blackout = [];
     if (!Array.isArray(state.renewPick)) state.renewPick = [];
     if (!Array.isArray(state.mapSelect)) state.mapSelect = [];
@@ -1180,6 +1256,21 @@
   function locBy(cid, lid) {
     const c = custBy(cid);
     return c?.locations?.find((l) => l.id === lid);
+  }
+  const LOCATION_TYPES = [
+    { id: "residential", label: "Residential" },
+    { id: "commercial", label: "Commercial" },
+    { id: "hoa", label: "HOA / community" },
+    { id: "municipal", label: "Municipal" },
+  ];
+  function locTypeOf(c, l) {
+    return (l && l.locationType) || (c && (c.type || c.billToType)) || "residential";
+  }
+  function locTypeLabel(type) {
+    return LOCATION_TYPES.find((t) => t.id === type)?.label || type || "—";
+  }
+  function locTypeOptions(selected) {
+    return LOCATION_TYPES.map((t) => `<option value="${t.id}" ${selected === t.id ? "selected" : ""}>${esc(t.label)}</option>`).join("");
   }
   function trapsForLocation(cid, lid) {
     return (state.data.traps || []).filter((t) => t.customerId === cid && t.locationId === lid);
@@ -2506,12 +2597,140 @@
     const a = c.locations?.[0]?.address || "—";
     return n > 1 ? `${a} · ${n} properties` : a;
   }
+  function workCounts() {
+    const ready = opsServiceQueue().length;
+    const assign = opsAssignQueue().length;
+    const missed = (state.data.stops || []).filter((s) => s.status === "noshow" || s.status === "missed" || s.pendingExt).length;
+    const failed = failedAutopay().length + (state.data.autopayAuthorizations || []).filter((a) => a.status === "FAILED").length;
+    const unapplied = (state.data.payments || []).filter((p) => payNeedsMark(p)).length;
+    const renew = renewalCandidates().filter((row) => {
+      const ct = contractForLoc(row.customerId, row.locationId);
+      const existing = (state.data.renewals || []).find((r) => r.rowId === row.id || (ct && r.contractId === ct.id));
+      return existing?.status !== "SENT";
+    }).length;
+    const mtos = unreadMtosForRole().length;
+    const tasks = myOpenTasks().length;
+    const retrieve = (state.data.traps || []).filter((t) => t.status === "out" || t.status === "missing").length;
+    return { ready, assign, missed, failed, unapplied, renew, mtos, tasks, retrieve };
+  }
+  function navGroupWorkCount(label) {
+    const w = workCounts();
+    if (label === "Operations") return w.ready + w.assign + w.missed + w.retrieve;
+    if (label === "Billing") return w.failed + w.unapplied;
+    if (label === "Workspace") return w.mtos + w.tasks;
+    return 0;
+  }
+  function navItemWorkCount(id) {
+    const w = workCounts();
+    if (id === "ready-schedule") return w.ready;
+    if (id === "noshows") return w.missed;
+    if (id === "mtos") return w.mtos;
+    if (id === "tasks") return w.tasks;
+    if (id === "payments") return w.unapplied + w.failed;
+    if (id === "renewals") return w.renew;
+    return 0;
+  }
+  function attnTile(count, label, go, page, tone) {
+    const n = Number(count) || 0;
+    const cls = n === 0 ? "tone-muted" : (tone || "tone-amber");
+    return `<button type="button" class="attn-tile ${cls}" data-act="nav" data-page="${esc(page)}">
+      <strong>${n}</strong>
+      <span class="attn-label">${esc(label)}</span>
+      <span class="attn-go">${esc(go)}</span>
+    </button>`;
+  }
+  function dashHello(lede) {
+    const r = role();
+    const first = String(r?.name || "").split(" ")[0] || "there";
+    return `<div class="page-head dash-head"><div>
+      <p class="dash-hello">Good morning, ${esc(first)}</p>
+      <h2>Dashboard</h2>
+      <p>${esc(lede)}</p>
+    </div></div>`;
+  }
+  function todayDispatchCard() {
+    const stops = (state.data.stops || []).filter((s) => s.day === fieldDay() && !s.pending);
+    const done = stops.filter((s) => s.status === "complete").length;
+    const active = stops.filter((s) => s.status === "in_progress").length;
+    const left = stops.filter((s) => s.status === "scheduled").length;
+    return `
+      <div class="card dash-today">
+        <div class="sec-kicker">Today’s operations</div>
+        <p class="dash-today-line"><strong>${stops.length}</strong> scheduled · <strong>${done}</strong> completed · <strong>${active}</strong> in progress · <strong>${left}</strong> remaining</p>
+        <div class="actions">
+          ${canPage("map") ? `<button class="btn btn-primary" data-act="nav" data-page="map">Open dispatch</button>` : ""}
+          ${canPage("schedule") ? `<button class="btn btn-ghost" data-act="nav" data-page="schedule">Schedule</button>` : ""}
+        </div>
+      </div>`;
+  }
+  function dashTasksCard() {
+    const mine = myOpenTasks();
+    return `
+      <div class="card" style="margin-bottom:12px">
+        <h3>My tasks <span class="muted">${mine.length} open</span></h3>
+        ${taskListHtml(mine.slice(0, 5), "Nothing assigned to you.")}
+        <div class="actions" style="margin-top:8px">
+          <button class="btn btn-ghost" data-act="nav" data-page="tasks">All tasks</button>
+          ${btn("task.create", "Create task", "new-task", "", "btn-ghost")}
+        </div>
+      </div>`;
+  }
+  function locNextVisitLabel(c, l) {
+    const today = fieldDay();
+    const idx = Math.max(0, DAYS.indexOf(today));
+    const stops = (state.data.stops || []).filter((s) =>
+      s.customerId === c.id && s.locationId === l.id && !s.pending
+      && (s.status === "scheduled" || s.status === "in_progress")
+    );
+    if (!stops.length) return "—";
+    stops.sort((a, b) => {
+      const da = (DAYS.indexOf(a.day) - idx + DAYS.length) % DAYS.length;
+      const db = (DAYS.indexOf(b.day) - idx + DAYS.length) % DAYS.length;
+      if (da !== db) return da - db;
+      return String(a.time || "").localeCompare(String(b.time || ""));
+    });
+    const s = stops[0];
+    return `${s.day} ${fmtPrettyDate(fieldDateForDay(s.day))}`;
+  }
+  function customerBalance(c) {
+    return (state.data.invoices || [])
+      .filter((i) => i.customerId === c.id)
+      .reduce((sum, i) => sum + Number(invoiceBalance(i) || 0), 0);
+  }
+  function customerActiveServices(c) {
+    return (state.data.services || []).filter((s) => s.customerId === c.id && svcIsContinuing(s)).length;
+  }
   function stopLabel(s) {
     const c = s.customerId ? custBy(s.customerId) : null;
     const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
     const name = c ? c.name : s.label || "One-off";
     if (c && c.locations.length > 1 && loc) return `${name} · ${loc.name}`;
     return name;
+  }
+  function stopHomeTech(s) {
+    if (!s) return null;
+    if (s.homeTechId) return s.homeTechId;
+    if (s.customerId && s.locationId) {
+      const svcs = svcsFor(s.customerId, s.locationId).filter(svcIsContinuing);
+      const forDay = svcs.find((svc) => patternDays(svc.days).includes(s.day) && svc.techId);
+      if (forDay?.techId) return forDay.techId;
+      const loc = locBy(s.customerId, s.locationId);
+      if (loc?.techId) return loc.techId;
+    }
+    return s.techId || null;
+  }
+  function stopIsTempReassign(s) {
+    if (!s || !s.techId) return false;
+    const home = stopHomeTech(s);
+    return !!(s.tempReassign && home && s.techId !== home);
+  }
+  function canReassignStop(s) {
+    return !!(s && !s.pending && s.status === "scheduled" && s.day && DAYS.includes(s.day));
+  }
+  function dayLongLabel(day) {
+    const iso = DAY_DATES[day];
+    if (!iso) return day || "—";
+    return `${day}, ${fmtUsDate(iso)}`;
   }
   function nextSlot(techId, day) {
     const ss = state.data.stops
@@ -2631,24 +2850,13 @@
     return Number(type?.price || c?.amount || 0);
   }
 
-  function optimizerNearestOrder(techId, stops, anchorId) {
-    if (!stops.length) return [];
-    const tech = techBy(techId);
-    const remaining = stops.slice();
+  function optimizerGreedyFrom(prev, remaining) {
     const ordered = [];
-    let prev = { x: tech?.x || "50%", y: tech?.y || "50%" };
-    if (anchorId) {
-      const index = remaining.findIndex((s) => s.id === anchorId);
-      if (index >= 0) {
-        const [anchor] = remaining.splice(index, 1);
-        ordered.push(anchor);
-        prev = stopCoords(anchor);
-      }
-    }
-    while (remaining.length) {
+    const left = remaining.slice();
+    while (left.length) {
       let bestIndex = 0;
       let bestMiles = Infinity;
-      remaining.forEach((s, i) => {
+      left.forEach((s, i) => {
         const p = stopCoords(s);
         const miles = distMiles(prev.x, prev.y, p.x, p.y);
         if (miles < bestMiles) {
@@ -2656,11 +2864,24 @@
           bestIndex = i;
         }
       });
-      const [next] = remaining.splice(bestIndex, 1);
+      const [next] = left.splice(bestIndex, 1);
       ordered.push(next);
       prev = stopCoords(next);
     }
     return ordered;
+  }
+  function optimizerNearestOrder(techId, stops, anchorId) {
+    if (!stops.length) return [];
+    const tech = techBy(techId);
+    const home = { x: tech?.x || "50%", y: tech?.y || "50%" };
+    const list = stops.slice();
+    if (!anchorId) return optimizerGreedyFrom(home, list);
+    const index = list.findIndex((s) => s.id === anchorId);
+    if (index < 0) return optimizerGreedyFrom(home, list);
+    const kept = list.slice(0, index);
+    const anchor = list[index];
+    const rest = list.slice(index + 1);
+    return kept.concat(anchor, optimizerGreedyFrom(stopCoords(anchor), rest));
   }
 
   function minToHHMM(n) {
@@ -2855,7 +3076,14 @@
         const origService = original.reduce((n, s) => n + Number(s.durationMin || 0), 0);
         const origProduction = original.reduce((n, s) => n + optimizerProduction(s), 0);
         const anchorId = state.optimizerAnchors?.[`${bucket.date}:${bucket.techId}`] || null;
-        const ordered = optimizerNearestOrder(bucket.techId, bucket.stops, anchorId);
+        const prevIds = (state.optimizerPreview?.routes || [])
+          .find((r) => r.date === bucket.date && r.techId === bucket.techId)?.optimized
+          ?.map((x) => x.id) || [];
+        const byId = Object.fromEntries(bucket.stops.map((s) => [s.id, s]));
+        let sequenced = prevIds.length
+          ? prevIds.map((id) => byId[id]).filter(Boolean).concat(bucket.stops.filter((s) => !prevIds.includes(s.id)))
+          : bucket.stops.slice().sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+        const ordered = optimizerNearestOrder(bucket.techId, sequenced, anchorId);
         const capped = optimizerApplyCaps(bucket.techId, ordered, config);
         return {
           date: bucket.date,
@@ -2881,16 +3109,25 @@
     }, 0);
     const afterDrive = routes.reduce((n, r) => n + r.afterDrive, 0);
     const unreachable = routes.reduce((n, r) => n + r.unreachableIds.length, 0);
+    const stopSnapshots = Object.fromEntries(source.map((s) => [s.id, optimizerStopSnapshot(s)]).filter(([, snap]) => snap));
+    const startDate = config.startDate;
+    const endDate = config.endDate;
     return {
       id: nid("OPT"),
-      config: { ...config, techIds },
+      title: optimizerRunTitle({ startDate, endDate }),
+      config: { ...config, techIds, startDate, endDate },
+      startDate,
+      endDate,
+      techIds,
       originalById,
+      stopSnapshots,
       routes,
       stopCount: source.length,
       routeCount: routes.length,
       beforeDrive,
       afterDrive,
       unreachable,
+      status: "draft",
       committed: false,
       createdAt: optimizerNowStamp(),
       startedAt: optimizerNowStamp(),
@@ -3269,12 +3506,12 @@
     if (!c || !loc || !techId || !DAYS.includes(day)) return;
     if (isDayBlocked(day)) return;
     const exists = (state.data.stops || []).some((s) =>
-      s.customerId === c.id && s.locationId === loc.id && s.techId === techId && s.day === day && !s.pending
+      s.customerId === c.id && s.locationId === loc.id && s.day === day && !s.pending && s.type !== "oneoff"
     );
     if (exists) return;
     state.data.stops.push({
       id: nid("S"), customerId: c.id, locationId: loc.id,
-      techId, day, time: nextSlot(techId, day),
+      techId, homeTechId: techId, day, time: nextSlot(techId, day),
       durationMin, type: "service",
       status: "scheduled", actualMin: null, removals: null,
     });
@@ -3297,6 +3534,13 @@
   }
   function money2(n) {
     return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
+  }
+  function batchOutputLabel(c) {
+    const parts = [];
+    if (c.acceptPrint !== false) parts.push("Print");
+    if (c.acceptEmail !== false) parts.push("Email");
+    if (c.acceptSms) parts.push("SMS");
+    return parts.length ? parts.join(" · ") : "None";
   }
   function toast(msg) {
     // Don't re-read the form while a modal is open — that would wipe draft picks.
@@ -3817,7 +4061,7 @@
     const pageKey = renderPageKey();
     const samePage = state._pageKey === pageKey;
     const scroll = samePage ? captureUiScroll() : null;
-    if (document.activeElement && $app.contains(document.activeElement)) {
+    if (document.activeElement && $app.contains(document.activeElement) && document.activeElement.id !== "cmdk-q") {
       try { document.activeElement.blur(); } catch (_) { /* ignore */ }
     }
     try {
@@ -3828,7 +4072,7 @@
       } else if (isFieldRole()) {
         $app.innerHTML = renderMobile() + renderModal() + renderToast();
       } else {
-        $app.innerHTML = renderShell() + renderModal() + renderToast();
+        $app.innerHTML = renderShell() + renderSearch() + renderModal() + renderToast();
       }
     } catch (err) {
       console.error(err);
@@ -3941,20 +4185,23 @@
     const nav = groups.map((g) => {
       const hasActive = g.items.some((n) => n.id === state.page);
       const open = isNavGroupOpen(g.label, hasActive);
+      const groupWork = navGroupWorkCount(g.label);
       return `
       <div class="nav-group ${open ? "open" : ""} ${hasActive ? "has-active" : ""}">
         <button type="button" class="nav-group-toggle" data-act="nav-toggle" data-group="${esc(g.label)}" aria-expanded="${open ? "true" : "false"}">
           <span class="nav-group-title">${esc(g.label)}</span>
-          <span class="nav-group-meta">${g.items.length}</span>
+          <span class="nav-group-meta ${groupWork ? "is-work" : "is-empty"}">${groupWork || ""}</span>
           <span class="nav-chevron" aria-hidden="true"></span>
         </button>
         <div class="nav-group-body" ${open ? "" : "hidden"}>
-          ${g.items.map((n) => `
+          ${g.items.map((n) => {
+            const badge = navItemWorkCount(n.id);
+            return `
             <button class="nav-btn ${state.page === n.id ? "active" : ""}" data-act="nav" data-page="${n.id}">
               ${ICONS[n.icon] || ""} <span class="nav-btn-label">${esc(n.label)}</span>
-              ${n.id === "mtos" && unreadMtosForRole().length ? `<span class="nav-badge">${unreadMtosForRole().length}</span>` : ""}
-            </button>
-          `).join("")}
+              ${badge ? `<span class="nav-badge">${badge}</span>` : ""}
+            </button>`;
+          }).join("")}
         </div>
       </div>`;
     }).join("");
@@ -3966,7 +4213,7 @@
             <span>Iguana Control</span>
           </div>
           <nav class="sidebar-nav">${nav}</nav>
-          <div class="sidebar-foot">Role-gated demo · BRD §5</div>
+          <div class="sidebar-foot">Work queues · office CRM</div>
         </aside>
         <div class="main">
           <header class="topbar">
@@ -3974,6 +4221,7 @@
               <div class="crumb">${pageTitle()}</div>
             </div>
             <div class="top-actions">
+              <button type="button" class="search-btn" data-act="search-open" title="Search (Ctrl or ⌘ K)">${ICONS.search} <span>Search customers, invoices…</span> <kbd>⌘K</kbd></button>
               <select class="mobile-nav" data-act="nav-select">${navForRole().map((n) => `<option value="${n.id}" ${n.id === state.page ? "selected" : ""}>${esc(n.group)} · ${esc(n.label)}</option>`).join("")}</select>
               <div class="who-switch" title="Switch person">${peopleButtons()}</div>
               <button class="btn btn-ghost" data-act="logout">Sign out</button>
@@ -4078,131 +4326,65 @@
   }
 
   function dashOwner() {
-    const expiring = state.data.customers.filter((c) => c.status === "renewal" || (c.expires && daysUntil(c.expires) <= 60 && c.status === "active"));
-    const failed = state.data.payments.filter((p) => p.failed);
-    const paidToday = state.data.payments.filter((p) => p.date === TODAY && !p.failed && p.posted);
+    const w = workCounts();
     const outliers = durationRows().filter((r) => r.delta < -8);
-    const mine = myOpenTasks();
-    const modules = [
-      ["Customers", "customers", "Bill-Tos and properties"],
-      ["Quotes", "quotes", "Sent quotes"],
-      ["Schedule", "schedule", "Weekly board"],
-      ["Map & routing", "map", "Trappers and stops"],
-      ["One-off jobs", "oneoffs", "Live call-ins"],
-      ["Trap assets", "traps", "Field inventory"],
-      ["Missed visits", "noshows", "Blackouts vs no-shows"],
-      ["Route workload", "workload", "Load by trapper"],
-      ["Payment register", "payments", "Money in"],
-      ["Invoices", "invoices", "Sent and open"],
-      ["Renewal report", "renewals", "30–60 day window"],
-      ["Trapper bonuses", "commission", "Who gets the 2%"],
-      ["Documents", "documents", "COIs, photos, files"],
-      ["Communication log", "comms", "Calls and notes"],
-      ["Memo to Office", "mtos", "Tech memos"],
-      ["Tasks", "tasks", "Tom / Rick / Christy"],
-      ["Duration report", "duration", "Sched vs clocked"],
-      ["Removal report", "removals", "Counts and weight"],
-      ["reports", "All report tiles"],
-      ["Users", "users", "Roles and access"],
-      ["Configurable lists", "lists", "Dropdowns"],
-      ["Templates", "templates", "Email copy"],
-      ["Company settings", "settings", "Windows and rates"],
-      ["Integrations", "integrations", "Credentials"],
-    ];
     return `
-      ${head("Owner overview", "Everything’s here. Edit when you need to — Christy and Rick still handle the daily posting.")}
-      ${mine.length ? `
-        <div class="card" style="margin-bottom:16px">
-          <h3>My tasks <span class="muted">${mine.length} open</span></h3>
-          ${taskListHtml(mine.slice(0, 5))}
-          <div class="actions" style="margin-top:10px">
-            <button class="btn btn-ghost" data-act="nav" data-page="tasks">All tasks</button>
-            ${btn("task.create", "Create task", "new-task")}
-          </div>
-        </div>
-      ` : `<div class="actions" style="margin-bottom:12px">${btn("task.create", "Create task", "new-task", "", "btn-ghost")}<button class="btn btn-ghost" data-act="nav" data-page="tasks">Tasks</button></div>`}
-      <div class="grid-4">
-        ${stat("Expiring in 60 days", expiring.length, "Renewals")}
-        ${stat("Failed payments", failed.length, "Register exceptions", failed.length ? "alert" : "")}
-        ${stat("Posted today", money(paidToday.reduce((s, p) => s + p.amount, 0)), "Register", "good")}
-        ${stat("Unread memos", unreadMtosForRole().length, "Memo to Office", unreadMtosForRole().length ? "alert" : "")}
+      ${dashHello("Exceptions first. Christy posts money; Rick runs the routes. Jump in only when something is stuck.")}
+      <div class="sec-kicker">Needs attention</div>
+      <div class="attn-grid">
+        ${attnTile(w.ready, "Payment received", "Schedule service →", "ready-schedule", "tone-red")}
+        ${attnTile(w.failed, "Failed payment", "Review →", "payments", "tone-red")}
+        ${attnTile(w.missed, "Missed visits", "Resolve →", "noshows")}
+        ${attnTile(w.renew, "Renewal reviews", "Review renewals →", "renewals")}
       </div>
-      <div class="card section-gap">
-        <h3>All modules</h3>
-        <p class="tiny">Shortcuts into the screens you use.</p>
-        <div class="owner-mod-grid">
-          ${modules.map(([label, page, hint]) => `
-            <button type="button" class="owner-mod" data-act="nav" data-page="${page}">
-              <strong>${esc(label)}</strong>
-              <span class="tiny">${esc(hint)}</span>
-            </button>
-          `).join("")}
-        </div>
-      </div>
+      ${todayDispatchCard()}
+      ${dashTasksCard()}
       <div class="split section-gap">
         <div class="card">
-          <h3>Duration outliers <span class="muted">scheduled vs clocked</span></h3>
+          <h3>Duration outliers</h3>
           ${table(["Technician", "Stop", "Sched", "Actual", "Delta"], outliers.map((r) => [r.tech, r.name, r.sched + "m", r.actual + "m", r.delta + "m"]))}
           ${outliers.length ? "" : `<p class="muted">No under-servicing flags this week.</p>`}
-          <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="nav" data-page="duration">Duration report</button></div>
         </div>
         <div class="card">
-          <h3>Quick ops / billing</h3>
+          <h3>Jump to work</h3>
           <div class="actions" style="flex-wrap:wrap">
-            <button class="btn btn-ghost" data-act="nav" data-page="map">Map &amp; routing</button>
-            <button class="btn btn-ghost" data-act="nav" data-page="payments">Payment register</button>
+            <button class="btn btn-primary" data-act="nav" data-page="map">Dispatch</button>
+            <button class="btn btn-ghost" data-act="nav" data-page="payments">Payments</button>
             <button class="btn btn-ghost" data-act="nav" data-page="renewals">Renewals</button>
-            <button class="btn btn-ghost" data-act="nav" data-page="comms">Communication log</button>
-            <button class="btn btn-ghost" data-act="nav" data-page="mtos">Memo to Office</button>
-            <!-- <button class="btn btn-ghost" data-act="nav" data-page="reports">Reports hub</button> -->
-            <button class="btn btn-ghost" data-act="nav" data-page="lists">Configurable lists</button>
+            <button class="btn btn-ghost" data-act="nav" data-page="mtos">Memos</button>
           </div>
-          <p class="tiny" style="margin-top:12px">Non-renewal sample: Martin Ruiz lapsed on Johnny’s book.</p>
         </div>
       </div>
     `;
   }
 
   function dashOps() {
+    const w = workCounts();
     const mtos = state.data.mtos.filter((m) => m.dept === "ops" && !m.read);
     const missed = state.data.stops.filter((s) => s.status === "noshow" || s.status === "missed" || s.pendingExt);
-    const needSvc = opsServiceQueue();
     const needTech = opsAssignQueue();
     const failedMonthly = opsFailedMonthlyQueue();
-    const customerCount = state.data.customers.filter((c) => c.status !== "lapsed").length;
-    const locationCount = state.data.customers.reduce((sum, c) => sum + (c.locations || []).filter((l) => l.covered !== false).length, 0);
-    const scheduledCount = state.data.stops.filter((s) => s.status === "scheduled" && !s.pending).length;
     const retrieve = (state.data.traps || []).filter((t) => t.status === "out" || t.status === "missing");
-    const mine = myOpenTasks();
     return `
-      ${head("Dispatch board", "When a customer pays, a notice lands here. Click it to open Ready to schedule.")}
-      ${opsPaidSetupBanner()}
-      <div class="grid-4 dashboard-summary">
-        ${dashboardStat("Ready to schedule", needSvc.length, "Paid locations waiting for service", "ready-schedule", needSvc.length ? "alert" : "good")}
-        ${dashboardStat("Customers", customerCount, "Active Bill-To accounts", "customers")}
-        ${dashboardStat("Locations", locationCount, "Covered properties", "locations")}
-        ${dashboardStat("Scheduled stops", scheduledCount, "On active routes", "schedule", "good")}
+      ${dashHello("Work the red and amber tiles first. Payment received means schedule the service — the route does not start until that is done.")}
+      <div class="sec-kicker">Needs attention</div>
+      <div class="attn-grid">
+        ${attnTile(w.ready, "Payment received", "Schedule service →", "ready-schedule", "tone-red")}
+        ${attnTile(w.failed, "Failed payment", "Review →", "payments", "tone-red")}
+        ${attnTile(w.missed, "Missed visits", "Resolve →", "noshows")}
+        ${attnTile(w.assign, "Unassigned services", "Assign →", "map")}
       </div>
-      ${mine.length ? `
-        <div class="card section-gap" style="margin-bottom:16px">
-          <h3>My tasks <span class="muted">${mine.length} open · from Tom / Christy</span></h3>
-          ${taskListHtml(mine.slice(0, 5))}
-          <div class="actions" style="margin-top:10px">
-            <button class="btn btn-ghost" data-act="nav" data-page="tasks">All tasks</button>
-            ${btn("task.create", "Create task", "new-task")}
-          </div>
-        </div>
-      ` : ""}
+      ${todayDispatchCard()}
+      ${dashTasksCard()}
       ${failedMonthly.length ? `
-        <div class="card" style="margin-bottom:16px">
+        <div class="card" style="margin-bottom:12px">
           <h3>Failed monthly pay · stop if unpaid <span class="muted">${failedMonthly.length}</span></h3>
-          <p class="tiny">12-month monthly plans keep the same service. After you talk to them — if they will not pay — stop service here. Do not create a new service.</p>
           ${failedMonthly.map(({ c, l, svc }) => `
             <div class="fit-row queue-new">
               <div>
                 <span class="badge badge-bad">Payment failed</span>
                 <strong>${esc(c.billTo || c.name)}</strong> · ${esc(l.name)}
-                <div class="tiny">${esc(l.address)} · ${esc(techName(svc.techId))} · ${esc(svc.days || "")} · monthly plan already live</div>
+                <div class="tiny">${esc(l.address)} · ${esc(techName(svc.techId))} · ${esc(svc.days || "")}</div>
               </div>
               <div class="actions">
                 <button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Open</button>
@@ -4213,9 +4395,8 @@
         </div>
       ` : ""}
       ${needTech.length ? `
-        <div class="card" style="margin-bottom:16px">
-          <h3>2 · Assign on the map <span class="muted">first-time service only</span></h3>
-          <p class="tiny">Only for new services that still need a trapper. Monthly renewals do not appear here.</p>
+        <div class="card" style="margin-bottom:12px">
+          <h3>Assign trapper <span class="muted">first-time service</span></h3>
           ${needTech.map((row) => `
             <div class="fit-row queue-new">
               <div><span class="badge badge-sea">Needs technician</span> <strong>${esc(row.c.name)}</strong> · ${esc(row.l.name)}<div class="tiny">${esc(row.l.address)}</div></div>
@@ -4225,38 +4406,24 @@
         </div>
       ` : ""}
       ${mtos.length ? `
-        <div class="card" style="margin-bottom:16px">
-          <h3>New memos from the field <span class="muted">${mtos.length}</span></h3>
-          <p class="tiny">Internal only — you do not have to open the stop. Customer never sees these.</p>
+        <div class="card" style="margin-bottom:12px">
+          <h3>Unread field memos <span class="muted">${mtos.length}</span></h3>
           ${mtos.map(mtoCard).join("")}
-          <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="nav" data-page="mtos">Memo to Office inbox</button></div>
         </div>
       ` : ""}
-      <div class="grid-4">
-        ${stat("To set up", needSvc.length, "First payment only", needSvc.length ? "alert" : "")}
-        ${stat("To assign on map", needTech.length, "New services", needTech.length ? "alert" : "")}
-        ${stat("Failed monthly", failedMonthly.length, "Talk / stop service", failedMonthly.length ? "alert" : "")}
-        ${stat("Miss / traps", missed.length + retrieve.length, "Field follow-ups", (missed.length + retrieve.length) ? "alert" : "")}
-      </div>
       <div class="split section-gap">
         <div class="card">
           <h3>Time on site · this week</h3>
-          <p class="tiny">How long each trapper is at properties — not drive time, not a clock.</p>
           ${table(["Technician", "Stops", "On site"], TECHS.map((t) => {
             const ss = state.data.stops.filter((s) => s.techId === t.id && !s.pending);
             return [t.name, ss.length, fmtHours(ss.reduce((a, s) => a + (s.durationMin || 0), 0))];
           }))}
         </div>
         <div class="card">
-          <h3>Next few days</h3>
-          <p class="tiny">Stops in order for the next few days.</p>
-          ${["Thu", "Fri"].map((d) => {
-            const ss = state.data.stops.filter((s) => s.day === d && !s.pending).sort((a, b) => String(a.time).localeCompare(String(b.time)));
-            return `<div class="tiny" style="margin:8px 0 4px"><strong>${d}</strong> · ${ss.length} stops</div>
-              ${ss.slice(0, 6).map((s) => `<div class="tiny">${fmtClockTime(s.time)} ${esc(techName(s.techId))} · ${esc(stopLabel(s))} · ${fmtHours(s.durationMin)} on site</div>`).join("")}
-              ${ss.length > 6 ? `<div class="tiny">+${ss.length - 6} more</div>` : ""}`;
-          }).join("")}
-          <div class="actions" style="margin-top:10px"><button class="btn btn-ghost" data-act="nav" data-page="workload">Full workload</button></div>
+          <h3>Traps to retrieve <span class="muted">${retrieve.length}</span></h3>
+          ${retrieve.length ? retrieve.map((t) => `<div class="tiny" style="margin:4px 0">${esc(trapName(t))} · ${esc(t.serial)} · ${esc(t.note || "")}</div>`).join("") : `<p class="muted">None waiting.</p>`}
+          ${missed.length ? `<p class="tiny" style="margin-top:8px">${missed.length} missed visits on the board.</p>` : ""}
+          <div class="actions" style="margin-top:8px"><button class="btn btn-ghost" data-act="nav" data-page="traps">Trap assets</button></div>
         </div>
       </div>
     `;
@@ -4348,22 +4515,21 @@
     const failedAuth = (state.data.autopayAuthorizations || []).filter((a) => a.status === "FAILED");
     const notes = unreadNotifications();
     const mine = myOpenTasks();
+    const w = workCounts();
     return `
-      ${head("Administration", "Payment register, exceptions, renewals, and invoices. Match and allocate what lands on the register.")}
-      ${mine.length ? `
-        <div class="card" style="margin-bottom:16px">
-          <h3>My tasks <span class="muted">${mine.length} open · from Tom / Rick</span></h3>
-          ${taskListHtml(mine.slice(0, 5))}
-          <div class="actions" style="margin-top:10px">
-            <button class="btn btn-ghost" data-act="nav" data-page="tasks">All tasks</button>
-            ${btn("task.create", "Create task", "new-task")}
-          </div>
-        </div>
-      ` : ""}
+      ${dashHello("Match the register, clear exceptions, then send renewals. Ops cannot start a new service until the balance is zero.")}
+      <div class="sec-kicker">Needs attention</div>
+      <div class="attn-grid">
+        ${attnTile(w.unapplied, "Unapplied payments", "Apply →", "payments", "tone-red")}
+        ${attnTile(w.failed, "Failed payment", "Review →", "payments", "tone-red")}
+        ${attnTile(w.renew, "Renewal reviews", "Review renewals →", "renewals")}
+        ${attnTile(waitingLocs.length, "Waiting for payment", "Open invoices →", "invoices")}
+      </div>
+      ${dashTasksCard()}
       ${notes.length ? `
-        <div class="card" style="margin-bottom:16px">
+        <div class="card" style="margin-bottom:12px">
           <h3>Notifications <span class="muted">${notes.length} unread</span></h3>
-          ${notes.slice(0, 8).map((n) => `
+          ${notes.slice(0, 6).map((n) => `
             <div class="fit-row ${n.severity === "alert" ? "queue-new" : ""}">
               <div>
                 <span class="badge ${n.severity === "alert" ? "badge-bad" : n.severity === "ok" ? "badge-ok" : "badge-sea"}">${esc(n.type || "INFO")}</span>
@@ -4372,7 +4538,7 @@
               </div>
               <div class="actions">
                 ${n.mtoId ? `<button class="btn btn-ghost" data-act="open-mto" data-id="${n.mtoId}">Open MTO</button>` : n.customerId ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${n.customerId}">Open</button>` : ""}
-                <button class="btn btn-ghost" data-act="dismiss-notify" data-id="${n.id}">Dismiss</button>
+                <button class="btn btn-text" data-act="dismiss-notify" data-id="${n.id}">Dismiss</button>
               </div>
             </div>
           `).join("")}
@@ -4494,12 +4660,6 @@
         <p class="tiny">After the call: add Bill-To and properties, quote, invoice, then payment.</p>
         <div class="actions">${btn("customer.create", "Add customer", "new-customer")}</div>
       </div>
-      <div class="grid-4">
-        ${stat("Waiting for payment", waitingLocs.length, "Pending contracts")}
-        ${stat("Awaiting allocation", awaiting.length, "On the register", awaiting.length ? "alert" : "")}
-        ${stat("Exceptions", failed.length + failedAuth.length, "Contact customer", (failed.length || failedAuth.length) ? "alert" : "")}
-        ${stat("Notifications", notes.length, "Unread", notes.length ? "alert" : "")}
-      </div>
       <div class="split section-gap">
         <div class="card">
           <h3>Open invoices</h3>
@@ -4598,9 +4758,9 @@
       mobile: c.mobile || "",
       altPhone: c.altPhone || "",
       email: c.email || "",
+      acceptPrint: c.acceptPrint !== false,
       acceptSms: !!c.acceptSms,
       acceptEmail: c.acceptEmail !== false,
-      prospect: !!c.prospect,
       opsNote: c.opsNote || "",
       notes: c.notes || "",
       locCount: (c.locations || []).length,
@@ -4613,7 +4773,7 @@
     }
     const inbound = (state.data.inbound || []).find((n) => n.id === state.inboundId);
     const html = window.IguanaIntake
-      ? IguanaIntake.formHtml(inbound || {}, billToOptions(), state.locCount || 1)
+      ? IguanaIntake.formHtml(inbound || {}, billToOptions(), state.locCount ?? 0)
       : `<p>Intake form failed to load.</p>`;
     return html;
   }
@@ -4846,9 +5006,7 @@
     }));
     const statuses = [...new Set(customers.map((c) => c.status).filter(Boolean))];
     return `
-      ${head("Customers", state.role === "sales"
-        ? "A call or message comes in. Add the customer. The quote comes later."
-        : "Bill-To accounts only. Open Locations / Properties for service addresses and dispatch.")}
+      ${head("Customers", "Bill-To accounts. Open a row for locations, services, and billing.")}
       ${can("customer.create")
         ? `<div class="page-head" style="margin-top:0"><div></div><div class="actions">${btn("customer.create", "New customer", "new-customer")}</div></div>`
         : state.role === "ops"
@@ -4867,7 +5025,7 @@
           <option value="">All statuses</option>
           ${statuses.map((status) => `<option value="${esc(status)}">${statusBadge(status).replace(/<[^>]+>/g, "")}</option>`).join("")}
         </select>
-        ${options.types ? `<select id="${prefix}-filter-type" data-list-filter="${prefix}"><option value="">All types</option>${options.types.map((type) => `<option value="${esc(type)}">${esc(type)}</option>`).join("")}</select>` : ""}
+        ${options.types ? `<select id="${prefix}-filter-type" data-list-filter="${prefix}"><option value="">All types</option>${options.types.map((type) => `<option value="${esc(type)}">${esc(locTypeLabel(type))}</option>`).join("")}</select>` : ""}
         ${options.techs ? `<select id="${prefix}-filter-tech" data-list-filter="${prefix}"><option value="">All trappers</option>${TECHS.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select>` : ""}
         <button class="btn btn-ghost" data-act="clear-list-filters" data-prefix="${prefix}">Clear</button>
         <span class="tiny" id="${prefix}-filter-count"></span>
@@ -4943,17 +5101,17 @@
       const status = locationStatusKey(c, l);
       return {
         createdAt: Number(l.createdAt || 0),
-        search: [c.name, c.billTo, c.id, l.name, l.address, c.type, service, techName(techId)].join(" "),
+        search: [c.name, c.billTo, c.id, l.name, l.address, locTypeOf(c, l), locTypeLabel(locTypeOf(c, l)), service, techName(techId)].join(" "),
         status,
-        type: c.type || "",
+        type: locTypeOf(c, l),
         tech: techId,
         cells: [
-          `<strong>${esc(l.name || "Property")}</strong><div class="tiny">${esc(c.name)}</div>`,
-          esc(c.type || "—"),
+          `<strong>${esc(l.name || "Property")}</strong><div class="tiny">${esc((l.address || "No address").split(",")[0])}</div>`,
+          `<button class="btn btn-text" data-act="open-customer" data-id="${esc(c.id)}">${esc(c.billTo || c.name)}</button>`,
           locationServiceLabel(c, l),
-          `<span>${esc(l.address || "No address")}</span>`,
+          esc(svc?.days || l.days || c.days || "—"),
           locationStatus(c, l),
-          locationDispatch(c, l),
+          esc(locNextVisitLabel(c, l)),
           `<button class="icon-btn table-icon-btn" data-act="open-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}" title="View location" aria-label="View ${esc(c.name)} ${esc(l.name || "property")}">${ICONS.eye}</button>`,
         ],
       };
@@ -4961,9 +5119,9 @@
     const statuses = [...new Set(rows.map((row) => row.status).filter(Boolean))];
     const types = [...new Set(rows.map((row) => row.type).filter(Boolean))];
     return `
-      ${head("Locations / Properties", "Every service address in one list. Service setup and dispatch actions belong to the property, not the Bill-To account.")}
+      ${head("Locations", "Every service address. Click a row to open the property.")}
       ${listFilterBar("location", statuses, { types, techs: true, placeholder: "Search customer, property, address, or service" })}
-      ${filterableTable(["Location", "Type", "Service", "Service address", "Status", "Dispatch", ""], rows, "location")}
+      ${filterableTable(["Location", "Customer", "Service", "Schedule", "Status", "Next visit", ""], rows, "location")}
     `;
   }
 
@@ -5001,26 +5159,86 @@
 
   function customerLocationsCard(c) {
     const selectedId = locBy(c.id, state.selectedLocation)?.id || c.locations?.[0]?.id || "";
+    const rows = (c.locations || []).map((l) => {
+      const svc = svcFor(c.id, l.id);
+      return {
+        search: [l.name, l.address, svcTypeLabel(svc?.type)].join(" "),
+        status: locationStatusKey(c, l),
+        cells: [
+          `<strong>${esc(l.name || "Property")}</strong>`,
+          esc((l.address || "").split(",")[0] || "—"),
+          locationServiceLabel(c, l),
+          esc(svc?.days || l.days || c.days || "—"),
+          locationStatus(c, l),
+          esc(locNextVisitLabel(c, l)),
+          `<button class="icon-btn table-icon-btn" data-act="open-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}" title="Open location">${ICONS.eye}</button>`,
+        ],
+      };
+    });
     return `
       <div class="card customer-location-list">
         <div class="customer-location-head">
           <div><h3>Locations</h3><p class="tiny">${(c.locations || []).length} service propert${(c.locations || []).length === 1 ? "y" : "ies"}</p></div>
-          ${can("location.add") ? `<button class="btn btn-primary" data-act="add-location" data-id="${esc(c.id)}">${ICONS.plus} Add property</button>` : ""}
+          ${can("location.add") ? `<button class="btn btn-ghost" data-act="add-location" data-id="${esc(c.id)}">${ICONS.plus} Add property</button>` : ""}
         </div>
-        <div class="customer-location-scroll" data-keep-scroll="customer-locations">
+        ${filterableTable(["Location", "Address", "Service", "Schedule", "Status", "Next visit", ""], rows, "cust-loc")}
+      </div>`;
+  }
+
+  function billToTreeHtml(c) {
+    const selectedId = locBy(c.id, state.selectedLocation)?.id || c.locations?.[0]?.id || "";
+    return `
+      <div class="card">
+        <h3>Bill-To → locations</h3>
+        <ul class="billto-tree">
+          <li class="billto-root">
+            <small>Bill-To</small>
+            <strong>${esc(c.billTo || c.name)}</strong>
+            <span class="tiny">${esc(c.id)} · ${(c.locations || []).length} locations</span>
+          </li>
           ${(c.locations || []).map((l) => {
             const svc = svcFor(c.id, l.id);
-            return `
-              <div class="customer-location-row ${l.id === selectedId ? "is-selected" : ""}">
-                <button type="button" class="customer-location-select" data-act="select-customer-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}" aria-label="Show ${esc(l.name || "location")} on map">
-                  <strong>${esc(l.name || "Property")}</strong>
-                  <div class="tiny">${esc(l.address || "No address")}</div>
-                  <div class="tiny">${svc ? esc(svcTypeLabel(svc.type)) : esc(progBy(locPlan(c, l).programId)?.name || "No service")} · ${locationStatus(c, l)}</div>
-                </button>
-                <button class="icon-btn" data-act="open-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}" title="Open location" aria-label="Open ${esc(l.name || "location")}">${ICONS.eye}</button>
-              </div>`;
-          }).join("") || `<p class="muted">No locations yet.</p>`}
-        </div>
+            return `<li>
+              <button type="button" class="billto-branch ${l.id === selectedId ? "on" : ""}" data-act="select-customer-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}">
+                <strong>${esc(l.name || "Property")}</strong>
+                <span class="tiny">${esc(l.address || "No address")}</span>
+                <span class="tiny">${svc ? esc(svcTypeLabel(svc.type)) : "No service"} · ${locationStatus(c, l)}</span>
+              </button>
+            </li>`;
+          }).join("") || `<li class="tiny">No locations yet.</li>`}
+        </ul>
+      </div>`;
+  }
+
+  function customerActivityHtml(c) {
+    const items = [];
+    (state.data.payments || []).filter((p) => p.customerId === c.id).forEach((p) => {
+      items.push({ date: p.date, kind: "system", label: "Payment", text: `${money(p.amount)} ${p.failed ? "failed" : "received"} · ${p.method || ""}` });
+    });
+    (state.data.stops || []).filter((s) => s.customerId === c.id && s.status === "complete").forEach((s) => {
+      items.push({ date: fieldDateForDay(s.day), kind: "system", label: "Service", text: `Completed — ${techName(s.techId)} · ${stopLabel(s)}` });
+    });
+    (state.data.mtos || []).filter((m) => m.customerId === c.id).forEach((m) => {
+      items.push({ date: String(m.date || "").slice(0, 10), kind: "internal", label: "Internal memo", text: m.text });
+    });
+    (state.data.comms || []).filter((x) => x.customerId === c.id).forEach((x) => {
+      items.push({ date: x.date, kind: "customer", label: x.channel || "Email", text: x.text });
+    });
+    (state.data.invoices || []).filter((i) => i.customerId === c.id && i.sent).forEach((i) => {
+      items.push({ date: i.sent, kind: "customer", label: "Invoice sent", text: `${i.id} · ${money(i.amount)}` });
+    });
+    items.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    return `
+      <div class="card">
+        <h3>Activity</h3>
+        <ul class="activity-list">
+          ${items.slice(0, 16).map((x) => `
+            <li>
+              <time>${esc(fmtPrettyDate(String(x.date || "").slice(0, 10)) || x.date || "—")}</time>
+              <i class="act-dot ${esc(x.kind)}"></i>
+              <div><div class="act-kind">${esc(x.kind === "internal" ? "Internal" : x.kind === "customer" ? "Customer" : "System")}</div>${esc(x.label)} — ${esc(x.text)}</div>
+            </li>`).join("") || `<li><div class="muted">No activity yet.</div></li>`}
+        </ul>
       </div>`;
   }
 
@@ -5029,40 +5247,81 @@
     if (!c) return `<p>Not found.</p>`;
     const typeLabel = { residential: "Residential", commercial: "Commercial", hoa: "HOA", municipal: "Municipal" };
     const canEditCust = canEditField("name");
+    const tab = state.customerTab || "overview";
+    const needsService = (c.locations || []).some((l) => locNeedsService(c, l));
+    const needsTech = (c.locations || []).some((l) => locNeedsTech(c, l));
+    const bal = customerBalance(c);
+    const primary = needsService && can("service.create")
+      ? btn("service.create", "Schedule service", "open-service", `data-id="${c.id}"`)
+      : needsTech && can("schedule.assign")
+        ? btn("schedule.assign", "Assign trapper", "open-assign", `data-id="${c.id}"`)
+        : can("location.add")
+          ? `<button class="btn btn-primary" data-act="add-location" data-id="${esc(c.id)}">Add property</button>`
+          : "";
+    const tabs = [
+      ["overview", "Overview"],
+      ["locations", "Locations"],
+      ["services", "Services"],
+      ["billing", "Billing"],
+      ["activity", "Activity"],
+      ["documents", "Documents"],
+    ];
+    const locServices = (state.data.services || []).filter((s) => s.customerId === c.id);
+    const locDocs = docsForCustomer(c.id);
+    let body = "";
+    if (tab === "locations") body = customerLocationsCard(c);
+    else if (tab === "services") {
+      body = `<div class="card"><h3>Services</h3>${locServices.length ? table(["Location", "Service", "Trapper", "Schedule", "Status"], locServices.map((s) => {
+        const loc = locBy(c.id, s.locationId);
+        return [esc(loc?.name || "—"), esc(svcTypeLabel(s.type)), esc(s.techId ? techName(s.techId) : "Unassigned"), esc(s.days || "—"), svcStatusBadge(s)];
+      })) : `<p class="muted">No services yet.</p>`}</div>`;
+    } else if (tab === "billing") body = `${billingCard(c)}${paymentHistoryCard(c)}`;
+    else if (tab === "activity") body = `${customerActivityHtml(c)}${commCard(c)}`;
+    else if (tab === "documents") {
+      body = `<div class="card"><h3>Documents</h3>${locDocs.length ? locDocs.map((d) => docRowHtml(d, false)).join("") : `<p class="muted">No documents on this Bill-To.</p>`}${can("docs.upload") ? `<div class="actions" style="margin-top:8px">${btn("docs.upload", "Attach document", "upload-doc", `data-id="${c.id}"`, "btn-ghost")}</div>` : ""}</div>`;
+    } else {
+      body = `
+        <div class="customer-overview-grid">
+          <div class="stack">
+            ${billToTreeHtml(c)}
+            ${customerActivityHtml(c)}
+          </div>
+          <div class="card customer-map-card is-compact">
+            ${locationPreviewCard(c, state.selectedLocation)}
+          </div>
+        </div>`;
+    }
     return `
-      <button class="btn btn-ghost" data-act="nav" data-page="customers">← Customers</button>
+      <nav class="crumbs">
+        <button type="button" data-act="nav" data-page="customers">Customers</button>
+        <span>/</span>
+        <span>${esc(c.billTo || c.name)}</span>
+      </nav>
       <div class="cust-hero">
         <div>
-          <h2 style="font-family:var(--display);font-size:28px;margin:8px 0 4px">${esc(c.billTo || c.name)}</h2>
-          <p class="muted">${esc(c.id)} · Bill-To account · ${statusBadge(c.status)}</p>
+          <h2>${esc(c.billTo || c.name)}</h2>
+          <p class="muted">${esc(c.id)} · ${esc(typeLabel[c.billToType || c.type] || c.type || "Residential")} · ${statusBadge(c.status)}</p>
+        </div>
+        <div class="actions">
+          ${primary}
+          ${canEditCust ? `<button type="button" class="btn btn-ghost" data-act="edit-billto" data-id="${c.id}">Edit</button>` : ""}
+          ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Create task", "new-task", `data-id="${c.id}"`, "btn-text") : ""}
         </div>
       </div>
-      <div class="customer-overview-grid">
-        <div class="stack customer-overview-left">
-          <div class="panel-box customer-billto-card">
-            ${canEditCust ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-billto" data-id="${c.id}">Edit Bill-To</button>` : ""}
-            <div class="panel-kicker">Bill-To details</div>
-            <dl class="kv panel-kv">
-              <dt>Customer</dt><dd>${esc(c.name)}</dd>
-              <dt>Bill-To</dt><dd>${esc(c.billTo || c.name)}</dd>
-              <dt>Type</dt><dd>${esc(typeLabel[c.billToType || c.type] || c.type || "—")}</dd>
-              <dt>Phone</dt><dd>${esc(c.phone || "—")}</dd>
-              <dt>Mobile</dt><dd>${esc(c.mobile || "—")}</dd>
-              <dt>Email</dt><dd>${esc(c.email || "—")}</dd>
-              <dt>Company</dt><dd>${esc(c.company || "—")}</dd>
-              ${(c.municipal || c.type === "municipal") ? `
-                <dt>PO / hours</dt><dd>${esc(c.po || "—")} · ${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"} hrs used · ${muniHoursRemaining(c) == null ? "—" : muniHoursRemaining(c) + " left"}</dd>
-                <dt>Billing</dt><dd>Pay after service${c.hourlyRate ? ` · ${money(c.hourlyRate)}/hr` : ""}</dd>
-              ` : ""}
-              <dt>Contact preference</dt><dd>${c.acceptSms ? "SMS on" : "SMS off"} · ${c.acceptEmail === false ? "Email off" : "Email on"}</dd>
-            </dl>
-          </div>
-          ${customerLocationsCard(c)}
-        </div>
-        <div class="card customer-map-card">
-          ${locationPreviewCard(c, state.selectedLocation)}
-        </div>
+      <dl class="cust-summary">
+        <div><dt>Phone</dt><dd>${esc(c.phone || "—")}</dd></div>
+        <div><dt>Email</dt><dd>${esc(c.email || "—")}</dd></div>
+        <div><dt>Bill-To</dt><dd>${esc(c.billTo || c.name)}</dd></div>
+        <div><dt>Contact</dt><dd>${esc(c.reminder || "Email")}</dd></div>
+        <div><dt>Locations</dt><dd>${(c.locations || []).length}</dd></div>
+        <div><dt>Active services</dt><dd>${customerActiveServices(c)}</dd></div>
+        <div><dt>Balance</dt><dd>${can("payment.viewAmount") ? money(bal) : "—"}</dd></div>
+        <div><dt>Next visit</dt><dd>${esc((c.locations || []).map((l) => locNextVisitLabel(c, l)).find((x) => x !== "—") || "—")}</dd></div>
+      </dl>
+      <div class="cust-tabs">
+        ${tabs.map(([id, lab]) => `<button type="button" class="${tab === id ? "on" : ""}" data-act="customer-tab" data-tab="${id}">${lab}</button>`).join("")}
       </div>
+      ${body}
     `;
   }
 
@@ -5092,23 +5351,33 @@
     const gps = l.lat != null && l.lng != null ? `${Number(l.lat).toFixed(4)}, ${Number(l.lng).toFixed(4)}` : (l.gps || approxGps(l));
     const needsQuote = locNeedsQuote(c, l);
     const readyToInvoice = !needsQuote && canInvoiceLocation(c, l);
+    const primary = needsQuote && can("quote.send")
+      ? btn("quote.send", "Send quote", "send-quote", `data-id="${c.id}" data-loc="${l.id}"`)
+      : readyToInvoice && can("invoice.create")
+        ? btn("invoice.create", "Send invoice", "invoice-one-loc", `data-id="${c.id}" data-loc="${l.id}"`)
+        : locNeedsService(c, l)
+          ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`)
+          : locNeedsTech(c, l)
+            ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`)
+            : "";
     return `
-      <button class="btn btn-ghost" data-act="open-customer" data-id="${esc(c.id)}">← ${esc(c.billTo || c.name)}</button>
+      <nav class="crumbs">
+        <button type="button" data-act="nav" data-page="customers">Customers</button>
+        <span>/</span>
+        <button type="button" data-act="open-customer" data-id="${esc(c.id)}">${esc(c.billTo || c.name)}</button>
+        <span>/</span>
+        <span>${esc(l.name || "Property")}</span>
+      </nav>
       <div class="cust-hero">
         <div>
-          <h2 style="font-family:var(--display);font-size:28px;margin:8px 0 4px">${esc(l.name || "Property")}</h2>
-          <p class="muted">${esc(c.name)} · ${esc(l.address || "No address")} · ${locationStatus(c, l)}</p>
+          <h2>${esc(l.name || "Property")}</h2>
+          <p class="muted">${esc(l.address || "No address")} · ${locationStatus(c, l)}</p>
         </div>
         <div class="actions">
-          ${needsQuote ? btn("quote.send", "Send quote", "send-quote", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
-          ${readyToInvoice ? btn("invoice.create", "Send invoice", "invoice-one-loc", `data-id="${c.id}" data-loc="${l.id}"`, "btn-sun") : ""}
-          ${can("location.add") || canEditField("address") || state.role === "owner" ? `<button class="btn btn-ghost" data-act="edit-one-loc" data-id="${c.id}" data-loc="${l.id}">Edit location</button>` : ""}
-          ${locNeedsService(c, l) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
-          ${locNeedsTech(c, l) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`) : ""}
-          ${live && ["ops", "owner"].includes(state.role) ? btn("schedule.reassign", "Reassign trapper", "open-assign", `data-id="${c.id}" data-loc="${l.id}" data-return="location"`, "btn-ghost") : ""}
-          ${live && ["ops", "owner"].includes(state.role) ? `<button class="btn btn-ghost" data-act="share-on-map" data-id="${c.id}" data-loc="${l.id}">Share with trapper</button>` : ""}
-          ${["owner", "ops"].includes(state.role) ? btn("trap.update", "Attach trap", "attach-trap", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost") : ""}
-          ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Create task", "new-task", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost") : ""}
+          ${primary}
+          ${can("location.add") || canEditField("address") || state.role === "owner" ? `<button class="btn btn-ghost" data-act="edit-one-loc" data-id="${c.id}" data-loc="${l.id}">Edit</button>` : ""}
+          ${live && ["ops", "owner"].includes(state.role) ? btn("schedule.reassign", "Reassign", "open-assign", `data-id="${c.id}" data-loc="${l.id}" data-return="location"`, "btn-ghost") : ""}
+          ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Task", "new-task", `data-id="${c.id}" data-loc="${l.id}"`, "btn-text") : ""}
         </div>
       </div>
       <div class="location-detail-grid">
@@ -5117,7 +5386,7 @@
             <h3>Location details</h3>
             <dl class="kv section-gap">
               <dt>Bill-To</dt><dd>${esc(c.billTo || c.name)}</dd>
-              <dt>Property type</dt><dd>${esc(c.type || "—")}</dd>
+              <dt>Property type</dt><dd>${esc(locTypeLabel(locTypeOf(c, l)))}</dd>
               <dt>Address</dt><dd>${esc(l.address || "—")}</dd>
               <dt>GPS</dt><dd>${esc(gps)}</dd>
               <dt>Status</dt><dd>${locationStatus(c, l)}</dd>
@@ -5234,8 +5503,8 @@
         <div class="actions">
           ${needsQuote && can("quote.send") ? btn("quote.send", "Send quote", "send-quote", `data-id="${c.id}"`) : ""}
           ${(can("invoice.create") || state.role === "owner") && (c.locations || []).some((l) => canInvoiceLocation(c, l)) ? btn("invoice.create", "Send invoice to all", "open-convert", `data-id="${c.id}"`, "btn-sun") : ""}
-          ${c.locations.some((l) => locNeedsService(c, l)) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}"`) : ""}
-          ${c.locations.some((l) => locNeedsTech(c, l)) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}"`) : ""}
+          ${(c.locations || []).some((l) => locNeedsService(c, l)) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}"`) : ""}
+          ${(c.locations || []).some((l) => locNeedsTech(c, l)) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}"`) : ""}
           ${c.techId && ["ops", "owner"].includes(state.role) ? btn("schedule.reassign", "Reassign on map", "open-assign", `data-id="${c.id}"`, "btn-ghost") : ""}
           ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Create task", "new-task", `data-id="${c.id}"`, "btn-ghost") : ""}
         </div>
@@ -5256,7 +5525,7 @@
             <dt>Company</dt><dd>${esc(c.company || "—")}</dd>
             ${(c.municipal || c.type === "municipal") ? `<dt>PO / hours</dt><dd>${esc(c.po || "—")} · ${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"} hrs used · ${muniHoursRemaining(c) == null ? "—" : muniHoursRemaining(c) + " left"}${muniNearLimit(c) ? ` <span class="badge badge-bad">Near PO limit</span>` : ""}</dd>
             <dt>Billing</dt><dd>Pay after service · invoice ${(c.billPeriod || "preceding") === "current" ? "current" : "preceding"} month${c.hourlyRate ? ` · ${money(c.hourlyRate)}/hr` : ""}</dd>` : ""}
-            <dt>SMS / Email</dt><dd>${c.acceptSms ? "SMS on" : "SMS off"} · ${c.acceptEmail === false ? "Email off" : "Email on"}</dd>
+            <dt>Batch output</dt><dd>${batchOutputLabel(c)}</dd>
             <dt>Instructions</dt><dd>${esc(c.notes || "—")}</dd>
             ${showOpsNotes ? `<dt>Ops note</dt><dd>${esc(c.opsNote || "—")}</dd>` : ""}
           </dl>
@@ -5290,6 +5559,7 @@
               return `<div class="panel-loc ${l.covered === false ? "unpaid" : ""} ${awaitPay || life === "waiting_payment" || locNeedsService(c, l) || locNeedsTech(c, l) || apaFail ? "need" : ""} ${focusHere ? "pay-focus" : ""}">
                 <div class="panel-loc-top">
                   <strong>${esc(l.name)}</strong>
+                  <span class="badge badge-mute">${esc(locTypeLabel(locTypeOf(c, l)))}</span>
                   ${ct ? statusBadge(ct.status) : lifecycleBadge(life)}
                   ${onAutopay ? `<span class="badge badge-sea">AutoPay ON</span>` : ""}
                   ${apaFail ? `<span class="badge badge-bad">AutoPay failed</span>` : ""}
@@ -5383,7 +5653,7 @@
                   })()}
                 </div>
               </div>`;
-            }).join("") || `<p class="muted">No properties yet.</p>`}
+            }).join("") || `<p class="muted">No properties yet. Add one when they give the address.</p>${canEditLoc ? `<div class="actions" style="margin-top:8px">${btn("location.add", "Add property", "add-location", `data-id="${c.id}"`)}</div>` : ""}`}
           </div>
         </div>
       </div>
@@ -5634,20 +5904,24 @@
   /* ---------- Ops ---------- */
   function viewSchedule() {
     const genQ = opsGenerateQueue();
-    const toggle = `
-      <div class="seg" style="margin-bottom:14px">
-        <button class="${state.schedView === "week" ? "on" : ""}" data-act="sched-view" data-view="week">Weekly</button>
-        <button class="${state.schedView === "month" ? "on" : ""}" data-act="sched-view" data-view="month">Monthly</button>
-      </div>`;
+    const day = state.schedDay || "";
+    const tech = state.schedTech || "";
     return `
-      ${head("Schedule", "This week’s board. Monthly shows standing routes. New services land here as soon as Rick saves them.")}
-      ${writeBar("schedule.reassign", "Reassign")}
+      ${head("Schedule", "One row per trapper per day. Open a day to see the stops and cover them if someone is out — that does not change the standing assignment.")}
+      ${writeBar("schedule.reassign", "Reassign visit")}
       ${genQ.length ? `<div class="notice">${genQ.length} assigned service(s) are not on this board yet. ${btn("schedule.generate", "Generate now", "generate-schedule")}</div>` : ""}
-      ${toggle}
-      <div class="notice">Routes start and end at the tech’s home — no depot. ${calendarBlocks().length
-        ? `Master calendar: ${calendarBlocks().map((b) => `${b.date} ${b.reason}`).join("; ")}.`
-        : "No company blackouts on the master calendar."} ${DAYS.filter(isDayBlocked).length ? `This week excluded: ${DAYS.filter(isDayBlocked).join(", ")}.` : ""} Reassign moves the stop; it doesn’t copy it.</div>
-      ${state.schedView === "month" ? monthCalendar() : weekBoard()}
+      <div class="notice">Covering a day moves those visits off the original trapper. It does not copy them. Monday/Wednesday standing routes stay put. Cypress-style split days are already two standing services.</div>
+      <div class="seg" style="margin-bottom:10px">
+        <button class="${!day ? "on" : ""}" data-act="sched-day" data-day="">All days</button>
+        ${DAYS.map((d) => `<button class="${day === d ? "on" : ""}" data-act="sched-day" data-day="${d}">${d}<span class="tiny" style="margin-left:6px">${DAY_DATES[d].slice(5)}</span></button>`).join("")}
+      </div>
+      <div class="filter-bar list-filter-bar">
+        <select data-act="sched-tech">
+          <option value="">All trappers</option>
+          ${TECHS.map((t) => `<option value="${t.id}" ${tech === t.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}
+        </select>
+      </div>
+      ${scheduleTable()}
       <div class="card section-gap">
         <h3>Visit notices · 2 days before</h3>
         <p class="tiny">Templated text/email. The customer cannot reply to the system message. Friday’s remaining stops would have been notified Wednesday.</p>
@@ -5668,6 +5942,13 @@
     if (!d) return iso || "—";
     return `${m}/${d}/${y}`;
   }
+  function fmtPrettyDate(iso) {
+    const s = String(iso || "").slice(0, 10);
+    const [y, m, d] = s.split("-").map(Number);
+    if (!d) return iso || "—";
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${months[m - 1]} ${d}, ${y}`;
+  }
   function fmtStartTime(raw) {
     const text = String(raw || "");
     if (!text) return "—";
@@ -5679,21 +5960,90 @@
   function optimizerRunTechIds(run) {
     const ids = [];
     const add = (id) => { if (id && !ids.includes(id)) ids.push(id); };
-    (run.routes || []).forEach((r) => add(r.techId));
-    if (!ids.length) (run.techIds || []).forEach(add);
+    if ((run.techIds || []).length) (run.techIds || []).forEach(add);
+    else (run.routes || []).forEach((r) => add(r.techId));
+    (run.config?.techIds || []).forEach(add);
     return ids;
   }
   function optimizerRunTechLabel(run) {
     const names = optimizerRunTechIds(run).map((id) => techName(id)).filter(Boolean);
-    if (!names.length) return "All";
+    if (!names.length) return "All trappers";
     if (names.length <= 2) return names.join(", ");
     return `${names.slice(0, 2).join(", ")} +${names.length - 2} more`;
   }
-
-  function optimizerLimitField(id, label, unit, placeholder = "No limit") {
+  function optimizerDayShort(iso) {
+    return Object.entries(DAY_DATES).find(([, d]) => d === iso)?.[0] || fmtUsDate(iso);
+  }
+  function optimizerRunTitle(run) {
+    if (run?.title) return run.title;
+    const start = optimizerDayShort(run?.startDate || run?.config?.startDate);
+    const end = optimizerDayShort(run?.endDate || run?.config?.endDate);
+    if (!start) return "Route optimization";
+    return start === end ? `${start} route` : `${start}–${end} route`;
+  }
+  function optimizerStatusOf(run) {
+    if (!run) return "draft";
+    if (run.status === "superseded" || run.supersededBy) return "superseded";
+    if (run.status === "committed" || run.committed) return "committed";
+    return "draft";
+  }
+  function optimizerCanCommit(run) {
+    return !!(run && optimizerStatusOf(run) === "draft" && run.stopCount);
+  }
+  function optimizerStatusBadge(run) {
+    const st = optimizerStatusOf(run);
+    if (st === "committed") return `<span class="badge badge-ok">Committed</span>`;
+    if (st === "superseded") return `<span class="badge badge-mute">Superseded</span>`;
+    return `<span class="badge badge-warn">Draft</span>`;
+  }
+  function optimizerStopSnapshot(s) {
+    if (!s) return null;
+    const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+    const coords = stopCoords(s);
+    return {
+      id: s.id,
+      customerId: s.customerId || null,
+      locationId: s.locationId || null,
+      techId: s.techId,
+      day: s.day,
+      time: s.time,
+      durationMin: s.durationMin,
+      type: s.type,
+      label: s.label || stopLabel(s),
+      address: loc?.address || s.address || "",
+      x: coords.x,
+      y: coords.y,
+    };
+  }
+  function optimizerResolveStop(preview, id, overlay) {
+    const live = state.data.stops.find((s) => s.id === id) || {};
+    const snap = preview?.stopSnapshots?.[id] || {};
+    return { ...live, ...snap, ...overlay, id };
+  }
+  function optimizerLiveDrifted(preview) {
+    if (optimizerStatusOf(preview) !== "committed") return false;
+    return (preview.routes || []).some((route) =>
+      (route.optimized || []).some((item) => {
+        const live = state.data.stops.find((s) => s.id === item.id);
+        if (!live) return true;
+        return live.time !== item.time || live.techId !== route.techId || live.day !== route.day;
+      })
+    );
+  }
+  function optimizerNav(active) {
+    const preview = state.optimizerPreview;
+    const draftOpen = preview && optimizerStatusOf(preview) === "draft";
+    return `
+      <div class="seg opt-nav">
+        <button class="${active === "setup" ? "on" : ""}" data-act="optimizer-new">New optimization</button>
+        <button class="${active === "history" ? "on" : ""}" data-act="optimizer-history">Saved optimizations</button>
+        ${preview && active !== "result" ? `<button class="${active === "result" ? "on" : ""}" data-act="optimizer-open-result">${draftOpen ? "Open draft" : "Open last viewed"}</button>` : ""}
+      </div>`;
+  }
+  function optimizerLimitField(id, label, unit, help, placeholder = "No cap") {
     const key = id.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
     const current = state.optimizerPreview?.config?.limits?.[key] || "";
-    return `<div class="field"><label for="opt-${id}">${esc(label)}</label><div class="opt-input-unit"><input id="opt-${id}" type="number" min="0" step="1" value="${esc(current)}" placeholder="${esc(placeholder)}"><span>${esc(unit)}</span></div></div>`;
+    return `<div class="field"><label for="opt-${id}">${esc(label)}</label>${help ? `<p class="tiny opt-limit-help">${esc(help)}</p>` : ""}<div class="opt-input-unit"><input id="opt-${id}" type="number" min="0" step="1" value="${esc(current)}" placeholder="${esc(placeholder)}"><span>${esc(unit)}</span></div></div>`;
   }
   function optimizerTechGroups(preview) {
     const byTech = {};
@@ -5707,9 +6057,9 @@
         techId: group.techId,
         routes,
         days: routes.map((r) => r.day),
-        jobsOrig: routes.reduce((n, r) => n + r.originalStopIds.length, 0),
-        jobsOpt: routes.reduce((n, r) => n + r.optimized.length, 0),
-        unreachable: routes.reduce((n, r) => n + r.unreachableIds.length, 0),
+        jobsOrig: routes.reduce((n, r) => n + (r.originalStopIds || []).length, 0),
+        jobsOpt: routes.reduce((n, r) => n + (r.optimized || []).length, 0),
+        unreachable: routes.reduce((n, r) => n + (r.unreachableIds || []).length, 0),
         serviceMin: routes.reduce((n, r) => n + r.serviceMin, 0),
         originalServiceMin: routes.reduce((n, r) => n + (r.originalServiceMin || r.serviceMin), 0),
         beforeDrive: routes.reduce((n, r) => n + r.beforeDrive, 0),
@@ -5736,7 +6086,7 @@
           <div class="stat"><span>Trappers</span><strong>${trappers}</strong></div>
           <div class="stat"><span>Drive before</span><strong>${fmtHours(preview.beforeDrive)}</strong></div>
           <div class="stat"><span>Drive after</span><strong>${fmtHours(preview.afterDrive)}</strong><small class="${optimizerDriveClass(preview.beforeDrive, preview.afterDrive)}">${saved > 0 ? fmtHours(saved) + " saved" : saved < 0 ? fmtHours(Math.abs(saved)) + " added" : "No change"}</small></div>
-          <div class="stat"><span>Unreachable</span><strong>${preview.unreachable}</strong></div>
+          <div class="stat"><span>Did not fit</span><strong>${preview.unreachable}</strong></div>
         </div>
         <p class="opt-insight">${saved > 0
           ? "Less drive time means more billable stops per day — payroll is the biggest line item, so this is where the optimizer earns its keep."
@@ -5747,22 +6097,23 @@
     const saved = group.beforeDrive - group.afterDrive;
     const open = state.optimizerFocusTech === group.techId;
     return `
-      <div class="opt-tech-block">
-        <div class="opt-tech-row">
-          <div>
-            <strong>${esc(techName(group.techId))}</strong>
-            <div class="tiny">${esc(techBy(group.techId)?.home || "")} · ${esc(group.days.join(" · "))}</div>
-          </div>
-          <div><span class="tiny">Stops orig → opt</span><strong>${group.jobsOrig} → ${group.jobsOpt}</strong></div>
-          <div><span class="tiny">Unreachable</span><strong>${group.unreachable}</strong></div>
-          <div><span class="tiny">Service duration</span><strong>${fmtHours(group.serviceMin)}</strong></div>
-          <div><span class="tiny">Drive time</span><strong>${fmtHours(group.beforeDrive)} → ${fmtHours(group.afterDrive)}</strong><small class="${optimizerDriveClass(group.beforeDrive, group.afterDrive)}">${saved > 0 ? fmtHours(saved) + " shorter" : saved < 0 ? "Longer" : "Same"}</small></div>
-          <div><span class="tiny">Production value</span><strong>${money(group.production)}</strong></div>
-          <div>${group.unreachable ? `<span class="badge badge-bad">${group.unreachable} unreachable</span>` : `<span class="badge badge-ok">All fit</span>`}</div>
-          <button class="btn ${open ? "btn-sun" : "btn-ghost"}" data-act="${open ? "optimizer-hide" : "optimizer-detail"}" data-tech="${esc(group.techId)}" data-date="${esc(group.routes[0]?.date || "")}">${open ? "Hide route" : "Show route"}</button>
-        </div>
-        ${open ? optimizerTechDetail(group) : ""}
-      </div>`;
+      <tr class="opt-tech-row">
+        <td>
+          <strong>${esc(techName(group.techId))}</strong>
+          <div class="tiny">${esc(techBy(group.techId)?.home || "")} · ${esc(group.routes.map((r) => `${r.day} ${r.optimized.length}`).join(" · "))}</div>
+        </td>
+        <td><strong>${group.jobsOrig} → ${group.jobsOpt}</strong></td>
+        <td><strong>${group.unreachable}</strong></td>
+        <td><strong>${fmtHours(group.serviceMin)}</strong></td>
+        <td>
+          <strong>${fmtHours(group.beforeDrive)} → ${fmtHours(group.afterDrive)}</strong>
+          <div class="tiny ${optimizerDriveClass(group.beforeDrive, group.afterDrive)}">${saved > 0 ? fmtHours(saved) + " shorter" : saved < 0 ? "Longer" : "Same"}</div>
+        </td>
+        <td><strong>${money(group.production)}</strong></td>
+        <td>${group.unreachable ? `<span class="badge badge-bad">${group.unreachable} did not fit</span>` : `<span class="badge badge-ok">All fit</span>`}</td>
+        <td><button class="btn ${open ? "btn-sun" : "btn-ghost"} btn-small" data-act="${open ? "optimizer-hide" : "optimizer-detail"}" data-tech="${esc(group.techId)}" data-date="${esc(group.routes[0]?.date || "")}">${open ? "Hide route" : "Show route"}</button></td>
+      </tr>
+      ${open ? `<tr class="opt-tech-detail-row"><td colspan="8">${optimizerTechDetail(group)}</td></tr>` : ""}`;
   }
   function optimizerOrderTable(rows, date, techId, allowAnchor) {
     return `
@@ -5770,11 +6121,13 @@
         <table class="opt-order-table">
           <thead><tr>
             <th>Order</th><th>Name &amp; address</th><th>Arrive</th><th>Depart</th><th>Drive to next</th>
-            <th>Service</th><th>Prod. value</th><th>Eligible date</th>${allowAnchor ? "<th></th>" : ""}
+            <th>Service</th><th>Prod. value</th><th>Date</th>${allowAnchor ? "<th>Start remaining</th>" : ""}
           </tr></thead>
           <tbody>
-            ${rows.map((row) => `
-              <tr class="opt-order-${row.kind}">
+            ${rows.map((row) => {
+              const isStart = allowAnchor && row.kind === "stop" && state.optimizerPreview?.routes.find((r) => r.date === date && r.techId === techId)?.anchorId === row.id;
+              return `
+              <tr class="opt-order-${row.kind}${isStart ? " is-start" : ""}">
                 <td>${esc(row.order)}</td>
                 <td><strong>${esc(row.name)}</strong>${row.address ? `<div class="tiny">${esc(row.address)}${row.eligibleTime ? ` · ${esc(row.eligibleTime)}` : ""}</div>` : ""}</td>
                 <td>${row.arrive ? fmtClockTime(row.arrive) : "—"}</td>
@@ -5783,139 +6136,197 @@
                 <td>${esc(row.service || "—")}</td>
                 <td>${row.kind === "stop" ? money(row.production) : "—"}</td>
                 <td>${esc(row.eligibleDate || "—")}</td>
-                ${allowAnchor ? `<td>${row.kind === "stop" ? `<button class="btn btn-ghost btn-small" data-act="optimizer-anchor" data-date="${esc(date)}" data-tech="${esc(techId)}" data-stop="${esc(row.id)}">${state.optimizerPreview?.routes.find((r) => r.date === date && r.techId === techId)?.anchorId === row.id ? "Starting here" : "From here"}</button>` : ""}</td>` : ""}
-              </tr>`).join("")}
+                ${allowAnchor ? `<td>${row.kind === "stop" ? `<button type="button" class="btn ${isStart ? "btn-sun" : "btn-ghost"} btn-small" data-act="optimizer-anchor" data-date="${esc(date)}" data-tech="${esc(techId)}" data-id="${esc(row.id)}">${isStart ? "Starting here" : "Start here"}</button>` : ""}</td>` : ""}
+              </tr>`;
+            }).join("")}
           </tbody>
         </table>
       </div>`;
   }
-  function optimizerTechDetail(group) {
-    const date = group.routes.some((r) => r.date === state.optimizerFocusDay)
-      ? state.optimizerFocusDay
-      : group.routes[0].date;
-    const route = group.routes.find((r) => r.date === date) || group.routes[0];
-    const originalStops = route.originalStopIds.map((id) => state.data.stops.find((s) => s.id === id)).filter(Boolean);
-    const optimizedStops = route.optimized.map((x) => state.data.stops.find((s) => s.id === x.id)).filter(Boolean);
+  function optimizerDaySection(preview, route, allowAnchor) {
+    const originalStops = (route.originalStopIds || []).map((id) => {
+      const orig = preview?.originalById?.[id] || {};
+      return optimizerResolveStop(preview, id, { techId: orig.techId, day: orig.day, time: orig.time });
+    }).filter((s) => s.id);
+    const optimizedStops = (route.optimized || []).map((x) =>
+      optimizerResolveStop(preview, x.id, { time: x.time, techId: route.techId, day: route.day })
+    ).filter((s) => s.id);
     const originalTimeline = optimizerTimeline(route.techId, originalStops, true);
-    const optimizedTimeline = optimizerTimeline(route.techId, optimizedStops, false);
-    const unreachable = route.unreachableIds.map((id) => state.data.stops.find((s) => s.id === id)).filter(Boolean);
+    const optimizedTimeline = optimizerTimeline(route.techId, optimizedStops, true);
+    const unreachable = (route.unreachableIds || []).map((id) => optimizerResolveStop(preview, id)).filter((s) => s.id);
+    const nOpt = optimizedStops.length;
+    const nOrig = originalStops.length;
+    return `
+      <section class="opt-day-block" data-opt-day="${esc(route.date)}">
+        <h4>${esc(route.day)} · ${esc(fmtUsDate(route.date))} · ${nOpt} stop${nOpt === 1 ? "" : "s"}</h4>
+        <p class="tiny">${esc(fmtHours(route.afterDrive))} drive · ${esc(money(route.production))} production · ${esc(fmtHours(route.serviceMin))} at properties · starts and ends at ${esc(techBy(route.techId)?.home || "home")}. Home start/end are travel, not jobs.</p>
+        ${nOrig !== nOpt || unreachable.length ? `<p class="tiny">${nOrig} on the current book${unreachable.length ? ` · ${unreachable.length} did not fit this day’s limit` : ""}.</p>` : ""}
+        <h5>Proposed order</h5>
+        ${optimizerOrderTable(optimizedTimeline, route.date, route.techId, allowAnchor)}
+        <details class="opt-prior-order">
+          <summary>Order before this run · ${nOrig} stop${nOrig === 1 ? "" : "s"}</summary>
+          ${optimizerOrderTable(originalTimeline, route.date, route.techId, false)}
+        </details>
+        ${unreachable.length ? `<div class="notice locked section-gap"><strong>Did not fit the day limit</strong><p class="tiny">These stay on the current book if you commit. They are not deleted.</p>${unreachable.map((s) => `<div>${esc(stopLabel(s))} · ${fmtClockTime(s.time)}</div>`).join("")}</div>` : ""}
+      </section>`;
+  }
+  function optimizerTechDetail(group) {
+    const preview = state.optimizerPreview;
+    const allowAnchor = optimizerCanCommit(preview);
+    const days = group.routes.slice().sort((a, b) => a.date.localeCompare(b.date));
+    const n = group.jobsOpt;
     return `
       <div class="opt-tech-detail">
-        ${group.routes.length > 1 ? `
-          <div class="seg" style="margin-bottom:12px">
-            ${group.routes.map((r) => `<button class="${r.date === route.date ? "on" : ""}" data-act="optimizer-detail" data-tech="${esc(group.techId)}" data-date="${esc(r.date)}">${esc(r.day)} · ${esc(r.date)}</button>`).join("")}
-          </div>
-        ` : `<p class="tiny" style="margin-bottom:10px">${esc(route.day)} · ${esc(route.date)} · starts and ends at ${esc(techBy(route.techId)?.home || "home")}</p>`}
-        <table class="mini-table opt-metric-table">
-          <thead><tr><th>Metric</th><th>Original</th><th>Optimized</th></tr></thead>
-          <tbody>
-            <tr><td>Stops</td><td>${route.originalStopIds.length}</td><td>${route.optimized.length}</td></tr>
-            <tr><td>Unscheduled / unreachable</td><td>0</td><td>${route.unreachableIds.length}</td></tr>
-            <tr><td>Service duration</td><td>${fmtHours(route.originalServiceMin || route.serviceMin)}</td><td>${fmtHours(route.serviceMin)}</td></tr>
-            <tr><td>Drive time</td><td>${fmtHours(route.beforeDrive)}</td><td class="${optimizerDriveClass(route.beforeDrive, route.afterDrive)}">${fmtHours(route.afterDrive)}</td></tr>
-            <tr><td>Production value</td><td>${money(route.originalProduction || route.production)}</td><td>${money(route.production)}</td></tr>
-          </tbody>
-        </table>
-        <h4 class="section-gap">Optimized order</h4>
-        <p class="tiny">Arrive and depart are clock times. Drive to next is travel after leaving the stop, including the return home.</p>
-        ${optimizerOrderTable(optimizedTimeline, route.date, route.techId, true)}
-        <h4 class="section-gap">Original order</h4>
-        ${optimizerOrderTable(originalTimeline, route.date, route.techId, false)}
-        ${unreachable.length ? `<div class="notice locked section-gap"><strong>Unreachable</strong><p class="tiny">These stay on their original schedule when this run is committed.</p>${unreachable.map((s) => `<div>${esc(stopLabel(s))} · ${fmtClockTime(s.time)}</div>`).join("")}</div>` : ""}
+        <p class="tiny opt-tech-total"><strong>${n} stop${n === 1 ? "" : "s"}</strong> for ${esc(techName(group.techId))} across ${esc(days.map((r) => `${r.day} (${r.optimized.length})`).join(" · "))}. Numbers above are this total — each day is listed in full below.${allowAnchor ? " <strong>Start here</strong> on a stop resequences the rest of that day from that point." : ""}</p>
+        ${days.map((route) => optimizerDaySection(preview, route, allowAnchor)).join("")}
       </div>`;
   }
 
   function viewOptimizer() {
-    if (state.optimizerScreen === "history") return viewOptimizerHistory();
-    const preview = state.optimizerPreview;
-    const groups = preview ? optimizerTechGroups(preview) : [];
+    if (state.optimizerScreen === "setup") return viewOptimizerSetup();
+    if (state.optimizerScreen === "result") return viewOptimizerResult();
+    return viewOptimizerHistory();
+  }
+
+  function viewOptimizerSetup() {
     return `
-      ${head("Multi-Day Route Optimizer", "Build a route preview across several days. Nothing moves on the live schedule until you commit it.")}
+      ${head("Route optimizer", "Calculate a proposed stop order. It is saved as a draft. The live schedule and trapper phones do not change until you commit.")}
       ${writeBar("schedule.optimize", "Optimize routes")}
+      ${optimizerNav("setup")}
+      <div class="notice">This is not Best Fit. Best Fit (on the map) picks who should own a new customer. This screen only sequences work that is already assigned.</div>
       <div class="card opt-section">
-        <h3>Select orders to optimize</h3>
+        <h3>Dates and trappers</h3>
         <div class="opt-fields">
-          <div class="field"><label for="opt-start">Start date</label><input id="opt-start" type="date" value="${esc(preview?.config.startDate || DAY_DATES.Tue)}"></div>
-          <div class="field"><label for="opt-end">End date</label><input id="opt-end" type="date" value="${esc(preview?.config.endDate || DAY_DATES.Wed)}"></div>
-          <div class="field"><label for="opt-tech">Technicians</label><select id="opt-tech"><option value="all">All</option>${TECHS.map((t) => `<option value="${t.id}" ${preview?.config.techId === t.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select></div>
+          <div class="field"><label for="opt-start">From</label><input id="opt-start" type="date" value="${esc(DAY_DATES.Tue)}"></div>
+          <div class="field"><label for="opt-end">Through</label><input id="opt-end" type="date" value="${esc(DAY_DATES.Wed)}"></div>
+          <div class="field"><label for="opt-tech">Trappers</label><select id="opt-tech"><option value="all">All trappers</option>${TECHS.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select></div>
         </div>
+        <p class="tiny">Demo week is Mon 08/24–Fri 08/28/2026.</p>
       </div>
       <div class="card opt-section">
-        <h3>Flexibility</h3>
-        <label class="check-row"><input id="opt-keep-date" type="checkbox" ${preview?.config.keepDate !== false ? "checked" : ""}> Keep orders on their current work date (this optimizer only resequences, never moves a stop to a different date)</label>
-        <label class="check-row"><input id="opt-keep-tech" type="checkbox" ${preview?.config.keepTech !== false ? "checked" : ""}> Keep orders on their current technician (never reassigns a stop to a different technician)</label>
+        <h3>What the optimizer may change</h3>
+        <label class="check-row"><input id="opt-keep-date" type="checkbox" checked> Keep each stop on its current day — only change the order that day. Uncheck to let a stop move to another day in the range.</label>
+        <label class="check-row"><input id="opt-keep-tech" type="checkbox" checked> Keep each stop on its current trapper — only reorder that trapper’s book. Uncheck to hand a stop to a closer trapper for those dates.</label>
       </div>
       <div class="card opt-section">
-        <h3>Work day overrides</h3>
-        <p class="tiny">All optional — leave blank for no cap. Applied independently to each date in range. Stops that do not fit, in sequence order, are reported as unreachable for that day rather than silently dropped.</p>
-        <div class="opt-limit-grid">
-          ${optimizerLimitField("leave-open", "Time to leave open per day", "min")}
-          ${optimizerLimitField("min-jobs", "Min jobs per day", "jobs")}
-          ${optimizerLimitField("max-jobs", "Max jobs per day", "jobs")}
-          ${optimizerLimitField("max-service", "Max service duration per day", "min")}
-          ${optimizerLimitField("max-working", "Max working duration per day", "min")}
-          ${optimizerLimitField("max-drive", "Max drive time per day", "min")}
-          ${optimizerLimitField("min-production", "Min production value per day", "$")}
-          ${optimizerLimitField("max-production", "Max production value per day", "$")}
-        </div>
+        <details class="opt-limits">
+          <summary>
+            <strong>Day limits</strong>
+            <span class="tiny">Optional — leave closed unless a trapper must not be overloaded</span>
+          </summary>
+          <p class="tiny opt-limit-lead">These are caps for <em>one trapper on one day</em>. Leave every box blank for no cap (the usual case). If a stop would push the day over a cap, it is left on the current book — labeled “did not fit” — not deleted and not silently squeezed in.</p>
+          <div class="opt-limit-grid opt-limit-main">
+            ${optimizerLimitField("max-jobs", "Max stops that day", "stops", "Hard ceiling. Extra stops stay on the current book.")}
+            ${optimizerLimitField("max-drive", "Max driving that day", "min", "Cap on travel. Useful when a book is already too spread out.")}
+            ${optimizerLimitField("leave-open", "Minutes to keep free", "min", "Buffer at the end of the day for walk-ups and call-ins. The day is treated as shorter by this many minutes.")}
+            ${optimizerLimitField("max-working", "Max whole day", "min", "Time at properties plus driving. Leave blank unless you need a hard finish.")}
+          </div>
+          <details class="opt-more-limits">
+            <summary>More caps (rarely needed)</summary>
+            <div class="opt-limit-grid">
+              ${optimizerLimitField("min-jobs", "Warn if fewer than this many stops", "stops", "Warning only — it does not invent work.")}
+              ${optimizerLimitField("max-service", "Cap on time at properties", "min", "On-site minutes only, not driving.")}
+              ${optimizerLimitField("min-production", "Warn if production is under", "$", "Warning only.")}
+              ${optimizerLimitField("max-production", "Cap production value", "$", "Stops that would go over stay on the current book.")}
+            </div>
+          </details>
+        </details>
       </div>
       <div class="actions opt-actions">
-        <button class="btn btn-primary" data-act="optimizer-run">Start Optimization</button>
-        <button class="btn btn-ghost" data-act="optimizer-history">View in run history</button>
+        <button class="btn btn-primary" data-act="optimizer-run">Start optimization</button>
+        <button class="btn btn-ghost" data-act="optimizer-history">Saved optimizations</button>
       </div>
-      ${preview ? `
-        <div class="opt-results">
-          <div class="opt-results-head">
-            <div><h2>Optimization preview</h2><p class="muted">One row per trapper. Open a route to see arrive, depart, and drive to the next stop.</p></div>
-            <span class="badge ${preview.committed ? "badge-ok" : "badge-warn"}">${preview.committed ? "Committed" : "Not committed"}</span>
-          </div>
-          ${optimizerSummary(preview)}
-          <div class="card opt-route-list">
-            <div class="opt-tech-head">
-              <span>Technician</span><span>Stops orig → opt</span><span>Unreachable</span><span>Service duration</span><span>Drive time</span><span>Production value</span><span>Status</span><span></span>
-            </div>
-            ${groups.map(optimizerTechRow).join("") || `<p class="muted">No scheduled stops matched these dates and trappers.</p>`}
-          </div>
-          <div class="actions opt-commit-bar">
-            <button class="btn btn-primary" data-act="optimizer-commit" ${preview.stopCount ? "" : "disabled"}>Commit This Run</button>
-            <button class="btn btn-ghost" data-act="optimizer-clear">Discard Preview</button>
-          </div>
+    `;
+  }
+
+  function viewOptimizerResult() {
+    const preview = state.optimizerPreview;
+    if (!preview) return viewOptimizerHistory();
+    const groups = optimizerTechGroups(preview);
+    const status = optimizerStatusOf(preview);
+    const canCommit = optimizerCanCommit(preview);
+    const drifted = optimizerLiveDrifted(preview);
+    return `
+      ${head(optimizerRunTitle(preview), status === "draft"
+        ? "This is a proposed route. The live schedule and trapper phones still follow the current book."
+        : status === "superseded"
+          ? "An older committed run. A newer commit replaced it on the live schedule. This page is the saved copy."
+          : "This run was written to the live schedule. Trappers follow this order unless the book has changed since.")}
+      ${writeBar("schedule.optimize", "Optimize routes")}
+      ${optimizerNav("result")}
+      <div class="opt-results-head">
+        <div>
+          <p class="tiny">${esc(preview.id)} · ${esc(fmtUsDate(preview.config?.startDate || preview.startDate))} – ${esc(fmtUsDate(preview.config?.endDate || preview.endDate))} · ${esc(optimizerRunTechLabel(preview))} · ${esc(preview.createdBy || "Rick")}</p>
         </div>
-      ` : ""}
+        ${optimizerStatusBadge(preview)}
+      </div>
+      ${status === "draft" ? `<div class="notice">Draft — not yet the live schedule. Review the stop order, then commit if this is the book trappers should follow.</div>` : ""}
+      ${status === "committed" && drifted ? `<div class="notice locked">The live schedule has changed since this was committed. You are looking at the saved snapshot, not today’s book.</div>` : ""}
+      ${status === "committed" && !drifted ? `<div class="notice">On the live schedule since ${esc(fmtUsDate(preview.committedAt || TODAY))}. Trapper phones use this stop order for these dates.</div>` : ""}
+      ${optimizerSummary(preview)}
+      <div class="card opt-route-list">
+        ${groups.length ? `
+          <div class="table-wrap">
+            <table class="opt-tech-table">
+              <thead>
+                <tr>
+                  <th>Trapper</th>
+                  <th>Stops now → proposed</th>
+                  <th>Did not fit</th>
+                  <th>Time at properties</th>
+                  <th>Drive time</th>
+                  <th>Production</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>${groups.map(optimizerTechRow).join("")}</tbody>
+            </table>
+          </div>
+        ` : `<p class="muted">No scheduled stops matched these dates and trappers.</p>`}
+      </div>
+      <div class="opt-commit-bar">
+        ${canCommit ? `
+          <div class="opt-commit-explain">
+            <strong>Commit</strong> writes this stop order and times onto the live schedule for these dates. Trapper phones update. Who permanently owns the account does not change unless you unlocked “keep on current trapper.”
+          </div>
+          <button class="btn btn-primary" data-act="optimizer-commit">Commit to live schedule</button>
+        ` : `<button class="btn btn-ghost" data-act="optimizer-history">Back to saved</button>`}
+      </div>
     `;
   }
 
   function viewOptimizerHistory() {
-    const rows = (state.data.optimizerRuns || []).slice().reverse();
+    const rows = (state.data.optimizerRuns || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     return `
-      ${head("Optimizer Run History", "Every optimization run, previewed or committed — modeled on the current system’s RouteOp Dynamic Planner run history.")}
+      ${head("Saved optimizations", "Each run is a snapshot. Drafts do not touch the live schedule. Commit is what the trappers follow.")}
       ${writeBar("schedule.optimize", "Optimize routes")}
+      ${optimizerNav("history")}
       <div class="card opt-history-card">
         <div class="opt-history-head">
-          <span>Date range</span>
-          <span>Technicians</span>
-          <span>Start time</span>
-          <span>Optimized by</span>
+          <span>Optimization</span>
+          <span>Dates</span>
+          <span>Trappers</span>
+          <span>Created</span>
           <span>Status</span>
           <span></span>
         </div>
         ${rows.map((run) => `
           <div class="opt-history-row">
-            <div><strong>${esc(fmtUsDate(run.startDate))} – ${esc(fmtUsDate(run.endDate))}</strong></div>
-            <div>${esc(optimizerRunTechLabel(run))}</div>
-            <div>${esc(fmtStartTime(run.startedAt || run.createdAt))}</div>
-            <div>${esc(run.createdBy || "Rick Torgerson")}</div>
-            <div>${run.committed
-              ? `<span class="badge badge-ok">Committed ${esc(fmtUsDate(run.committedAt || run.endDate || run.startDate))}</span>`
-              : `<span class="badge badge-warn">Preview only</span>`}</div>
+            <div><strong>${esc(optimizerRunTitle(run))}</strong><div class="tiny">${esc(run.id)}</div></div>
+            <div>${esc(fmtUsDate(run.startDate))} – ${esc(fmtUsDate(run.endDate))}</div>
+            <div>${esc(optimizerRunTechLabel(run))}<div class="tiny">${optimizerRunTechIds(run).length} trapper${optimizerRunTechIds(run).length === 1 ? "" : "s"}</div></div>
+            <div>${esc(run.createdBy || "Rick Torgerson")}<div class="tiny">${esc(fmtStartTime(run.startedAt || run.createdAt))}</div></div>
+            <div>${optimizerStatusBadge(run)}${run.committed && run.committedAt ? `<div class="tiny">${esc(fmtUsDate(run.committedAt))}</div>` : ""}</div>
             <div class="opt-history-actions">
               <button class="btn btn-ghost btn-small" data-act="optimizer-view-run" data-id="${esc(run.id)}">View</button>
+              ${optimizerCanCommit(run) ? `<button class="btn btn-primary btn-small" data-act="optimizer-commit-run" data-id="${esc(run.id)}">Commit</button>` : ""}
               <button class="btn btn-ghost btn-small" data-act="optimizer-delete-run" data-id="${esc(run.id)}">Delete</button>
             </div>
-          </div>`).join("") || `<p class="muted" style="padding:18px 0">No optimizer runs yet. Start one to see it here.</p>`}
+          </div>`).join("") || `<p class="muted" style="padding:18px 0">No saved optimizations yet. Start one to see it here.</p>`}
       </div>
       <div class="actions opt-actions">
-        <button class="btn btn-primary" data-act="optimizer-new">+ New Optimization</button>
+        <button class="btn btn-primary" data-act="optimizer-new">New optimization</button>
       </div>
     `;
   }
@@ -5926,9 +6337,20 @@
     render();
   }
 
+  function openOptimizerResult() {
+    if (!state.optimizerPreview) {
+      openOptimizerHistory();
+      return;
+    }
+    state.optimizerScreen = "result";
+    render();
+  }
+
   function openOptimizerNew() {
     state.modal = null;
     state.optimizerScreen = "setup";
+    state.optimizerPreview = null;
+    state.optimizerAnchors = {};
     state.optimizerFocusTech = null;
     state.optimizerFocusDay = null;
     render();
@@ -5937,26 +6359,27 @@
   function viewSavedOptimizerRun(id) {
     const run = (state.data.optimizerRuns || []).find((r) => r.id === id);
     if (!run) return;
-    if (run.routes && run.routes.some((r) => (r.originalStopIds || r.optimized || []).length)) {
-      state.optimizerScreen = "setup";
-      state.optimizerFocusTech = null;
-      state.optimizerFocusDay = null;
-      state.optimizerPreview = {
-        ...run,
-        config: run.config || {
-          startDate: run.startDate,
-          endDate: run.endDate,
-          techId: (run.techIds || []).length === 1 ? run.techIds[0] : "all",
-          techIds: optimizerRunTechIds(run),
-          keepDate: true,
-          keepTech: true,
-          limits: {},
-        },
-      };
-      render();
-      return;
-    }
-    toast("This history row is a summary. Use + New Optimization to build a live preview.");
+    hydrateOptimizerRun(run);
+    state.optimizerAnchors = {};
+    (run.routes || []).forEach((r) => {
+      if (r.anchorId) state.optimizerAnchors[`${r.date}:${r.techId}`] = r.anchorId;
+    });
+    state.optimizerFocusTech = null;
+    state.optimizerFocusDay = null;
+    state.optimizerPreview = {
+      ...run,
+      config: run.config || {
+        startDate: run.startDate,
+        endDate: run.endDate,
+        techId: (run.techIds || []).length === 1 ? run.techIds[0] : "all",
+        techIds: optimizerRunTechIds(run),
+        keepDate: true,
+        keepTech: true,
+        limits: {},
+      },
+    };
+    state.optimizerScreen = "result";
+    render();
   }
 
   function deleteOptimizerRun(id) {
@@ -6009,8 +6432,10 @@
 
   function compactOptimizerRun(preview) {
     const techIds = optimizerRunTechIds(preview);
+    const status = optimizerStatusOf(preview);
     return {
       id: preview.id,
+      title: optimizerRunTitle(preview),
       createdAt: preview.createdAt,
       startedAt: preview.startedAt || preview.createdAt,
       createdBy: preview.createdBy,
@@ -6023,19 +6448,23 @@
       beforeDrive: preview.beforeDrive,
       afterDrive: preview.afterDrive,
       unreachable: preview.unreachable,
-      committed: !!preview.committed,
-      committedAt: preview.committedAt || (preview.committed ? optimizerNowStamp().slice(0, 10) : null),
-      routes: preview.routes.map((r) => ({
+      status,
+      committed: status === "committed" || status === "superseded",
+      committedAt: preview.committedAt || (status === "committed" ? optimizerNowStamp().slice(0, 10) : null),
+      supersededBy: preview.supersededBy || null,
+      originalById: preview.originalById || {},
+      stopSnapshots: preview.stopSnapshots || {},
+      routes: (preview.routes || []).map((r) => ({
         date: r.date,
         day: r.day,
         techId: r.techId,
-        jobs: r.optimized.length,
-        unreachable: r.unreachableIds.length,
+        jobs: (r.optimized || []).length,
+        unreachable: (r.unreachableIds || []).length,
         beforeDrive: r.beforeDrive,
         afterDrive: r.afterDrive,
-        originalStopIds: r.originalStopIds,
-        optimized: r.optimized,
-        unreachableIds: r.unreachableIds,
+        originalStopIds: r.originalStopIds || [],
+        optimized: r.optimized || [],
+        unreachableIds: r.unreachableIds || [],
         serviceMin: r.serviceMin,
         workingMin: r.workingMin,
         production: r.production,
@@ -6065,28 +6494,51 @@
     if (existingId) {
       preview.id = existingId;
       preview.createdAt = state.optimizerPreview?.createdAt || preview.createdAt;
+      preview.createdBy = state.optimizerPreview?.createdBy || preview.createdBy;
+      preview.title = state.optimizerPreview?.title || preview.title;
     }
+    preview.status = "draft";
+    preview.committed = false;
+    preview.committedAt = null;
     state.optimizerPreview = preview;
+    state.optimizerScreen = "result";
     saveOptimizerRun(preview);
+    if (!existingId) toast("Saved as a draft. The live schedule is unchanged.");
     render();
   }
 
   function anchorOptimizerRoute(date, techId, stopId) {
     const preview = state.optimizerPreview;
-    if (!preview) return;
+    if (!preview || !optimizerCanCommit(preview)) return;
     state.optimizerAnchors[`${date}:${techId}`] = stopId;
     state.modal = null;
     runOptimizer(preview.config, preview.id);
     openOptimizerDetail(date, techId);
   }
 
+  function supersedeOverlappingRuns(preview) {
+    const start = preview.config?.startDate || preview.startDate;
+    const end = preview.config?.endDate || preview.endDate;
+    const techs = new Set(optimizerRunTechIds(preview));
+    (state.data.optimizerRuns || []).forEach((run) => {
+      if (run.id === preview.id) return;
+      if (optimizerStatusOf(run) !== "committed") return;
+      const overlap = run.startDate <= end && run.endDate >= start;
+      const sameTech = optimizerRunTechIds(run).some((id) => techs.has(id));
+      if (overlap && sameTech) {
+        run.status = "superseded";
+        run.supersededBy = preview.id;
+      }
+    });
+  }
+
   function commitOptimizerRun() {
     const preview = state.optimizerPreview;
-    if (!preview || !preview.stopCount) return;
-    const unreachable = new Set(preview.routes.flatMap((r) => r.unreachableIds));
+    if (!optimizerCanCommit(preview)) return;
+    const unreachable = new Set((preview.routes || []).flatMap((r) => r.unreachableIds || []));
     let changed = 0;
     preview.routes.forEach((route) => {
-      route.optimized.forEach((item) => {
+      (route.optimized || []).forEach((item) => {
         if (unreachable.has(item.id)) return;
         const stop = state.data.stops.find((s) => s.id === item.id);
         if (!stop) return;
@@ -6096,73 +6548,191 @@
         changed += 1;
       });
     });
+    preview.status = "committed";
     preview.committed = true;
     preview.committedAt = TODAY;
+    supersedeOverlappingRuns(preview);
     saveOptimizerRun(preview);
-    state.optimizerPreview = null;
-    state.optimizerAnchors = {};
+    state.optimizerScreen = "result";
     persist();
-    toast(`${changed} stop${changed === 1 ? "" : "s"} committed. ${preview.unreachable ? `${preview.unreachable} stayed on the original schedule.` : "All stops fit."}`);
+    toast(`${changed} stop${changed === 1 ? "" : "s"} now on the live schedule.${preview.unreachable ? ` ${preview.unreachable} stayed on the current book.` : ""}`);
     render();
   }
 
-  function weekBoard() {
-    const cells = TECHS.map((t) => {
-      const row = DAYS.map((d) => {
-        const stops = state.data.stops.filter((s) => s.techId === t.id && s.day === d && !s.pending);
-        return `<div>${stops.map(stopChip).join("") || `<span class="tiny">—</span>`}</div>`;
-      }).join("");
-      return `<div class="tech-name">${esc(t.name)}<div class="tiny">${esc(t.home)}</div></div>${row}`;
-    }).join("");
-    return `
-      <p class="tiny" style="margin-bottom:8px">Week of 24 Aug 2026 — this week’s live stops.</p>
-      <div class="week">
-        <div></div>
-        ${DAYS.map((d) => `<div class="head${isDayBlocked(d) ? " blocked" : ""}">${d}<div class="tiny">${DAY_DATES[d]}${isDayBlocked(d) ? " · no service" : ""}</div></div>`).join("")}
-        ${cells}
-      </div>
-    `;
+  function commitOptimizerRunById(id) {
+    viewSavedOptimizerRun(id);
+    commitOptimizerRun();
   }
 
-  function monthCalendar() {
-    const year = 2026, month = 7;
-    const first = new Date(year, month, 1);
-    const startPad = first.getDay();
-    const daysIn = new Date(year, month + 1, 0).getDate();
-    const wdNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const cells = [];
-    for (let i = 0; i < startPad; i++) cells.push(`<div class="month-cell mute"></div>`);
-    for (let d = 1; d <= daysIn; d++) {
-      const iso = `${year}-08-${String(d).padStart(2, "0")}`;
-      const wd = wdNames[new Date(year, month, d).getDay()];
-      const stops = DAYS.includes(wd) ? state.data.stops.filter((s) => s.day === wd && !s.pending) : [];
-      const today = iso === TODAY;
-      const blocked = isIsoBlocked(iso);
-      cells.push(`
-        <div class="month-cell ${today ? "today" : ""} ${blocked ? "blocked-day" : ""}">
-          <div class="month-num">${d} <span class="tiny">${wd}${blocked ? " · blocked" : ""}</span></div>
-          ${blocked ? `<div class="tiny">${esc(blackoutForIso(iso)?.reason || "No service")}</div>` : ""}
-          ${blocked ? "" : stops.slice(0, 4).map((s) => `<div class="month-stop">${esc(techName(s.techId).slice(0, 1))} ${esc(stopLabel(s))}</div>`).join("")}
-          ${!blocked && stops.length > 4 ? `<div class="tiny">+${stops.length - 4} more</div>` : ""}
-        </div>`);
+  function scheduleStops() {
+    const day = state.schedDay || "";
+    const tech = state.schedTech || "";
+    return (state.data.stops || [])
+      .filter((s) => !s.pending)
+      .filter((s) => !day || s.day === day)
+      .filter((s) => !tech || s.techId === tech || stopHomeTech(s) === tech)
+      .slice()
+      .sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || String(a.time || "").localeCompare(String(b.time || "")));
+  }
+
+  function scheduleDayStops(techId, day) {
+    return (state.data.stops || [])
+      .filter((s) => !s.pending && s.techId === techId && s.day === day)
+      .slice()
+      .sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+  }
+
+  function scheduleDayGroups() {
+    const groups = [];
+    const map = {};
+    scheduleStops().forEach((s) => {
+      const key = `${s.day}|${s.techId}`;
+      if (!map[key]) {
+        map[key] = { day: s.day, techId: s.techId, stops: [] };
+        groups.push(map[key]);
+      }
+      map[key].stops.push(s);
+    });
+    groups.forEach((g) => {
+      g.stops.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+      g.remaining = g.stops.filter(canReassignStop).length;
+      g.done = g.stops.filter((s) => s.status === "complete").length;
+      g.onSite = g.stops.reduce((n, s) => n + Number(s.durationMin || 0), 0);
+      g.temp = g.stops.filter(stopIsTempReassign).length;
+      const first = g.stops[0];
+      const last = g.stops[g.stops.length - 1];
+      g.window = first?.time
+        ? `${fmtClockTime(first.time)} – ${addClock(last.time, last.durationMin || 0)}`
+        : "—";
+    });
+    return groups.sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || techName(a.techId).localeCompare(techName(b.techId)));
+  }
+
+  function scheduleTable() {
+    const groups = scheduleDayGroups();
+    if (!groups.length) return `<p class="muted">No visits for this filter.</p>`;
+    const rows = [];
+    let i = 0;
+    while (i < groups.length) {
+      const day = groups[i].day;
+      let span = 1;
+      while (i + span < groups.length && groups[i + span].day === day) span += 1;
+      groups.slice(i, i + span).forEach((g, j) => {
+        const note = g.temp
+          ? `<span class="badge badge-warn">${g.temp} covering</span>`
+          : (g.remaining ? `<span class="badge badge-sea">${g.remaining} left</span>` : `<span class="badge badge-ok">Done</span>`);
+        rows.push(`<tr>
+          ${j === 0 ? `<td rowspan="${span}">${esc(g.day)}<div class="tiny">${esc(fmtUsDate(DAY_DATES[g.day] || ""))}</div></td>` : ""}
+          <td><strong>${esc(techName(g.techId))}</strong><div class="tiny">${esc(techBy(g.techId)?.home || "")}</div></td>
+          <td><strong>${g.stops.length}</strong><div class="tiny">${g.done ? `${g.done} done` : "None done yet"}</div></td>
+          <td>${esc(g.window)}<div class="tiny">${esc(fmtHours(g.onSite))} on site</div></td>
+          <td>${note}</td>
+          <td><button class="btn btn-ghost btn-small" data-act="open-day-stops" data-tech="${esc(g.techId)}" data-day="${esc(g.day)}">Open stops</button></td>
+        </tr>`);
+      });
+      i += span;
     }
     return `
-      <p class="tiny" style="margin-bottom:8px">August 2026 — standing weekday routes repeat each week. Today is highlighted.</p>
-      <div class="month-grid">
-        ${wdNames.map((n) => `<div class="month-dow">${n}</div>`).join("")}
-        ${cells.join("")}
+      <div class="table-wrap card sched-table">
+        <table>
+          <thead><tr><th>Day</th><th>Trapper</th><th>Stops</th><th>Window</th><th></th><th></th></tr></thead>
+          <tbody>${rows.join("")}</tbody>
+        </table>
       </div>
     `;
   }
 
-  function stopChip(s) {
-    const cls = s.type === "oneoff" ? "oneoff"
-      : s.status === "blocked_off" ? "blocked-off"
-      : s.status === "missed" || s.status === "noshow" || s.status === "blocked" ? "missed" : "";
-    const detail = s.status === "blocked_off"
-      ? (s.blockReason || "Company day off")
-      : (s.reason ? `${s.status} · ${s.reason}` : s.status);
-    return `<div class="stop ${cls}"><div class="t">${esc(s.time)} · ${esc(stopLabel(s))}</div><div class="m">${s.durationMin}m · ${esc(detail)}</div></div>`;
+  function dayStopsModalHtml(techId, day) {
+    const stops = scheduleDayStops(techId, day);
+    const remaining = stops.filter(canReassignStop);
+    const canMove = can("schedule.reassign");
+    const others = TECHS.filter((t) => t.id !== techId);
+    const coverTo = others.some((t) => t.id === "bobby") && techId !== "bobby" ? "bobby" : (others[0]?.id || "");
+    return `
+      <h3>${esc(techName(techId))} · ${esc(dayLongLabel(day))}</h3>
+      <p class="tiny">${stops.length} stop${stops.length === 1 ? "" : "s"} on this book. Scroll the list — it stays on this screen. Cover the day, or move one visit. Standing assignments do not change.</p>
+      ${canMove && remaining.length ? `
+        <div class="sched-day-cover">
+          <input type="hidden" id="cv-from" value="${esc(techId)}">
+          <input type="hidden" id="cv-day" value="${esc(day)}">
+          <select id="cv-to" aria-label="Cover remaining with">${others.map((t) => `<option value="${t.id}" ${t.id === coverTo ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select>
+          <select id="cv-reason" aria-label="Reason">${REASSIGN_REASONS.map((r) => `<option value="${esc(r.label)}">${esc(r.label)}</option>`).join("")}</select>
+          <label class="chk"><input type="checkbox" id="cv-notify" checked> Notify</label>
+          ${btn("schedule.reassign", `Cover ${remaining.length}`, "cover-day")}
+        </div>
+      ` : ""}
+      <input class="sched-stop-search" type="search" data-sched-stop-filter placeholder="Find a customer or address" aria-label="Find a stop">
+      <p class="tiny sched-stop-count" id="sched-stop-count">${stops.length} shown</p>
+      <div class="sched-stop-list">
+        ${stops.map((s, i) => {
+          const home = stopHomeTech(s);
+          const temp = stopIsTempReassign(s);
+          const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+          const addr = loc?.address || s.address || "";
+          const othersRow = TECHS.filter((t) => t.id !== s.techId);
+          const search = `${stopLabel(s)} ${addr} ${techName(home)}`.toLowerCase();
+          return `<article class="sched-stop ${temp ? "is-temp" : ""}" data-search="${esc(search)}">
+            <div class="sched-stop-n">${i + 1}</div>
+            <div class="sched-stop-body">
+              <div class="sched-stop-top">
+                <strong>${esc(fmtClockTime(s.time))}</strong>
+                ${statusBadge(s.status)}
+              </div>
+              <div class="sched-stop-name">${esc(stopLabel(s))}</div>
+              ${addr ? `<div class="tiny sched-stop-addr">${esc(addr)}</div>` : ""}
+              <div class="tiny">${s.type === "oneoff" ? "Task · " : ""}Standing ${esc(techName(home))}${temp ? ` · <span class="badge badge-warn">${esc(s.day)} only</span> ${esc(s.reassignReason || "")}` : ""}</div>
+              ${canMove && canReassignStop(s) ? `
+                <div class="sched-move">
+                  <select id="rv-tech-${esc(s.id)}" aria-label="Move ${esc(stopLabel(s))} to">${othersRow.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select>
+                  <button class="btn btn-ghost btn-small" data-act="confirm-reassign-visit" data-id="${esc(s.id)}">Move</button>
+                </div>
+              ` : ""}
+            </div>
+          </article>`;
+        }).join("")}
+      </div>
+      <div class="actions sched-day-foot">
+        <button class="btn btn-ghost" data-act="close-modal">Close</button>
+      </div>
+    `;
+  }
+
+  function openDayStops(techId, day) {
+    if (!techId || !day) return;
+    const stops = scheduleDayStops(techId, day);
+    if (!stops.length) {
+      state.schedOpen = null;
+      state.modal = null;
+      render();
+      return;
+    }
+    state.schedOpen = { techId, day };
+    state.modal = { sched: true, html: dayStopsModalHtml(techId, day) };
+    render();
+  }
+
+  function reopenDayOrClose() {
+    const open = state.schedOpen;
+    if (open && scheduleDayStops(open.techId, open.day).length) {
+      openDayStops(open.techId, open.day);
+      return;
+    }
+    state.schedOpen = null;
+    state.modal = null;
+    render();
+  }
+
+  function filterDayStops(q) {
+    const query = String(q || "").trim().toLowerCase();
+    const cards = [...document.querySelectorAll(".sched-stop")];
+    let shown = 0;
+    cards.forEach((el) => {
+      const hit = !query || (el.dataset.search || "").includes(query);
+      el.hidden = !hit;
+      if (hit) shown += 1;
+    });
+    const count = document.getElementById("sched-stop-count");
+    if (count) count.textContent = query ? `${shown} of ${cards.length} shown` : `${cards.length} shown`;
   }
 
   function mapRoadsSvg() {
@@ -7120,7 +7690,7 @@
       let act = "";
       if (i.status === "draft") act = btn("invoice.send", "Preview & send", "send-invoice", `data-id="${i.id}"`);
       else if (st === "PAID") act = `<span class="tiny">Paid ${esc(i.paidOn || "")}</span>`;
-      else act = btn("payment.post", "Post / allocate", "open-record-pay", `data-id="${i.id}"`);
+      else act = btn("payment.post", "Post invoice", "open-record-pay", `data-id="${i.id}"`);
       return [
         i.id ? invoiceBtn(i.id) : "—",
         custBtn(i.customerId, c?.billTo || c?.name || "—"),
@@ -7265,6 +7835,218 @@
     render();
   }
 
+  function paymentUnapplied(p) {
+    if (!p || p.failed) return 0;
+    return Math.max(0, Number(p.amount || 0) - paymentAllocatedAmount(p.id));
+  }
+  function paymentRef(p) {
+    if (p?.checkNo) return `#${p.checkNo}`;
+    if (p?.last4) return `····${p.last4}`;
+    return "—";
+  }
+  function invoiceDueDate(inv) {
+    if (!inv) return "";
+    if (inv.due) return inv.due;
+    return addMonths(inv.sent || TODAY, 1);
+  }
+  function invoiceSummaryCard(inv) {
+    const c = custBy(inv.customerId);
+    const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
+    const paid = allocated(inv.id);
+    const bal = invoiceBalance(inv);
+    const st = invoiceFinStatus(inv);
+    return `
+      <div class="apply-inv-card">
+        <div class="apply-inv-grid">
+          <div><span>Invoice</span><strong>${esc(inv.id)}</strong></div>
+          <div><span>Customer</span><strong>${esc(c?.billTo || c?.name || "—")}</strong></div>
+          <div><span>Property</span><strong>${esc(loc?.name || "—")}</strong>${loc?.address ? `<small>${esc(loc.address)}</small>` : ""}</div>
+          <div><span>Invoice amount</span><strong>${money2(inv.amount)}</strong></div>
+          <div><span>Amount paid</span><strong>${money2(paid)}</strong></div>
+          <div><span>Balance due</span><strong class="apply-bal">${money2(bal)}</strong></div>
+          <div><span>Status</span>${statusBadge(st)}</div>
+          <div><span>Invoice date</span><strong>${esc(fmtUsDate(inv.sent || TODAY))}</strong></div>
+          <div><span>Due date</span><strong>${esc(fmtUsDate(invoiceDueDate(inv)))}</strong></div>
+        </div>
+      </div>`;
+  }
+  function registerPaymentAvailable(p, inv) {
+    if (!p || p.failed || !p.date) return false;
+    if (paymentUnapplied(p) <= 0) return false;
+    if (p.invoiceId && p.invoiceId !== inv?.id) {
+      const tagged = (state.data.invoices || []).find((i) => i.id === p.invoiceId);
+      if (tagged && invoiceFinStatus(tagged) === "PAID") return false;
+    }
+    return true;
+  }
+  function paymentsForApply(inv, onlyCustomer, query) {
+    const q = String(query || "").trim().toLowerCase();
+    return (state.data.payments || []).filter((p) => {
+      if (!registerPaymentAvailable(p, inv)) return false;
+      if (onlyCustomer && p.customerId !== inv.customerId) return false;
+      if (q) {
+        const c = p.customerId ? custBy(p.customerId) : null;
+        const blob = `${p.id} ${p.method || ""} ${p.checkNo || ""} ${p.last4 || ""} ${p.amount} ${p.date} ${p.memo || ""} ${p.source || ""} ${c?.billTo || ""} ${c?.name || ""} ${p.invoiceId || ""}`.toLowerCase();
+        if (!blob.includes(q)) return false;
+      }
+      return true;
+    }).sort((a, b) => {
+      const ai = a.invoiceId === inv.id ? 0 : a.customerId === inv.customerId ? 1 : 2;
+      const bi = b.invoiceId === inv.id ? 0 : b.customerId === inv.customerId ? 1 : 2;
+      return ai - bi || String(b.date || "").localeCompare(String(a.date || ""));
+    });
+  }
+  function captureApplyPayForm() {
+    const ap = state.applyPay;
+    if (!ap) return;
+    const amt = document.getElementById("ap-amt");
+    const memo = document.getElementById("ap-memo");
+    const search = document.getElementById("ap-search");
+    if (amt) ap.amount = amt.value;
+    if (memo) ap.memo = memo.value;
+    if (search) ap.query = search.value;
+    const nAmt = document.getElementById("ap-new-amt");
+    const nMemo = document.getElementById("ap-new-memo");
+    const nCheck = document.getElementById("ap-new-check");
+    const nMethod = document.getElementById("ap-new-method");
+    if (nAmt) ap.newAmount = nAmt.value;
+    if (nMemo) ap.newMemo = nMemo.value;
+    if (nCheck) ap.newCheck = nCheck.value;
+    if (nMethod) ap.newMethod = nMethod.value;
+  }
+  function refreshApplyAmtHint(input) {
+    if (!input) return;
+    const max = Number(input.dataset.max || 0);
+    const bal = Number(input.dataset.bal || 0);
+    const n = Number(input.value);
+    const amt = Number.isFinite(n) ? n : 0;
+    const full = amt + 0.001 >= bal && bal > 0;
+    const hint = input.parentElement?.querySelector(".apply-amt-hint");
+    if (hint) {
+      hint.innerHTML = `Max ${money2(max)}${full ? ` · <span class="badge badge-ok">Paid in full</span>` : (amt > 0 ? ` · <span class="badge badge-warn">Partial</span>` : "")}`;
+    }
+    const result = document.getElementById("reg-ap-result");
+    if (result) {
+      result.innerHTML = full
+        ? `<span class="badge badge-ok">Paid in full</span>`
+        : `<span class="badge badge-warn">Partial payment</span>`;
+    }
+  }
+  function renderApplyPay() {
+    const inv = (state.data.invoices || []).find((i) => i.id === state.applyPay?.invoiceId);
+    if (!inv) {
+      state.applyPay = null;
+      state.modal = null;
+      render();
+      return;
+    }
+    state.modal = { wide: true, applyPay: true, html: applyPayModalHtml(inv) };
+    render();
+  }
+  function applyPayModalHtml(inv) {
+    const ap = state.applyPay || {};
+    const tab = ap.tab || "existing";
+    const onlyCustomer = ap.onlyCustomer !== false;
+    const list = paymentsForApply(inv, onlyCustomer, ap.query);
+    if (ap.payId && !list.some((p) => p.id === ap.payId)) ap.payId = list[0]?.id || null;
+    if (!ap.payId && list.length) ap.payId = list[0].id;
+    const selected = list.find((p) => p.id === ap.payId) || null;
+    const bal = invoiceBalance(inv);
+    const unapplied = selected ? paymentUnapplied(selected) : 0;
+    const maxApply = selected ? Math.min(unapplied, bal) : bal;
+    const amount = ap.amount != null && ap.amount !== "" ? ap.amount : (maxApply ? maxApply.toFixed(2) : "0.00");
+    const applyAmt = Number(amount) || 0;
+    const paysInFull = selected && applyAmt + 0.001 >= bal && bal > 0;
+    return `
+      <div class="apply-pay-head">
+        <div>
+          <h3>Apply payment · ${esc(inv.id)}</h3>
+          <p>Select a payment already on the register, or record a new one. Applying it here is what marks the invoice paid.</p>
+        </div>
+        <button class="icon-btn apply-pay-x" type="button" data-act="close-modal" aria-label="Close">×</button>
+      </div>
+      ${invoiceSummaryCard(inv)}
+      <div class="apply-pay-tabs">
+        <button type="button" class="${tab === "existing" ? "on" : ""}" data-act="apply-pay-tab" data-tab="existing">Apply existing payment</button>
+        <button type="button" class="${tab === "new" ? "on" : ""}" data-act="apply-pay-tab" data-tab="new">Record new payment</button>
+      </div>
+      ${tab === "existing" ? `
+        <div class="apply-pay-tools">
+          <input id="ap-search" type="search" placeholder="Search payments by check #, amount, date, or reference…" value="${esc(ap.query || "")}" data-apply-pay-search>
+          <label class="chk apply-pay-only"><input type="checkbox" data-act="apply-pay-only" ${onlyCustomer ? "checked" : ""}> Show only this customer</label>
+        </div>
+        <p class="tiny apply-pay-note">${list.length} payment${list.length === 1 ? "" : "s"} from the Payment register${onlyCustomer ? " for this customer" : ""}.</p>
+        <div class="table-wrap apply-pay-table">
+          <table>
+            <thead><tr>
+              <th></th><th>Payment #</th>${onlyCustomer ? "" : "<th>Bill-To</th>"}<th>Date</th><th>Method</th><th>Reference / check #</th><th>Amount</th><th>Unapplied</th>
+            </tr></thead>
+            <tbody>
+              ${list.map((p) => {
+                const on = p.id === (selected?.id || "");
+                const c = p.customerId ? custBy(p.customerId) : null;
+                const who = c?.billTo || c?.name || "—";
+                const search = `${p.id} ${who} ${p.method} ${p.checkNo || ""} ${p.last4 || ""} ${p.amount} ${p.date} ${p.memo || ""}`.toLowerCase();
+                return `<tr class="${on ? "is-on" : ""}" data-act="apply-pay-pick" data-id="${esc(p.id)}" data-apply-pay-row data-search="${esc(search)}">
+                  <td><input type="radio" name="ap-pay" ${on ? "checked" : ""} data-act="apply-pay-pick" data-id="${esc(p.id)}" aria-label="Select ${esc(p.id)}"></td>
+                  <td><strong>${esc(p.id)}</strong></td>
+                  ${onlyCustomer ? "" : `<td>${esc(who)}</td>`}
+                  <td>${esc(fmtPrettyDate(p.date))}</td>
+                  <td>${esc(p.method || "—")}</td>
+                  <td>${esc(paymentRef(p))}</td>
+                  <td>${money2(p.amount)}</td>
+                  <td>${money2(paymentUnapplied(p))}</td>
+                </tr>`;
+              }).join("") || `<tr><td colspan="${onlyCustomer ? 7 : 8}"><p class="muted" style="padding:12px 0">No register payments left to apply${onlyCustomer ? " for this customer" : ""}.</p></td></tr>`}
+            </tbody>
+          </table>
+        </div>
+        ${selected ? `
+          <div class="apply-pay-split">
+            <div class="apply-pay-preview">
+              <strong>${esc(selected.id)} · ${esc(fmtPrettyDate(selected.date))} · ${esc(selected.method || "")} · ${esc(paymentRef(selected))}</strong>
+              <div class="tiny">Payment ${money2(selected.amount)} · Unapplied ${money2(unapplied)}${selected.invoiceId && selected.invoiceId !== inv.id ? ` · currently tagged ${esc(selected.invoiceId)}` : ""}</div>
+            </div>
+            <div class="field apply-amt-field">
+              <label for="ap-amt">Amount to apply *</label>
+              <input id="ap-amt" type="number" min="0.01" step="0.01" value="${esc(amount)}" data-bal="${esc(bal)}" data-max="${esc(maxApply)}">
+              <p class="tiny apply-amt-hint">Max ${money2(maxApply)}${paysInFull ? ` · <span class="badge badge-ok">Paid in full</span>` : (applyAmt > 0 ? ` · <span class="badge badge-warn">Partial</span>` : "")}</p>
+            </div>
+          </div>
+          <div class="field"><label for="ap-memo">Memo / notes (optional)</label>
+            <textarea id="ap-memo" rows="2" maxlength="250" placeholder="Add a note (optional)…">${esc(ap.memo || "")}</textarea>
+            <p class="tiny apply-memo-count" id="ap-memo-count">${esc(String((ap.memo || "").length))}/250</p>
+          </div>
+        ` : `<p class="muted">Pick a register payment, or record a new one.</p>`}
+        <div class="apply-pay-foot">
+          <div>
+            <p class="tiny">Can’t find it on the register?</p>
+            <button type="button" class="btn btn-ghost btn-moss" data-act="apply-pay-tab" data-tab="new">+ Record new payment</button>
+          </div>
+          <div class="actions" style="margin:0">
+            <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+            <button class="btn btn-primary" data-act="confirm-apply-pay" data-id="${esc(inv.id)}" ${selected ? "" : "disabled"}>Apply payment</button>
+          </div>
+        </div>
+      ` : `
+        <p class="tiny">This creates a register line and applies it to ${esc(inv.id)} in one step.</p>
+        <div class="field"><label>Method</label>
+          <select id="ap-new-method">${pay().optionsHtml(ap.newMethod || "Check")}</select>
+        </div>
+        <div class="field"><label>Amount</label><input id="ap-new-amt" type="number" step="0.01" value="${esc(ap.newAmount || bal.toFixed(2))}"></div>
+        <div class="field"><label>Reference / check # / last 4</label><input id="ap-new-check" value="${esc(ap.newCheck || "")}" placeholder="optional"></div>
+        <div class="field"><label>Memo</label><textarea id="ap-new-memo" rows="2">${esc(ap.newMemo || `Posted to ${inv.id}`)}</textarea></div>
+        <div class="apply-pay-foot">
+          <button type="button" class="btn btn-ghost" data-act="apply-pay-tab" data-tab="existing">← Back to register payments</button>
+          <div class="actions" style="margin:0">
+            <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+            <button class="btn btn-primary" data-act="confirm-apply-new" data-id="${esc(inv.id)}">Record and apply</button>
+          </div>
+        </div>
+      `}
+    `;
+  }
+
   function openMarkInvoicePaid(payId) {
     if (!can("payment.post")) return;
     const p = (state.data.payments || []).find((x) => x.id === payId);
@@ -7279,25 +8061,47 @@
     }
     const c = custBy(inv.customerId);
     const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
-    const available = Math.max(0, Number(p.amount || 0) - paymentAllocatedAmount(p.id));
+    const available = paymentUnapplied(p);
     const balance = invoiceBalance(inv);
-    const paysInFull = available + 0.001 >= balance;
+    const applyAmt = Math.min(available, balance);
+    const paysInFull = applyAmt + 0.001 >= balance && balance > 0;
     state.modal = {
+      postPay: true,
       html: `
-        <h3>Post payment?</h3>
-        <div class="task-location-context">
-          <div><span>Bill-To</span><strong>${esc(c?.billTo || c?.name || "—")}</strong></div>
-          <div><span>Location</span><strong>${esc(loc?.name || "—")}</strong><small>${esc(loc?.address || "")}</small></div>
+        <div class="apply-pay-head">
+          <div>
+            <h3>Post payment?</h3>
+          </div>
+          <button class="icon-btn apply-pay-x" type="button" data-act="close-modal" aria-label="Close">×</button>
         </div>
-        <dl class="kv">
+        <div class="post-pay-card">
+          <div>
+            <span>Bill-to</span>
+            <strong>${esc(c?.billTo || c?.name || "—")}</strong>
+          </div>
+          <div>
+            <span>Location</span>
+            <strong>${esc(loc?.name || "—")}</strong>
+            ${loc?.address ? `<small>${esc(loc.address)}</small>` : ""}
+          </div>
+        </div>
+        <dl class="kv apply-pay-kv">
           <dt>Invoice</dt><dd>${esc(inv.id)}</dd>
-          <dt>Payment received</dt><dd>${money(available)}</dd>
-          <dt>Invoice balance</dt><dd>${money(balance)}</dd>
-          <dt>Result</dt><dd>${paysInFull ? `<span class="badge badge-ok">Paid in full</span>` : `<span class="badge badge-warn">Partial payment</span>`}</dd>
+          <dt>Payment received</dt><dd>${money2(p.amount)}</dd>
+          <dt>Invoice balance</dt><dd>${money2(balance)}</dd>
+          <dt>Result</dt><dd id="reg-ap-result">${paysInFull ? `<span class="badge badge-ok">Paid in full</span>` : `<span class="badge badge-warn">Partial payment</span>`}</dd>
         </dl>
-        <div class="actions section-gap">
-          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
-          <button class="btn btn-primary" data-act="confirm-mark-invoice-paid" data-id="${p.id}">Post payment</button>
+        <div class="field apply-amt-field">
+          <label for="reg-ap-amt">Amount to apply</label>
+          <input id="reg-ap-amt" type="number" min="0.01" step="0.01" value="${esc(applyAmt.toFixed(2))}" data-bal="${esc(balance)}" data-max="${esc(applyAmt)}">
+          <p class="tiny apply-amt-hint">Max ${money2(applyAmt)}</p>
+        </div>
+        <div class="apply-pay-foot">
+          <p class="tiny">Posting applies this register line to ${esc(inv.id)}.</p>
+          <div class="actions" style="margin:0">
+            <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+            <button class="btn btn-primary" data-act="confirm-mark-invoice-paid" data-id="${esc(p.id)}">Post payment</button>
+          </div>
         </div>
       `,
     };
@@ -7309,9 +8113,13 @@
     const p = (state.data.payments || []).find((x) => x.id === payId);
     const inv = p?.invoiceId ? (state.data.invoices || []).find((i) => i.id === p.invoiceId) : null;
     if (!p || !inv || p.failed || !payNeedsMark(p)) return;
-    const available = Math.max(0, Number(p.amount || 0) - paymentAllocatedAmount(p.id));
+    const available = paymentUnapplied(p);
     if (!available) return;
-    allocatePaymentToInvoice(p, inv, available);
+    const typed = Number(document.getElementById("reg-ap-amt")?.value);
+    const applyAmt = Number.isFinite(typed) && typed > 0 ? Math.min(typed, available, invoiceBalance(inv)) : Math.min(available, invoiceBalance(inv));
+    const memo = document.getElementById("reg-ap-memo")?.value;
+    if (memo != null && String(memo).trim()) p.memo = String(memo).trim();
+    allocatePaymentToInvoice(p, inv, applyAmt);
     const paid = invoiceFinStatus(inv) === "PAID";
     const bonus = paid ? ensureTrapperBonusFromPayment(p, inv) : null;
     state.data.comms.unshift({
@@ -7328,7 +8136,7 @@
       ? (bonus && isRenewalInvoice(inv)
         ? `${inv.id} marked paid. ${money2(bonus.amount)} trapper bonus is pending — allocate on Trapper bonuses.`
         : `${inv.id} marked paid. Rick can continue with service.`)
-      : `${money(available)} allocated. ${money(invoiceBalance(inv))} remains.`);
+      : `${money2(applyAmt)} allocated. ${money2(invoiceBalance(inv))} remains.`);
     render();
   }
 
@@ -7748,7 +8556,7 @@
           <button class="btn btn-ghost" data-act="close-modal">Close</button>
           ${inv.status === "draft" ? `<button class="btn btn-primary" data-act="confirm-invoice" data-id="${esc(inv.id)}">Send invoice</button>` : ""}
           ${bonus ? `<button class="btn btn-primary" data-act="open-bonus" data-id="${esc(bonus.id)}">Open trapper bonus</button>` : ""}
-          ${st !== "PAID" && inv.status !== "draft" && can("payment.post") ? btn("payment.post", "Post / allocate", "open-record-pay", `data-id="${inv.id}"`) : ""}
+          ${st !== "PAID" && inv.status !== "draft" && can("payment.post") ? btn("payment.post", "Post invoice", "open-record-pay", `data-id="${inv.id}"`) : ""}
         </div>
       `,
     };
@@ -7976,17 +8784,16 @@
         ${m.read ? "" : `<span class="badge badge-warn">Unread</span>`}
         <span class="badge ${mtoDept(m) === "admin" ? "badge-sea" : "badge-ok"}">${esc(mtoDeptLabel(mtoDept(m)))}</span>
         <span class="tiny">${esc(m.date)}</span>
+        ${c ? `<button class="btn btn-text" data-act="open-customer" data-id="${c.id}">${esc(c.name)}</button>` : `<span class="tiny">Walk-up</span>`}
       </div>
-      <strong>From ${esc(techBy(m.from)?.name || m.from)}</strong>
-      <div class="tiny">${c ? custBtn(m.customerId, c.name) : esc("Walk-up / no account")}${place ? " · " + esc(place) : ""}</div>
+      <div class="tiny">${esc(place || "Field")}</div>
       <div class="mto-msg">${esc(m.text)}</div>
-      <p class="tiny">Internal — not on the customer portal, invoice, or communication log.</p>
       <div class="actions">
         ${!m.read ? `<button class="btn btn-primary" data-act="mto-read" data-id="${m.id}">Mark read</button>` : ""}
-        ${c ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Open Bill-To</button>` : ""}
+        ${c ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${c.id}">Open customer</button>` : ""}
       </div>
       ${can("mto.reply")
-        ? `<div class="field" style="margin-top:10px"><label>Office note (stays here — not sent to the trapper)</label><textarea class="inline-edit" data-edit="mto" data-field="reply" data-id="${m.id}" rows="2" placeholder="What you did about this">${esc(m.reply || "")}</textarea></div>`
+        ? `<div class="field" style="margin-top:8px"><label>Internal office note</label><textarea class="inline-edit" data-edit="mto" data-field="reply" data-id="${m.id}" rows="2" placeholder="What you did about this">${esc(m.reply || "")}</textarea></div>`
         : (m.reply ? `<div class="tiny">Office note: ${esc(m.reply)}</div>` : "")}
     </div>`;
   }
@@ -8257,8 +9064,183 @@
   function ensureSeedFieldStops() {
     const stops = state.data.stops || [];
     const add = (row) => { if (!stops.some((s) => s.id === row.id)) stops.push(row); };
+    add({ id: "S-3", customerId: "C-1042", locationId: "L-1042a", techId: "johnny", day: "Wed", time: "08:15", durationMin: 20, type: "service", status: "scheduled", actualMin: null, removals: null });
+    add({ id: "S-11", customerId: "C-1112", locationId: "L-1112a", techId: "johnny", day: "Mon", time: "13:00", durationMin: 180, type: "service", status: "scheduled", actualMin: null, removals: null });
+    add({ id: "S-13", customerId: "C-1210", locationId: "L-1210a", techId: "johnny", day: "Mon", time: "10:20", durationMin: 20, type: "service", status: "scheduled", actualMin: null, removals: null });
     add({ id: "S-18", customerId: "C-1004", locationId: "L-1004a", techId: "johnny", day: "Thu", time: "09:50", durationMin: 20, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Retrieve trap IC-208", address: "1901 N Federal Hwy, Boca Raton, FL" });
     add({ id: "S-20", customerId: null, locationId: null, techId: "johnny", day: "Thu", time: "11:40", durationMin: 25, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Iguana in garage — walk-up, Boca", address: "Near Mizner Park", taskType: "garage", x: "29%", y: "41%" });
+    add({ id: "S-21", customerId: null, locationId: null, techId: "johnny", day: "Fri", time: "07:45", durationMin: 25, type: "oneoff", status: "scheduled", actualMin: null, removals: null, label: "Canal check — Hillsboro", address: "Hillsboro Blvd & A1A, Deerfield Beach, FL", taskType: "canal", x: "27%", y: "40%", gps: "26.316, -80.078" });
+  }
+
+  function ensureSeedDenseRoute() {
+    const c = (state.data.customers || []).find((x) => x.id === "C-1108");
+    if (!c) return;
+    if (!Array.isArray(c.locations)) c.locations = [];
+    for (let i = 0; i < 18; i++) {
+      const id = `L-1108n${i + 40}`;
+      if (c.locations.some((l) => l.id === id)) continue;
+      c.locations.push({
+        id,
+        name: `Lot ${i + 40}`,
+        address: `${i + 40} Palm Cove Dr, Fort Lauderdale, FL`,
+        x: `${32.2 + (i % 6) * 0.85}%`,
+        y: `${51.5 + Math.floor(i / 6) * 1.6 + (i % 2) * 0.35}%`,
+        covered: true,
+        techId: "bobby",
+        days: "Tue/Thu",
+      });
+    }
+    [["L-1108a", "Clubhouse", "12 Palm Cove Dr, Fort Lauderdale, FL"], ["L-1108b", "Lot 14", "14 Palm Cove Dr, Fort Lauderdale, FL"], ["L-1108c", "Lot 22", "22 Palm Cove Dr, Fort Lauderdale, FL"]].forEach(([id, name, address]) => {
+      const loc = c.locations.find((l) => l.id === id);
+      if (loc && loc.covered === false) loc.covered = true;
+      if (!loc) c.locations.push({ id, name, address, x: "33%", y: "54%", covered: true, techId: "bobby", days: "Tue/Thu" });
+    });
+    if (!Array.isArray(state.data.stops)) state.data.stops = [];
+    const stops = state.data.stops;
+    const add = (row) => { if (!stops.some((s) => s.id === row.id)) stops.push(row); };
+    const locs = c.locations.filter((l) => l.covered !== false);
+    let minutes = 7 * 60 + 30;
+    locs.forEach((l) => {
+      const exists = stops.some((s) => s.locationId === l.id && s.day === "Thu" && s.techId === "bobby" && !s.pending);
+      const hh = Math.floor(minutes / 60);
+      const mm = minutes % 60;
+      const time = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+      minutes += 12;
+      if (exists) return;
+      add({
+        id: `S-PC-${l.id}`,
+        customerId: "C-1108",
+        locationId: l.id,
+        techId: "bobby",
+        homeTechId: "bobby",
+        day: "Thu",
+        time,
+        durationMin: 12,
+        type: "service",
+        status: "scheduled",
+        actualMin: null,
+        removals: null,
+      });
+    });
+    [
+      { id: "S-PC-x1", time: "12:10", label: "Preserve canal — common area", address: "Palm Cove preserve canal, Fort Lauderdale, FL", x: "37%", y: "52%" },
+      { id: "S-PC-x2", time: "12:25", label: "Pool cage follow-up", address: "Palm Cove pool, Fort Lauderdale, FL", x: "33%", y: "55%" },
+      { id: "S-PC-x3", time: "12:40", label: "Rear lake bank", address: "Palm Cove lake, Fort Lauderdale, FL", x: "36%", y: "57%" },
+      { id: "S-PC-x4", time: "12:55", label: "Gatehouse / entry hedge", address: "1 Palm Cove Dr, Fort Lauderdale, FL", x: "32%", y: "54%" },
+    ].forEach((row) => add({
+      ...row,
+      customerId: "C-1108",
+      locationId: null,
+      techId: "bobby",
+      homeTechId: "bobby",
+      day: "Thu",
+      durationMin: 12,
+      type: "oneoff",
+      status: "scheduled",
+      actualMin: null,
+      removals: null,
+    }));
+  }
+
+  function optimizerSnapshotsForRun(run) {
+    const ids = new Set();
+    (run.routes || []).forEach((r) => {
+      (r.originalStopIds || []).forEach((id) => ids.add(id));
+      (r.optimized || []).forEach((x) => ids.add(x.id));
+      (r.unreachableIds || []).forEach((id) => ids.add(id));
+    });
+    const snaps = { ...(run.stopSnapshots || {}) };
+    ids.forEach((id) => {
+      if (snaps[id]) return;
+      const snap = optimizerStopSnapshot(state.data.stops.find((s) => s.id === id));
+      if (snap) snaps[id] = snap;
+    });
+    return snaps;
+  }
+  function optimizerOriginalByIdFromRun(run) {
+    if (run.originalById && Object.keys(run.originalById).length) return run.originalById;
+    const out = {};
+    (run.routes || []).forEach((r) => {
+      (r.originalStopIds || []).forEach((id) => {
+        const s = run.stopSnapshots?.[id] || state.data.stops.find((x) => x.id === id);
+        if (s) out[id] = { techId: s.techId, day: s.day, time: s.time };
+      });
+    });
+    return out;
+  }
+  function optimizerLiveRoute(date, day, techId) {
+    const stops = (state.data.stops || [])
+      .filter((s) => !s.pending && s.status === "scheduled" && s.day === day && s.techId === techId)
+      .slice()
+      .sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+    const serviceMin = stops.reduce((n, s) => n + Number(s.durationMin || 0), 0);
+    const production = stops.reduce((n, s) => n + optimizerProduction(s), 0);
+    const drive = optimizerDriveMinutes(techId, stops);
+    return {
+      date,
+      day,
+      techId,
+      originalStopIds: stops.map((s) => s.id),
+      optimized: stops.map((s) => ({ id: s.id, time: s.time })),
+      unreachableIds: [],
+      jobs: stops.length,
+      unreachable: 0,
+      beforeDrive: drive,
+      afterDrive: drive,
+      serviceMin,
+      workingMin: serviceMin + drive,
+      production,
+      originalServiceMin: serviceMin,
+      originalProduction: production,
+      warnings: [],
+      anchorId: null,
+    };
+  }
+  function hydrateOptimizerRun(run) {
+    if (!run) return run;
+    if (!run.title) run.title = optimizerRunTitle(run);
+    if (!run.status) run.status = run.committed ? "committed" : "draft";
+    const hasRoutes = (run.routes || []).some((r) => (r.originalStopIds || []).length || (r.optimized || []).length);
+    if (!hasRoutes) {
+      const dates = optimizerDates(run.startDate, run.endDate);
+      const techIds = (run.techIds && run.techIds.length) ? run.techIds : TECHS.map((t) => t.id);
+      run.routes = dates
+        .flatMap(({ day, date }) => techIds.map((techId) => optimizerLiveRoute(date, day, techId)))
+        .filter((r) => r.originalStopIds.length);
+      run.routeCount = run.routes.length;
+      run.stopCount = run.routes.reduce((n, r) => n + r.originalStopIds.length, 0);
+      run.beforeDrive = run.routes.reduce((n, r) => n + r.beforeDrive, 0);
+      run.afterDrive = run.routes.reduce((n, r) => n + r.afterDrive, 0);
+    }
+    run.stopSnapshots = optimizerSnapshotsForRun(run);
+    run.originalById = optimizerOriginalByIdFromRun(run);
+    if (!run.config) {
+      run.config = {
+        startDate: run.startDate,
+        endDate: run.endDate,
+        techId: (run.techIds || []).length === 1 ? run.techIds[0] : "all",
+        techIds: optimizerRunTechIds(run),
+        keepDate: true,
+        keepTech: true,
+        limits: {},
+      };
+    }
+    return run;
+  }
+  function ensureSeedOptimizerRuns() {
+    if (!Array.isArray(state.data.optimizerRuns)) state.data.optimizerRuns = [];
+    const runs = state.data.optimizerRuns;
+    const opt2 = runs.find((r) => r.id === "OPT-2");
+    const opt3 = runs.find((r) => r.id === "OPT-3");
+    if (opt2 && opt2.status == null && opt2.committed) {
+      opt2.status = "superseded";
+      opt2.supersededBy = opt2.supersededBy || "OPT-1";
+    }
+    if (opt3 && opt3.status == null && opt3.committed) {
+      opt3.status = "superseded";
+      opt3.supersededBy = opt3.supersededBy || "OPT-1";
+    }
+    runs.forEach(hydrateOptimizerRun);
   }
   function fieldStops() {
     const techId = fieldTechId();
@@ -8283,12 +9265,29 @@
   function captureFieldDraft(id) {
     const s = state.data.stops.find((x) => x.id === id);
     if (!s) return;
+    if (document.getElementById("rem-sighted")) s.draftSighted = val("rem-sighted");
     if (document.getElementById("rem-count")) s.draftCount = val("rem-count");
     if (document.getElementById("rem-wt")) s.draftWt = val("rem-wt");
     if (document.getElementById("mto-text")) s.draftMto = val("mto-text");
     if (document.getElementById("mto-dept")) s.draftDept = val("mto-dept");
     if (document.getElementById("miss-reason")) s.draftReason = val("miss-reason");
     if (document.getElementById("miss-note")) s.missNote = val("miss-note");
+  }
+  function stopGps(s) {
+    const loc = s?.locationId ? locBy(s.customerId, s.locationId) : null;
+    if (loc?.lat != null && loc?.lng != null) {
+      return { lat: Number(loc.lat), lng: Number(loc.lng), manual: !!loc.manualPin };
+    }
+    const raw = String(loc?.gps || "").trim();
+    const m = raw.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+    if (m) return { lat: Number(m[1]), lng: Number(m[2]), manual: !!loc?.manualPin };
+    const xy = stopCoords(s);
+    const approx = latLngFromXy(pct(xy.x), pct(xy.y));
+    return { lat: Number(approx.lat), lng: Number(approx.lng), manual: false };
+  }
+  function googleMapsDirUrl(gps) {
+    if (!gps || !Number.isFinite(gps.lat) || !Number.isFinite(gps.lng)) return "";
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${gps.lat},${gps.lng}`)}`;
   }
   function fieldStopStatusLabel(s) {
     if (s.status === "in_progress") return "In progress";
@@ -8366,18 +9365,20 @@
     const line = `<svg class="route-svg" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline fill="none" stroke="${color}" stroke-width="${compact ? 1.6 : 1.35}" stroke-linecap="round" stroke-linejoin="round" points="${pts.join(" ")}" /></svg>`;
     return `<div class="mob-map ${compact ? "compact" : ""}">${fieldDummyTerrain()}${line}${pins.join("")}</div>`;
   }
-  function fieldMissBlock(s) {
+  function fieldMissBlock(s, started) {
     return `
       <div class="mob-card miss-card">
-        <h3>Log miss / no-show</h3>
-        <p class="tiny">Pick the reason and post. You do not grant an extra visit — Rick decides that.</p>
+        <h3>Unable to complete</h3>
+        <p class="tiny">${started
+          ? "If you cannot finish, pick a reason. Do not mark Complete — Rick decides any extra visit."
+          : "If you cannot work this stop, pick a reason. Do not mark it complete."}</p>
         <div class="field"><label>Reason</label>
           <select id="miss-reason">${allReasons().map((r) => `<option value="${esc(r.id)}" ${s.draftReason === r.id ? "selected" : ""}>${esc(r.label)}</option>`).join("")}</select>
         </div>
         <div class="field"><label>Note</label>
-          <textarea id="miss-note" rows="2" placeholder="Waited at gate, no answer…">${esc(s.missNote || "")}</textarea>
+          <textarea id="miss-note" rows="2" placeholder="Could not service backyard because of heavy rain…">${esc(s.missNote || "")}</textarea>
         </div>
-        <button class="btn btn-warn" data-act="miss-stop" data-id="${s.id}">Log miss / no-show</button>
+        <button class="btn btn-warn" data-act="miss-stop" data-id="${s.id}">Unable to complete</button>
       </div>
     `;
   }
@@ -8387,7 +9388,10 @@
     const title = (opts && opts.title) || "Route";
     const back = !!(opts && opts.back);
     const mapFill = !!(opts && opts.mapFill);
-    const routeOn = tab === "route" || (!!state.mobileStop && tab !== "map" && tab !== "profile");
+    const openStop = state.mobileStop ? (state.data.stops || []).find((x) => x.id === state.mobileStop) : null;
+    const futureStop = !!(openStop && openStop.day !== fieldDay());
+    const routeOn = tab === "route" && !futureStop;
+    const schedOn = tab === "schedule" || futureStop;
     const mapOn = tab === "map" && !state.mobileStop;
     return `
       <div class="mobile-shell">
@@ -8405,7 +9409,8 @@
           </header>
           <div class="phone-body ${mapFill ? "is-map" : ""}" data-keep-scroll="field">${body}</div>
           <nav class="mob-tabs">
-            <button type="button" class="${routeOn ? "on" : ""}" data-act="field-tab" data-tab="route">${ICONS.list}<span>Route</span></button>
+            <button type="button" class="${routeOn ? "on" : ""}" data-act="field-tab" data-tab="route">${ICONS.list}<span>Today</span></button>
+            <button type="button" class="${schedOn ? "on" : ""}" data-act="field-tab" data-tab="schedule">${ICONS.cal}<span>Schedule</span></button>
             <button type="button" class="${mapOn ? "on" : ""}" data-act="field-tab" data-tab="map">${ICONS.map}<span>Map</span></button>
           </nav>
         </div>
@@ -8429,25 +9434,56 @@
         <span><strong>${open}</strong> left</span>
       </div>
       ${next ? `<p class="mob-next">Next · ${esc(stopLabel(next))} · ${esc(fmtClockTime(next.time))}</p>` : `<p class="mob-next">Route finished for today.</p>`}
-      ${stops.map((s, i) => {
-        const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
-        const cls = s.status === "in_progress" ? "active" : s.status === "complete" ? "done" : (s.status === "missed" || s.status === "noshow") ? "miss" : "";
+      ${stops.map((s, i) => fieldStopCard(s, i + 1)).join("") || `<p class="muted">No stops on your book today.</p>`}
+    `;
+  }
+  function fieldStopCard(s, num) {
+    const loc = s.locationId ? locBy(s.customerId, s.locationId) : null;
+    const cls = s.status === "in_progress" ? "active" : s.status === "complete" ? "done" : (s.status === "missed" || s.status === "noshow") ? "miss" : "";
+    return `
+      <button type="button" class="stop-card ${cls}" data-act="open-stop" data-id="${s.id}">
+        <div class="stop-rail"><span class="stop-num">${num}</span></div>
+        <div class="stop-main">
+          <div class="mob-stop-top">
+            <strong>${esc(fmtClockTime(s.time))}</strong>
+            ${s.type === "oneoff" ? `<span class="badge badge-sea">Task</span>` : `<span class="badge badge-ok">Service</span>`}
+            ${statusBadge(s.status === "scheduled" ? "scheduled" : s.status)}
+          </div>
+          <h3>${esc(stopLabel(s))}</h3>
+          <div class="meta">${esc(loc?.address || s.address || "")}</div>
+          ${stopIsTempReassign(s) ? `<div class="hidden-note">Covering for ${esc(techName(stopHomeTech(s)))} · ${esc(s.day)} only</div>` : ""}
+          ${s.status === "complete" ? `<div class="hidden-note">Clocked ${fmtHours(s.actualMin)} · sighted ${s.removals?.sighted || 0} · removed ${s.removals?.count || 0} · ${s.removals?.weight || 0} lb</div>` : ""}
+          ${(s.status === "missed" || s.status === "noshow") ? `<div class="hidden-note">Unable to complete · ${esc(s.reason || "Miss")} — Rick decides +1 visit</div>` : ""}
+        </div>
+      </button>
+    `;
+  }
+  function renderFieldSchedule() {
+    const days = fieldUpcomingDays();
+    const next = days.find((d) => fieldStopsForDay(d.day).some((s) => s.status === "scheduled" || s.status === "in_progress")) || days[0];
+    const total = days.reduce((n, d) => n + fieldStopsForDay(d.day).length, 0);
+    return `
+      <p class="mob-next">${next
+        ? `Up next · ${esc(next.day)} ${esc(fmtPrettyDate(next.date))}${next.nextWeek ? " (next week)" : ""}`
+        : "No later stops on your book."}</p>
+      <div class="mob-summary">
+        <span><strong>${days.length}</strong> days ahead</span>
+        <span><strong>${total}</strong> stops</span>
+      </div>
+      ${days.map((d) => {
+        const list = fieldStopsForDay(d.day).filter((s) => s.status === "scheduled" || s.status === "in_progress" || s.status === "blocked" || s.status === "blocked_off");
         return `
-          <button type="button" class="stop-card ${cls}" data-act="open-stop" data-id="${s.id}">
-            <div class="stop-rail"><span class="stop-num">${i + 1}</span></div>
-            <div class="stop-main">
-              <div class="mob-stop-top">
-                <strong>${esc(fmtClockTime(s.time))}</strong>
-                ${statusBadge(s.status === "scheduled" ? "scheduled" : s.status)}
-              </div>
-              <h3>${esc(stopLabel(s))}</h3>
-              <div class="meta">${esc(loc?.address || s.address || "")}</div>
-              ${s.status === "complete" ? `<div class="hidden-note">Clocked ${fmtHours(s.actualMin)} · ${(s.removals?.count || 0)} iguana${(s.removals?.count || 0) === 1 ? "" : "s"} · ${s.removals?.weight || 0} lb</div>` : ""}
-              ${(s.status === "missed" || s.status === "noshow") ? `<div class="hidden-note">${esc(s.reason || "Miss")} — Rick decides +1 visit</div>` : ""}
+          <section class="mob-day-block">
+            <div class="mob-day-head">
+              <strong>${esc(d.day)}</strong>
+              <span>${esc(fmtPrettyDate(d.date))}${d.nextWeek ? " · next week" : ""}</span>
             </div>
-          </button>
+            ${list.length
+              ? list.map((s, i) => fieldStopCard(s, i + 1)).join("")
+              : `<p class="muted mob-day-empty">No stops this day.</p>`}
+          </section>
         `;
-      }).join("") || `<p class="muted">No stops on your book today.</p>`}
+      }).join("")}
     `;
   }
   function renderFieldMapPage() {
@@ -8502,6 +9538,7 @@
     const tab = fieldTab();
     if (tab === "map") return renderMobileFrame(renderFieldMapPage(), { title: "Today’s map", back: true, mapFill: true });
     if (tab === "profile") return renderMobileFrame(renderFieldProfile(), { title: "Profile", back: true });
+    if (tab === "schedule") return renderMobileFrame(renderFieldSchedule(), { title: "Next schedule", back: false });
     return renderMobileFrame(renderFieldRoute(), { title: "Today’s route", back: false });
   }
 
@@ -8514,14 +9551,23 @@
     const traps = s.customerId && s.locationId ? trapsForLocation(s.customerId, s.locationId) : [];
     const notes = [c?.opsNote, loc?.instructions].filter(Boolean);
     const elapsed = started && s.startedAt ? Date.now() - Number(s.startedAt) : 0;
-    const canAct = s.status === "scheduled" || started;
+    const gps = stopGps(s);
+    const mapsHref = googleMapsDirUrl(gps);
+    const isToday = s.day === fieldDay();
+    const canAct = isToday && (s.status === "scheduled" || started);
+    const when = `${s.day} ${fmtPrettyDate(fieldDateForDay(s.day))}`;
     return `
-      <div class="mob-stop-map">${renderFieldRouteMap({ compact: true, focusId: s.id })}</div>
+      ${isToday ? `<div class="mob-stop-map">${renderFieldRouteMap({ compact: true, focusId: s.id })}</div>` : ""}
       <div class="mob-addr">
-        <strong>${esc(fmtClockTime(s.time))} · ${fmtHours(s.durationMin)} scheduled</strong>
+        <strong>${esc(fmtClockTime(s.time))} · ${fmtHours(s.durationMin)} scheduled${s.type === "oneoff" ? " · Task" : " · Service"}</strong>
         <p>${esc(loc?.address || s.address || "")}</p>
-        ${c?.phone ? `<a class="mob-call" href="tel:${esc(c.phone.replace(/[^\d+]/g, ""))}">Call ${esc(c.name)}</a>` : ""}
+        ${gps.manual ? `<p class="tiny">Navigate to the stored GPS pin, not the street label.</p>` : ""}
+        <div class="mob-addr-acts">
+          ${mapsHref ? `<a class="mob-nav" href="${esc(mapsHref)}" target="_blank" rel="noopener">Navigate in Google Maps</a>` : ""}
+          ${c?.phone ? `<a class="mob-call" href="tel:${esc(c.phone.replace(/[^\d+]/g, ""))}">Call ${esc(c.name)}</a>` : ""}
+        </div>
       </div>
+        ${isToday ? "" : `<div class="mob-card note-card">On your next schedule · ${esc(when)}. Start activity when that day arrives.</div>`}
       ${notes.length ? `<div class="mob-card note-card">${notes.map((n) => esc(n)).join("<br>")}</div>` : ""}
       ${traps.length ? `
         <div class="mob-card">
@@ -8533,26 +9579,27 @@
             </div>
           `).join("")}
         </div>` : ""}
-      ${s.status === "scheduled" ? `
-        ${fieldMissBlock(s)}
-        <p class="tiny" style="margin:4px 2px 10px">If you can work, start the clock when you arrive.</p>
-        <button type="button" class="btn btn-primary" data-act="start-stop" data-id="${s.id}">Start work</button>
+      ${isToday && s.status === "scheduled" ? `
+        <button type="button" class="btn btn-primary" data-act="start-stop" data-id="${s.id}">Start activity</button>
+        <p class="tiny" style="margin:8px 2px 12px">Start the clock when you arrive. If you cannot work, use Unable to complete below.</p>
+        ${fieldMissBlock(s, false)}
       ` : ""}
-      ${started ? `
+      ${isToday && started ? `
         <div class="mob-timer-card">
           <div class="tiny">On the clock</div>
           <div class="mob-timer" id="mob-timer" data-started="${esc(s.startedAt)}">${fmtElapsed(elapsed)}</div>
           <div class="tiny">Scheduled ${fmtHours(s.durationMin)}</div>
         </div>
         <div class="mob-card">
-          <h3>Iguanas caught</h3>
+          <h3>Service results</h3>
           <div class="removal-grid">
-            <div class="field"><label>Count</label><input id="rem-count" type="number" min="0" value="${esc(s.draftCount ?? s.removals?.count ?? 0)}"></div>
+            <div class="field"><label>Sighted</label><input id="rem-sighted" type="number" min="0" value="${esc(s.draftSighted ?? s.removals?.sighted ?? 0)}"></div>
+            <div class="field"><label>Removed</label><input id="rem-count" type="number" min="0" value="${esc(s.draftCount ?? s.removals?.count ?? 0)}"></div>
             <div class="field"><label>Weight (lb)</label><input id="rem-wt" type="number" min="0" step="0.1" value="${esc(s.draftWt ?? s.removals?.weight ?? 0)}"></div>
           </div>
           <label class="doc-file-pick" style="margin-top:10px">
             <input type="file" id="mob-photo" accept="image/*" capture="environment" data-id="${esc(s.id)}">
-            <span class="doc-file-btn">Add catch photo</span>
+            <span class="doc-file-btn">Add photos</span>
           </label>
           <div class="mob-photo-grid">
             ${(s.photos || []).map((p) => {
@@ -8565,10 +9612,12 @@
           </div>
         </div>
         ${fieldMtoForm(s)}
-        <button type="button" class="btn btn-primary" data-act="complete-stop" data-id="${s.id}">Stop clock · complete</button>
+        <button type="button" class="btn btn-primary" data-act="complete-stop" data-id="${s.id}">Complete</button>
+        <p class="tiny" style="margin:8px 2px 12px">If you cannot finish, do not Complete — log Unable to complete.</p>
+        ${fieldMissBlock(s, true)}
       ` : ""}
-      ${done ? `<div class="mob-card done-card">Clocked ${fmtHours(s.actualMin)}. Catch: ${s.removals?.count || 0} iguana${(s.removals?.count || 0) === 1 ? "" : "s"} · ${s.removals?.weight || 0} lb.${(s.photos || []).length ? " Photos: " + s.photos.length : ""}</div>${fieldMtoForm(s)}` : ""}
-      ${missed ? `<div class="mob-card miss-card">Logged ${esc(s.reason || "miss")}. Rick decides whether to add +1 visit.${s.missNote ? " " + esc(s.missNote) : ""}</div>${fieldMtoForm(s)}` : ""}
+      ${done ? `<div class="mob-card done-card">Clocked ${fmtHours(s.actualMin)}. Sighted ${s.removals?.sighted || 0} · removed ${s.removals?.count || 0} · ${s.removals?.weight || 0} lb.${(s.photos || []).length ? " Photos: " + s.photos.length : ""}</div>${fieldMtoForm(s)}` : ""}
+      ${missed ? `<div class="mob-card miss-card">Unable to complete: ${esc(s.reason || "miss")}. Rick decides whether to add +1 visit.${s.missNote ? " " + esc(s.missNote) : ""}</div>${fieldMtoForm(s)}` : ""}
     `;
   }
 
@@ -8619,7 +9668,75 @@
   }
   function renderModal() {
     if (!state.modal) return "";
-    return `<div class="overlay"><div class="modal ${state.modal.wide ? "wide" : ""} ${state.modal.setup ? "setup" : ""} ${state.modal.previewMap ? "map-preview" : ""}">${state.modal.html}</div></div>`;
+    return `<div class="overlay"><div class="modal ${state.modal.wide ? "wide" : ""} ${state.modal.applyPay ? "apply-pay" : ""} ${state.modal.postPay ? "post-pay" : ""} ${state.modal.sched ? "sched-day" : ""} ${state.modal.setup ? "setup" : ""} ${state.modal.previewMap ? "map-preview" : ""}">${state.modal.html}</div></div>`;
+  }
+  function searchHits(q) {
+    const needle = String(q || "").trim().toLowerCase();
+    const hits = [];
+    const push = (hit) => { if (hits.length < 24) hits.push(hit); };
+    (state.data.customers || []).forEach((c) => {
+      const blob = [c.name, c.billTo, c.id, c.phone, c.email, c.company].join(" ").toLowerCase();
+      if (!needle || blob.includes(needle)) {
+        push({ kind: "Bill-To", title: c.billTo || c.name, sub: `${c.id} · ${c.phone || c.email || ""}`, act: "open-customer", id: c.id });
+      }
+      (c.locations || []).forEach((l) => {
+        const lb = [l.name, l.address, l.id].join(" ").toLowerCase();
+        if (needle && lb.includes(needle)) {
+          push({ kind: "Location", title: l.name || "Property", sub: `${c.billTo || c.name} · ${l.address || ""}`, act: "open-location", id: c.id, loc: l.id });
+        }
+      });
+    });
+    if (needle) {
+      (state.data.invoices || []).forEach((i) => {
+        if (String(i.id).toLowerCase().includes(needle)) {
+          const c = custBy(i.customerId);
+          push({ kind: "Invoice", title: i.id, sub: `${c?.billTo || c?.name || ""} · ${money(i.amount)} · ${invoiceFinStatus(i)}`, act: "open-invoice", id: i.id });
+        }
+      });
+      (state.data.payments || []).forEach((p) => {
+        const blob = [p.id, p.checkNo, p.memo, p.last4, p.method].join(" ").toLowerCase();
+        if (blob.includes(needle)) {
+          push({ kind: "Payment", title: p.id, sub: `${money(p.amount)} · ${p.method || ""} · ${p.date || ""}`, act: "open-pay-row", id: p.id });
+        }
+      });
+      TECHS.forEach((t) => {
+        if (t.name.toLowerCase().includes(needle) || String(t.home || "").toLowerCase().includes(needle)) {
+          push({ kind: "Trapper", title: t.name, sub: t.home, act: "nav", page: "trappers" });
+        }
+      });
+      (state.data.services || []).forEach((s) => {
+        const label = svcTypeLabel(s.type);
+        if (String(s.id).toLowerCase().includes(needle) || String(label).toLowerCase().includes(needle)) {
+          const c = custBy(s.customerId);
+          push({ kind: "Service", title: label, sub: c?.billTo || c?.name || s.id, act: "open-location", id: s.customerId, loc: s.locationId });
+        }
+      });
+    }
+    return hits;
+  }
+  function cmdkHitHtml(h) {
+    const loc = h.loc ? ` data-loc="${esc(h.loc)}"` : "";
+    const page = h.page ? ` data-page="${esc(h.page)}"` : "";
+    return `<button type="button" class="cmdk-hit" data-act="${esc(h.act)}" data-id="${esc(h.id || "")}"${loc}${page}>
+      <span class="cmdk-kind">${esc(h.kind)}</span>
+      <span><strong>${esc(h.title)}</strong><span>${esc(h.sub || "")}</span></span>
+    </button>`;
+  }
+  function renderSearch() {
+    if (!state.searchOpen) return "";
+    return `<div class="overlay cmdk-overlay">
+      <div class="cmdk" role="dialog" aria-label="Search">
+        <input id="cmdk-q" class="cmdk-q" type="search" placeholder="Search customers, locations, invoices, payments…" autocomplete="off">
+        <div id="cmdk-results" class="cmdk-results">${searchHits("").map(cmdkHitHtml).join("")}</div>
+        <p class="cmdk-hint">Enter opens the first result · Esc closes</p>
+      </div>
+    </div>`;
+  }
+  function fillCmdkResults(q) {
+    const box = document.getElementById("cmdk-results");
+    if (!box) return;
+    const hits = searchHits(q);
+    box.innerHTML = hits.length ? hits.map(cmdkHitHtml).join("") : `<p class="cmdk-empty">No matches.</p>`;
   }
 
   function applyListFilters(prefix) {
@@ -8657,7 +9774,18 @@
       // Backdrop only. Overlay must NOT have data-act — otherwise clicking any input
       // inside the modal bubbles to closest([data-act]) and closes the dialog.
       if (e.target.classList.contains("overlay")) {
+        if (e.target.classList.contains("cmdk-overlay")) {
+          state.searchOpen = false;
+          render();
+          return;
+        }
+        captureCreateServiceDraft();
+        captureOneoffDraft();
         state.modal = null;
+        state.applyPay = null;
+        state.schedOpen = null;
+        state.bonusDraft = null;
+        state.bonusFocusId = null;
         render();
         return;
       }
@@ -8677,14 +9805,14 @@
       if (String(el.dataset.act || "").startsWith("map-") || el.dataset.act === "focus-tech" || el.dataset.act === "focus-client") {
         e.preventDefault();
       }
-      act(el.dataset.act, el.dataset);
+      act(el.dataset.act, { ...el.dataset });
     };
     $app.onkeydown = (e) => {
       if (e.key !== "Enter" && e.key !== " ") return;
       const el = e.target.closest('[role="button"][data-act]');
       if (!el) return;
       e.preventDefault();
-      act(el.dataset.act, el.dataset);
+      act(el.dataset.act, { ...el.dataset });
     };
     $app.onchange = (e) => {
       if (e.target.id === "mob-photo" && e.target.files && e.target.files[0]) {
@@ -8707,7 +9835,7 @@
         syncBillToMode();
         return;
       }
-      if (e.target.id === "nc-type" || e.target.dataset.act === "intake-type") {
+      if (e.target.id === "nc-billtype" || e.target.dataset.act === "intake-type") {
         syncCompanyField();
         return;
       }
@@ -8735,6 +9863,10 @@
           state.mapCompare = [];
           state.mapPin = null;
         }
+        render();
+      }
+      if (el.dataset.act === "sched-tech") {
+        state.schedTech = el.value || "";
         render();
       }
       if (el.dataset.act === "assign-days") {
@@ -8800,6 +9932,27 @@
         applyListFilters(e.target.dataset.listFilter);
         return;
       }
+      if (e.target.dataset.schedStopFilter != null) {
+        filterDayStops(e.target.value);
+        return;
+      }
+      if (e.target.dataset.applyPaySearch != null) {
+        if (state.applyPay) state.applyPay.query = e.target.value;
+        const q = String(e.target.value || "").trim().toLowerCase();
+        document.querySelectorAll("[data-apply-pay-row]").forEach((row) => {
+          row.hidden = !!(q && !(row.dataset.search || "").includes(q));
+        });
+        return;
+      }
+      if (e.target.id === "ap-memo") {
+        const n = document.getElementById("ap-memo-count");
+        if (n) n.textContent = `${e.target.value.length}/250`;
+        return;
+      }
+      if (e.target.id === "ap-amt" || e.target.id === "reg-ap-amt") {
+        refreshApplyAmtHint(e.target);
+        return;
+      }
       if (e.target.dataset.previewPin && !e.target.dataset.coord) updateMiniPreview(e.target);
       if (e.target.dataset.coord) syncPinFromLatLng(e.target);
       if (e.target.dataset.edit && e.target.tagName !== "SELECT") applyInlineEdit(e.target);
@@ -8813,7 +9966,34 @@
     bindFieldTimer();
     const mtoFocus = state.mtoFocusId && document.getElementById("mto-" + state.mtoFocusId);
     if (mtoFocus) mtoFocus.scrollIntoView({ block: "nearest" });
+    const q = document.getElementById("cmdk-q");
+    if (q) {
+      q.focus();
+      q.oninput = () => fillCmdkResults(q.value);
+      q.onkeydown = (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          e.stopPropagation();
+          document.querySelector("#cmdk-results [data-act]")?.click();
+        }
+      };
+    }
   }
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === "k") {
+      if (!state.role || isFieldRole() || state.payView) return;
+      e.preventDefault();
+      state.searchOpen = !state.searchOpen;
+      render();
+      return;
+    }
+    if (e.key === "Escape" && state.searchOpen) {
+      e.preventDefault();
+      state.searchOpen = false;
+      render();
+    }
+  });
 
   function bindFieldTimer() {
     if (window._fieldTimer) {
@@ -9109,6 +10289,7 @@
       nav: () => {
         state.page = ds.page;
         state.selectedCustomer = null;
+        state.searchOpen = false;
         ensureNavGroupOpenForPage(ds.page);
         if (ds.page === "workload") state.workloadTech = ds.tech || null;
         if (ds.page === "optimizer" && state.page !== "optimizer") state.optimizerScreen = "setup";
@@ -9129,7 +10310,10 @@
       "clear-list-filters": () => clearListFilters(ds.prefix),
       "nav-toggle": () => toggleNavGroup(ds.group),
       "switch-role-btn": () => switchRole(ds.role),
-      "open-customer": () => { state.modal = null; state.bonusDraft = null; state.selectedCustomer = ds.id; state.selectedLocation = null; state.page = "customer"; state.payFocusId = null; render(); },
+      "search-open": () => { state.searchOpen = true; render(); },
+      "search-close": () => { state.searchOpen = false; render(); },
+      "customer-tab": () => { state.customerTab = ds.tab || "overview"; render(); },
+      "open-customer": () => { state.modal = null; state.searchOpen = false; state.bonusDraft = null; state.selectedCustomer = ds.id; state.selectedLocation = ds.loc || null; state.customerTab = ds.tab || "overview"; state.page = "customer"; state.payFocusId = null; render(); },
       "select-customer-location": () => {
         state.selectedCustomer = ds.id;
         state.selectedLocation = ds.loc;
@@ -9137,6 +10321,7 @@
       },
       "open-location": () => {
         state.modal = null;
+        state.searchOpen = false;
         state.bonusDraft = null;
         state.selectedCustomer = ds.id;
         state.selectedLocation = ds.loc;
@@ -9144,7 +10329,7 @@
         state.payFocusId = null;
         render();
       },
-      "open-pay-row": () => openPayRow(ds.id),
+      "open-pay-row": () => { state.searchOpen = false; openPayRow(ds.id); },
       "mark-invoice-paid": () => openMarkInvoicePaid(ds.id),
       "confirm-mark-invoice-paid": () => markInvoicePaidFromRegister(ds.id),
       "pay-filter": () => { state.payFilter = ds.filter || "month"; render(); },
@@ -9156,7 +10341,7 @@
       "new-customer": () => openNewCustomer(),
       "from-inbound": () => openNewCustomer(ds.id),
       "create-customer": () => createCustomer(),
-      "cancel-add": () => { state.inboundId = null; state.locCount = 1; state.page = "dashboard"; render(); },
+      "cancel-add": () => { state.inboundId = null; state.locCount = 0; state.page = "dashboard"; render(); },
       "billto-mode": () => syncBillToMode(),
       "pick-billto": () => applyExistingBillTo(val("nc-existing")),
       "add-loc-row": () => addLocRow(),
@@ -9260,16 +10445,20 @@
       "stop-service": () => openStopService(ds.id),
       "confirm-stop-service": () => confirmStopService(ds.id),
       "sched-view": () => { state.schedView = ds.view; render(); },
+      "sched-day": () => { state.schedDay = ds.day || ""; render(); },
+      "sched-tech": () => { state.schedTech = ds.tech || ""; render(); },
       "optimizer-run": () => { state.optimizerAnchors = {}; state.optimizerFocusTech = null; state.optimizerFocusDay = null; runOptimizer(readOptimizerConfig()); },
       "optimizer-detail": () => openOptimizerDetail(ds.date, ds.tech),
       "optimizer-hide": () => { state.optimizerFocusTech = null; state.optimizerFocusDay = null; render(); },
-      "optimizer-anchor": () => anchorOptimizerRoute(ds.date, ds.tech, ds.stop),
+      "optimizer-anchor": () => anchorOptimizerRoute(ds.date, ds.tech, ds.id),
       "optimizer-history": () => openOptimizerHistory(),
       "optimizer-new": () => openOptimizerNew(),
+      "optimizer-open-result": () => openOptimizerResult(),
       "optimizer-view-run": () => viewSavedOptimizerRun(ds.id),
       "optimizer-delete-run": () => deleteOptimizerRun(ds.id),
       "optimizer-commit": () => commitOptimizerRun(),
-      "optimizer-clear": () => { state.optimizerPreview = null; state.optimizerAnchors = {}; state.optimizerFocusTech = null; state.optimizerFocusDay = null; render(); },
+      "optimizer-commit-run": () => commitOptimizerRunById(ds.id),
+      "optimizer-clear": () => { state.optimizerPreview = null; state.optimizerAnchors = {}; state.optimizerFocusTech = null; state.optimizerFocusDay = null; state.optimizerScreen = "history"; render(); },
       "focus-tech": () => { state.assignFocus = ds.tech; render(); },
       "confirm-assign": () => confirmAssign(ds.id, ds.tech, ds.loc),
       "confirm-bestfit": () => confirmAssign(ds.id, ds.tech, ds.loc),
@@ -9281,8 +10470,11 @@
       "save-one-loc": () => saveEditOneLocation(ds.id, ds.loc),
       "save-location": () => saveAddLocation(ds.id),
       "request-loc": () => requestLocService(ds.id, ds.loc),
+      "open-day-stops": () => openDayStops(ds.tech, ds.day),
+      "reassign-visit": () => openReassign(ds.id),
+      "confirm-reassign-visit": () => confirmReassignVisit(ds.id),
+      "cover-day": () => coverDayVisits(),
       reassign: () => openReassign(ds.id),
-      "confirm-reassign": () => confirmReassign(ds.id, ds.tech, ds.day),
       "insert-oneoff": () => insertOneoff(ds.id),
       "new-oneoff": () => openNewOneoff(),
       "save-oneoff": () => saveNewOneoff(),
@@ -9399,6 +10591,29 @@
       "apply-mail-pay": () => applyMatchPay(ds.id),
       "record-pay": () => openRecordPay(ds.id),
       "confirm-record-pay": () => confirmRecordPay(ds.id),
+      "apply-pay-tab": () => {
+        captureApplyPayForm();
+        if (!state.applyPay) return;
+        state.applyPay.tab = ds.tab === "new" ? "new" : "existing";
+        renderApplyPay();
+      },
+      "apply-pay-pick": () => {
+        captureApplyPayForm();
+        if (!state.applyPay || !ds.id) return;
+        if (state.applyPay.payId === ds.id) return;
+        state.applyPay.payId = ds.id;
+        state.applyPay.amount = null;
+        renderApplyPay();
+      },
+      "apply-pay-only": () => {
+        captureApplyPayForm();
+        if (!state.applyPay) return;
+        const box = document.querySelector("[data-act=apply-pay-only]");
+        state.applyPay.onlyCustomer = box ? !!box.checked : !state.applyPay.onlyCustomer;
+        renderApplyPay();
+      },
+      "confirm-apply-pay": () => confirmApplyExistingPay(ds.id),
+      "confirm-apply-new": () => confirmApplyNewPay(ds.id),
       "enter-comm": () => { state.page = "commission"; state.bonusFilter = "pending"; render(); },
       "bonus-filter": () => { state.bonusFilter = ds.filter || "pending"; render(); },
       "open-bonus": () => openBonus(ds.id),
@@ -9407,7 +10622,7 @@
       "export-bonus": () => saveBonusAlloc(ds.id, { exportPaid: true }),
       "bonus-add-trapper": () => bonusAddTrapper(ds.id),
       "bonus-remove-trapper": () => bonusRemoveTrapper(ds.id, ds.tech),
-      "open-invoice": () => openInvoice(ds.id),
+      "open-invoice": () => { state.searchOpen = false; openInvoice(ds.id); },
       "edit-memo": () => openMemo(ds.id),
       "save-memo": () => saveMemo(ds.id),
       "add-comm": () => addComm(ds.id),
@@ -9425,8 +10640,14 @@
       "add-program": () => addProgram(),
       "add-service-type": () => addServiceType(),
       "preview-tpl": () => previewTpl(ds.name, ds.key),
-      "close-modal": () => { captureCreateServiceDraft(); captureOneoffDraft(); state.modal = null; state.bonusDraft = null; state.bonusFocusId = null; render(); },
-      "open-stop": () => { state.mobileStop = ds.id; state.mobileFocusId = ds.id; render(); },
+      "close-modal": () => { captureCreateServiceDraft(); captureOneoffDraft(); state.modal = null; state.applyPay = null; state.schedOpen = null; state.bonusDraft = null; state.bonusFocusId = null; render(); },
+      "open-stop": () => {
+        state.mobileStop = ds.id;
+        state.mobileFocusId = ds.id;
+        const s = (state.data.stops || []).find((x) => x.id === ds.id);
+        if (s && s.day !== fieldDay()) state.mobileTab = "schedule";
+        render();
+      },
       "close-stop": () => { if (state.mobileStop) captureFieldDraft(state.mobileStop); state.mobileStop = null; render(); },
       "field-tab": () => {
         if (state.mobileStop) captureFieldDraft(state.mobileStop);
@@ -9502,7 +10723,8 @@
   function openNewCustomer(inboundId) {
     if (!can("customer.create")) return;
     state.inboundId = inboundId || null;
-    state.locCount = 1;
+    const inbound = inboundId ? (state.data.inbound || []).find((n) => n.id === inboundId) : null;
+    state.locCount = inbound && (inbound.street || inbound.address) ? 1 : 0;
     state.modal = null;
     state.page = "add-customer";
     render();
@@ -9539,7 +10761,7 @@
   }
 
   function syncCompanyField() {
-    const type = val("nc-type") || "residential";
+    const type = val("nc-billtype") || "residential";
     const wrap = document.getElementById("nc-company-wrap");
     const input = document.getElementById("nc-company");
     const show = type === "hoa";
@@ -9567,13 +10789,12 @@
     setInput("nc-mobile", c.mobile || "");
     setInput("nc-alt", c.altPhone || "");
     setInput("nc-email", c.email || "");
-    setInput("nc-type", c.type || "residential");
     setInput("nc-billtype", c.billToType || c.type || "residential");
     setInput("nc-internal", c.opsNote || "");
     if (!(val("nc-instructions") || "").trim()) setInput("nc-instructions", c.notes || "");
+    setChecked("nc-print", c.acceptPrint !== false);
     setChecked("nc-sms", !!c.acceptSms);
     setChecked("nc-mail", c.acceptEmail !== false);
-    setChecked("nc-prospect", !!c.prospect);
     setChecked("nc-email-none", !c.email);
     const email = document.getElementById("nc-email");
     if (email) email.disabled = !c.email && document.getElementById("nc-email-none")?.checked;
@@ -9581,7 +10802,7 @@
   }
 
   function addLocRow() {
-    state.locCount = (state.locCount || 1) + 1;
+    state.locCount = (state.locCount || 0) + 1;
     const snapshot = snapshotIntake();
     render();
     restoreIntake(snapshot);
@@ -9590,10 +10811,9 @@
   }
 
   function removeLocRow(index) {
-    if ((state.locCount || 1) <= 1) return;
     const snapshot = snapshotIntake();
     snapshot.locs = (snapshot.locs || []).filter((_, i) => String(i) !== String(index));
-    state.locCount = Math.max(1, snapshot.locs.length || 1);
+    state.locCount = snapshot.locs.length;
     render();
     restoreIntake(snapshot);
     syncBillToMode();
@@ -9606,6 +10826,7 @@
       const i = block.dataset.locIndex;
       locs.push({
         name: val(`nc-loc-name-${i}`),
+        locationType: val(`nc-loc-type-${i}`) || "residential",
         street: val(`nc-loc-street-${i}`),
         city: val(`nc-loc-city-${i}`),
         state: val(`nc-loc-state-${i}`) || "FL",
@@ -9621,7 +10842,7 @@
       billMode: radioVal("nc-billto") || "new",
       existing: val("nc-existing"),
       channel: radioVal("nc-channel"),
-      type: val("nc-type"),
+      type: val("nc-billtype"),
       billToType: val("nc-billtype"),
       company: val("nc-company"),
       first: val("nc-first"),
@@ -9633,9 +10854,9 @@
       emailNone: !!document.getElementById("nc-email-none")?.checked,
       instructions: val("nc-instructions"),
       internal: val("nc-internal"),
+      print: document.getElementById("nc-print") ? !!document.getElementById("nc-print")?.checked : true,
       sms: !!document.getElementById("nc-sms")?.checked,
-      mail: !!document.getElementById("nc-mail")?.checked,
-      prospect: !!document.getElementById("nc-prospect")?.checked,
+      mail: document.getElementById("nc-mail") ? !!document.getElementById("nc-mail")?.checked : true,
       locs,
     };
   }
@@ -9645,8 +10866,7 @@
     document.querySelectorAll(`input[name="nc-billto"]`).forEach((el) => { el.checked = el.value === s.billMode; });
     document.querySelectorAll(`input[name="nc-channel"]`).forEach((el) => { el.checked = el.value === s.channel; });
     setInput("nc-existing", s.existing);
-    setInput("nc-type", s.type);
-    setInput("nc-billtype", s.billToType);
+    setInput("nc-billtype", s.billToType || s.type);
     setInput("nc-company", s.company);
     setInput("nc-first", s.first);
     setInput("nc-last", s.last);
@@ -9657,11 +10877,12 @@
     setInput("nc-instructions", s.instructions);
     setInput("nc-internal", s.internal);
     setChecked("nc-email-none", s.emailNone);
+    setChecked("nc-print", s.print !== false);
     setChecked("nc-sms", s.sms);
-    setChecked("nc-mail", s.mail);
-    setChecked("nc-prospect", s.prospect);
+    setChecked("nc-mail", s.mail !== false);
     (s.locs || []).forEach((loc, i) => {
       setInput(`nc-loc-name-${i}`, loc.name);
+      setInput(`nc-loc-type-${i}`, loc.locationType || "residential");
       setInput(`nc-loc-street-${i}`, loc.street);
       setInput(`nc-loc-city-${i}`, loc.city);
       setInput(`nc-loc-state-${i}`, loc.state || "FL");
@@ -9711,6 +10932,7 @@
     const loc = {
       id: nid("L"),
       name: (raw.name || "").trim() || fallbackName || "Residence",
+      locationType: raw.locationType || "residential",
       address,
       street, city, state: st, zip,
       subdivision: (raw.subdivision || "").trim(),
@@ -9731,11 +10953,11 @@
 
   function createCustomer() {
     if (!can("customer.create")) return;
-    const type = val("nc-type") || val("nc-billtype") || "residential";
+    const billToType = val("nc-billtype") || "residential";
+    const type = billToType;
     const company = type === "hoa" ? (val("nc-company") || "").trim() : "";
     const first = (val("nc-first") || "").trim();
     const last = (val("nc-last") || "").trim();
-    const billToType = val("nc-billtype") || type;
     const billMode = radioVal("nc-billto") || "new";
     const existing = billMode === "existing" ? custBy(val("nc-existing")) : null;
     const emailNone = document.getElementById("nc-email-none")?.checked;
@@ -9751,10 +10973,6 @@
     }
     if (!existing && type !== "hoa" && !last && !first) {
       toast("Enter a first or last name for the Bill-To.");
-      return;
-    }
-    if (!locsRaw.length) {
-      toast("Add at least one service location with street and city.");
       return;
     }
 
@@ -9774,10 +10992,23 @@
       existing.type = type || existing.type;
       existing.billToType = billToType || existing.billToType || existing.type;
       existing.municipal = type === "municipal" || billToType === "municipal";
+      existing.acceptPrint = document.getElementById("nc-print") ? !!document.getElementById("nc-print")?.checked : (existing.acceptPrint !== false);
       existing.acceptSms = !!document.getElementById("nc-sms")?.checked;
-      existing.acceptEmail = !!document.getElementById("nc-mail")?.checked;
+      existing.acceptEmail = document.getElementById("nc-mail") ? !!document.getElementById("nc-mail")?.checked : (existing.acceptEmail !== false);
       if (instructions) existing.notes = instructions;
       if (internal) existing.opsNote = internal;
+      if (!locsRaw.length) {
+        const inbound = (state.data.inbound || []).find((n) => n.id === state.inboundId);
+        if (inbound) inbound.used = true;
+        state.inboundId = null;
+        state.locCount = 0;
+        state.selectedCustomer = existing.id;
+        state.selectedLocation = existing.locations?.[0]?.id || null;
+        state.page = "customer";
+        toast(`Updated ${existing.billTo || existing.name}. Add a property when they give the address.`);
+        render();
+        return;
+      }
       const fallback = type === "hoa" ? (company || "HOA property") : "Residence";
       const newLocations = locsRaw.map((raw, idx) =>
         makeLocation(raw, locsRaw.length > 1 ? `${fallback} ${idx + 1}` : fallback)
@@ -9786,7 +11017,7 @@
       const inbound = (state.data.inbound || []).find((n) => n.id === state.inboundId);
       if (inbound) inbound.used = true;
       state.inboundId = null;
-      state.locCount = 1;
+      state.locCount = 0;
       state.selectedCustomer = existing.id;
       state.selectedLocation = newLocations[0]?.id || null;
       state.page = "customer";
@@ -9830,10 +11061,10 @@
       createdBy: state.role,
       source: radioVal("nc-channel") || "Call",
       inboundChannel: radioVal("nc-channel") || "Call",
-      prospect: !!document.getElementById("nc-prospect")?.checked,
       createdAt: Date.now(),
+      acceptPrint: document.getElementById("nc-print") ? !!document.getElementById("nc-print")?.checked : true,
       acceptSms: !!document.getElementById("nc-sms")?.checked,
-      acceptEmail: !!document.getElementById("nc-mail")?.checked,
+      acceptEmail: document.getElementById("nc-mail") ? !!document.getElementById("nc-mail")?.checked : true,
       locations,
       notes: instructions,
       opsNote: internal,
@@ -9841,12 +11072,14 @@
     const inbound = (state.data.inbound || []).find((n) => n.id === state.inboundId);
     if (inbound) inbound.used = true;
     state.inboundId = null;
-    state.locCount = 1;
+    state.locCount = 0;
     state.modal = null;
     state.selectedCustomer = id;
     state.selectedLocation = locations[0]?.id || null;
     state.page = "customer";
-    toast(`Customer saved. ${displayName} · ${locations.length} propert${locations.length > 1 ? "ies" : "y"} · one Bill-To. Next: send one quote with the programs, wait for their choice, then invoice.`);
+    toast(locations.length
+      ? `Customer saved. ${displayName} · ${locations.length} propert${locations.length > 1 ? "ies" : "y"} · one Bill-To. Next: send a quote after they choose a plan.`
+      : `Customer saved. ${displayName} · no property yet. Add the location when they give the address.`);
     render();
   }
 
@@ -11335,8 +12568,10 @@
         <div class="field"><label>Customer instructions</label><textarea id="eb-notes" rows="3">${esc(c.notes || "")}</textarea></div>
         ${state.role !== "sales" ? `<div class="field"><label>Internal Ops note</label><textarea id="eb-ops" rows="2">${esc(c.opsNote || "")}</textarea></div>` : ""}
         <label class="chk"><input type="checkbox" id="eb-autopay" ${c.autoPay ? "checked" : ""}> Auto-pay on this Bill-To</label>
-        <label class="chk" style="margin-left:14px"><input type="checkbox" id="eb-sms" ${c.acceptSms ? "checked" : ""}> Accept SMS</label>
-        <label class="chk" style="margin-left:14px"><input type="checkbox" id="eb-mail" ${c.acceptEmail !== false ? "checked" : ""}> Accept email</label>
+        <p class="tiny" style="margin:12px 0 6px">Batch output</p>
+        <label class="chk"><input type="checkbox" id="eb-print" ${c.acceptPrint !== false ? "checked" : ""}> Print</label>
+        <label class="chk" style="margin-left:14px"><input type="checkbox" id="eb-mail" ${c.acceptEmail !== false ? "checked" : ""}> Email</label>
+        <label class="chk" style="margin-left:14px"><input type="checkbox" id="eb-sms" ${c.acceptSms ? "checked" : ""}> SMS</label>
         ${(c.municipal || type === "municipal") ? `
           <div class="intake-grid" style="margin-top:12px">
             <div class="field"><label>PO #</label><input id="eb-po" value="${esc(c.po || "")}"></div>
@@ -11370,8 +12605,9 @@
     c.notes = val("eb-notes");
     if (state.role !== "sales") c.opsNote = val("eb-ops");
     c.autoPay = !!document.getElementById("eb-autopay")?.checked;
+    c.acceptPrint = document.getElementById("eb-print") ? !!document.getElementById("eb-print")?.checked : (c.acceptPrint !== false);
     c.acceptSms = !!document.getElementById("eb-sms")?.checked;
-    c.acceptEmail = !!document.getElementById("eb-mail")?.checked;
+    c.acceptEmail = document.getElementById("eb-mail") ? !!document.getElementById("eb-mail")?.checked : (c.acceptEmail !== false);
     if (document.getElementById("eb-po")) {
       c.po = val("eb-po");
       c.hoursUsed = Number(val("eb-hours") || 0);
@@ -11430,6 +12666,10 @@
         <div class="modal-map-row">
           <div>
             <div class="field"><label>Property name</label><input id="el-name" value="${esc(loc.name)}"></div>
+            <div class="field"><label>Location type</label>
+              <select id="el-type">${locTypeOptions(locTypeOf(c, loc))}</select>
+              <div class="tiny">Residential, commercial, HOA, or municipal for this property.</div>
+            </div>
             <div class="field"><label>Subdivision</label><input id="el-subdiv" value="${esc(loc.subdivision || "")}"></div>
             <div class="field"><label>Street</label><input id="el-street" value="${esc(street)}" data-preview-pin="mini-preview" data-preview-x="el-x" data-preview-y="el-y"></div>
             <div class="field"><label>City</label><input id="el-city" value="${esc(city)}" data-preview-pin="mini-preview" data-preview-x="el-x" data-preview-y="el-y"></div>
@@ -11484,6 +12724,7 @@
       lng = Number(coords.lng);
     }
     loc.name = val("el-name") || loc.name;
+    loc.locationType = val("el-type") || loc.locationType || "residential";
     loc.subdivision = val("el-subdiv") || "";
     loc.street = street;
     loc.city = city;
@@ -11507,6 +12748,8 @@
   function openAddLocation(id) {
     if (!can("location.add")) return;
     const c = custBy(id);
+    if (!c) return;
+    if (!Array.isArray(c.locations)) c.locations = [];
     const base = c.locations[0];
     const pos = pinFromAddress(base?.address || "", { x: `${Math.min(70, pct(base?.x) + 3)}%`, y: `${Math.min(78, pct(base?.y) + 2)}%`, place: "Near existing property" });
     const coords = latLngFromXy(pct(pos.x), pct(pos.y));
@@ -11518,6 +12761,10 @@
         <div class="modal-map-row">
           <div>
             <div class="field"><label>Property name</label><input id="al-name" placeholder="Canal house, rental, dock lot"></div>
+            <div class="field"><label>Location type</label>
+              <select id="al-type">${locTypeOptions(c.type || "residential")}</select>
+              <div class="tiny">What this property is. Christy can change it later.</div>
+            </div>
             <div class="field"><label>Street</label><input id="al-street" data-preview-pin="mini-preview" data-preview-x="al-x" data-preview-y="al-y" placeholder="Street address"></div>
             <div class="field"><label>City</label><input id="al-city" data-preview-pin="mini-preview" data-preview-x="al-x" data-preview-y="al-y" placeholder="Boca Raton"></div>
             <div class="field"><label>Zip</label><input id="al-zip" placeholder="33432"></div>
@@ -11553,6 +12800,8 @@
   function saveAddLocation(id) {
     if (!can("location.add")) return;
     const c = custBy(id);
+    if (!c) return;
+    if (!Array.isArray(c.locations)) c.locations = [];
     const street = (val("al-street") || "").trim();
     const city = (val("al-city") || "").trim();
     const zip = (val("al-zip") || "").trim();
@@ -11573,6 +12822,7 @@
     const loc = {
       id: nid("L"),
       name: val("al-name") || "Second property",
+      locationType: val("al-type") || c.type || "residential",
       address,
       street, city, state: "FL", zip,
       x: `${x}%`,
@@ -11612,41 +12862,122 @@
     render();
   }
 
+  function applyVisitReassign(s, toTechId, reason, notify) {
+    if (!s || !toTechId || !canReassignStop(s)) return false;
+    const from = s.techId;
+    if (from === toTechId) return false;
+    if (!s.homeTechId) s.homeTechId = stopHomeTech(s) || from;
+    if (!s.origTime) s.origTime = s.time;
+    const home = s.homeTechId;
+    if (toTechId === home) {
+      s.techId = home;
+      s.time = s.origTime || s.time;
+      s.tempReassign = false;
+      s.reassignedFrom = null;
+      s.reassignReason = "";
+    } else {
+      const slot = findInsertSlot(toTechId, s.day, s.durationMin);
+      s.techId = toTechId;
+      s.time = slot.time;
+      s.tempReassign = true;
+      s.reassignedFrom = from;
+      s.reassignReason = reason || "Trapper unavailable";
+      s.reassignedAt = TODAY;
+    }
+    if (notify) {
+      const temp = stopIsTempReassign(s);
+      pushNotify({
+        dept: "ops",
+        title: temp ? "Temporary visit reassignment" : "Visit returned to standing trapper",
+        text: `${stopLabel(s)} · ${dayLongLabel(s.day)} moved from ${techName(from)} to ${techName(s.techId)}.${temp ? ` ${s.day} only — standing trapper is still ${techName(home)}.` : ""}`,
+        customerId: s.customerId || null,
+        locationId: s.locationId || null,
+      });
+    }
+    return true;
+  }
+
   function openReassign(id) {
-    const c = custBy(id);
+    const s = (state.data.stops || []).find((x) => x.id === id);
+    if (!s || !can("schedule.reassign") || !canReassignStop(s)) return;
+    const home = stopHomeTech(s);
+    const others = TECHS.filter((t) => t.id !== s.techId);
     state.modal = {
       html: `
-        <h3>Reassign ${esc(c.name)}</h3>
-        <p>This moves the existing stop. It does not put a copy on a second technician.</p>
-        <div class="bestfit">
-          ${TECHS.map((t) => `<button class="bestfit-card" data-act="confirm-reassign" data-id="${c.id}" data-tech="${t.id}" data-day="Fri">${esc(t.name)} · Friday</button>`).join("")}
+        <h3>Reassign visit</h3>
+        <p class="tiny"><strong>Temporary reassignment — ${esc(s.day)} only.</strong> Standing trapper stays ${esc(techName(home))}. This visit leaves ${esc(techName(s.techId))}’s book; it is not copied.</p>
+        <dl class="kv panel-kv">
+          <dt>Date</dt><dd>${esc(dayLongLabel(s.day))}</dd>
+          <dt>Stop</dt><dd>${esc(stopLabel(s))}</dd>
+          <dt>Current trapper</dt><dd>${esc(techName(s.techId))}</dd>
+        </dl>
+        <div class="field" style="margin-top:12px"><label>Assign to</label>
+          <select id="rv-tech">${others.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Reason</label>
+          <select id="rv-reason">${REASSIGN_REASONS.map((r) => `<option value="${esc(r.label)}">${esc(r.label)}</option>`).join("")}</select>
+        </div>
+        <label class="chk"><input type="checkbox" id="rv-notify" checked> Notify trapper</label>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
+          <button class="btn btn-primary" data-act="confirm-reassign-visit" data-id="${esc(s.id)}">Reassign</button>
         </div>
       `,
     };
     render();
   }
 
-  function confirmReassign(id, techId, day) {
+  function confirmReassignVisit(id) {
     if (!can("schedule.reassign")) return;
-    const c = custBy(id);
-    const existing = state.data.stops.filter((s) => s.customerId === id && s.status === "scheduled");
-    const before = existing.length;
-    existing.forEach((s) => {
-      s.techId = techId;
-      if (day) s.day = day;
-    });
-    (state.data.services || []).filter((s) => s.customerId === id && s.techId).forEach((s) => {
-      const old = s.techId;
-      s.techId = techId;
-      if (c) c.techId = techId;
-      const loc = locBy(id, s.locationId);
-      if (loc) loc.techId = techId;
-    });
-    c.techId = techId;
-    state.modal = null;
-    toast(`Moved ${before} stop(s) to ${techName(techId)}. The original trapper no longer has them — nothing was copied.`);
+    const s = (state.data.stops || []).find((x) => x.id === id);
+    if (!s) return;
+    const toTech = val(`rv-tech-${id}`) || val("rv-tech");
+    const reason = val(`rv-reason-${id}`) || val("rv-reason") || val("cv-reason") || "Trapper unavailable";
+    const notify = !!(document.getElementById("rv-notify")?.checked || document.getElementById("cv-notify")?.checked);
+    if (!toTech || toTech === s.techId) {
+      toast("Pick a different trapper for this visit.");
+      return;
+    }
+    const fromName = techName(s.techId);
+    const ok = applyVisitReassign(s, toTech, reason, notify);
+    if (!ok) {
+      toast("That visit can’t be moved.");
+      return;
+    }
+    persist();
+    toast(`${stopLabel(s)} · ${s.day} only → ${techName(s.techId)}. ${fromName} no longer has it. Standing trapper is still ${techName(stopHomeTech(s))}.`);
     state.page = "schedule";
-    render();
+    reopenDayOrClose();
+  }
+
+  function coverDayVisits() {
+    if (!can("schedule.reassign")) return;
+    const fromId = val("cv-from");
+    const day = val("cv-day");
+    const toId = val("cv-to");
+    const reason = val("cv-reason") || "Trapper unavailable";
+    const notify = !!document.getElementById("cv-notify")?.checked;
+    if (!fromId || !toId || !day) {
+      toast("Pick who is out, the day, and who covers.");
+      return;
+    }
+    if (fromId === toId) {
+      toast("Cover with a different trapper.");
+      return;
+    }
+    const list = (state.data.stops || []).filter((s) => s.techId === fromId && s.day === day && canReassignStop(s));
+    if (!list.length) {
+      toast(`No remaining visits for ${techName(fromId)} on ${day}.`);
+      return;
+    }
+    let moved = 0;
+    list.forEach((s) => {
+      if (applyVisitReassign(s, toId, reason, notify && moved === 0)) moved += 1;
+    });
+    persist();
+    toast(`Moved ${moved} visit${moved === 1 ? "" : "s"} from ${techName(fromId)} to ${techName(toId)} · ${day} only. Standing assignments unchanged.`);
+    state.page = "schedule";
+    reopenDayOrClose();
   }
 
   function generateSchedule() {
@@ -11972,27 +13303,124 @@
     if (!can("payment.post")) return;
     const inv = state.data.invoices.find((i) => i.id === invId);
     if (!inv) return;
-    const c = custBy(inv.customerId);
-    const focus = state.payFocusId ? (state.data.payments || []).find((p) => p.id === state.payFocusId) : null;
-    const methodDefault = focus?.method || "Check";
-    const bal = invoiceBalance(inv);
-    state.modal = {
-      html: `
-        <h3>Allocate payment · ${esc(inv.id)}</h3>
-        <p>Post / confirm payment on this invoice. When the balance hits zero the contract goes active and Rick can create service.</p>
-        <div class="preview"><strong>${esc(inv.id)}</strong> · Bill-To ${esc(c?.billTo || c?.name || "")} · ${esc(invProperty(inv))} · Amount ${money(inv.amount)} · Paid ${money(allocated(inv.id))} · Balance ${money(bal)} · ${esc(invoiceFinStatus(inv))}</div>
-        <div class="field"><label>Method</label>
-          <select id="rp-method">${pay().optionsHtml(methodDefault)}</select>
-        </div>
-        <div class="field"><label>Amount to allocate</label><input id="rp-amt" type="number" step="0.01" value="${esc(focus?.amount || bal)}"></div>
-        <div class="field"><label>Reference / check # / last 4</label><input id="rp-check" value="${esc(focus?.last4 || focus?.checkNo || "")}" placeholder="optional"></div>
-        <div class="field"><label>Memo</label><textarea id="rp-memo" rows="2">${esc(focus?.memo || "Payment allocated — activate service when paid in full")}</textarea></div>
-        <div class="actions">
-          <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
-          ${btn("payment.post", "Save allocation", "confirm-record-pay", `data-id="${inv.id}"`)}
-        </div>
-      `,
+    if (invoiceFinStatus(inv) === "PAID") {
+      toast("This invoice is already paid.");
+      return;
+    }
+    const list = paymentsForApply(inv, true, "");
+    const focus = state.payFocusId && list.some((p) => p.id === state.payFocusId)
+      ? state.payFocusId
+      : (list.find((p) => p.invoiceId === inv.id)?.id || list[0]?.id || null);
+    state.applyPay = {
+      invoiceId: inv.id,
+      tab: "existing",
+      payId: focus,
+      onlyCustomer: true,
+      query: "",
+      amount: null,
+      memo: "",
     };
+    renderApplyPay();
+  }
+
+  function confirmApplyExistingPay(invId) {
+    if (!can("payment.post")) return;
+    captureApplyPayForm();
+    const inv = state.data.invoices.find((i) => i.id === invId);
+    const p = (state.data.payments || []).find((x) => x.id === state.applyPay?.payId);
+    if (!inv || !p || p.failed) {
+      toast("Pick a payment from the register.");
+      return;
+    }
+    const unapplied = paymentUnapplied(p);
+    const bal = invoiceBalance(inv);
+    const typed = Number(state.applyPay.amount);
+    const amt = Number.isFinite(typed) && typed > 0 ? Math.min(typed, unapplied, bal) : Math.min(unapplied, bal);
+    if (amt <= 0) {
+      toast("Nothing left to apply.");
+      return;
+    }
+    p.invoiceId = inv.id;
+    p.customerId = p.customerId || inv.customerId;
+    p.locationId = p.locationId || inv.locationId || null;
+    if (state.applyPay.memo) p.memo = state.applyPay.memo;
+    const ok = allocatePaymentToInvoice(p, inv, amt);
+    if (!ok) {
+      toast("Could not apply that payment.");
+      return;
+    }
+    state.data.comms.unshift({
+      id: nid("CM"),
+      customerId: inv.customerId,
+      who: role()?.name || "Christy Brown",
+      channel: "Office",
+      date: TODAY,
+      text: `${p.method || "Payment"} ${p.id} applied to ${inv.id}. ${invoiceFinStatus(inv) === "PAID" ? "Invoice marked paid." : `Remaining balance ${money2(invoiceBalance(inv))}.`}`,
+    });
+    state.applyPay = null;
+    state.payFocusId = null;
+    state.modal = null;
+    toast(invoiceFinStatus(inv) === "PAID"
+      ? `${inv.id} marked paid. Rick can continue with service.`
+      : `${money2(amt)} applied. ${money2(invoiceBalance(inv))} remains.`);
+    render();
+  }
+
+  function confirmApplyNewPay(invId) {
+    if (!can("payment.post")) return;
+    captureApplyPayForm();
+    const inv = state.data.invoices.find((i) => i.id === invId);
+    if (!inv) return;
+    if (invoiceFinStatus(inv) === "PAID") {
+      toast("This invoice is already paid.");
+      return;
+    }
+    const method = state.applyPay?.newMethod || "Check";
+    const checkNo = String(state.applyPay?.newCheck || "").trim();
+    const memo = String(state.applyPay?.newMemo || "").trim();
+    const typed = Number(state.applyPay?.newAmount);
+    const bal = invoiceBalance(inv);
+    const payAmt = Number.isFinite(typed) && typed > 0 ? typed : bal;
+    if (payAmt <= 0) {
+      toast("Enter an amount.");
+      return;
+    }
+    const src = pay().sourceOf(method);
+    const p = {
+      id: nid("P"),
+      invoiceId: inv.id,
+      customerId: inv.customerId,
+      locationId: inv.locationId || null,
+      amount: payAmt,
+      method,
+      date: TODAY,
+      checkNo,
+      last4: checkNo.slice(-4),
+      source: src === "check" || src === "zelle" || src === "wire" || src === "ach" ? "EXTERNAL" : (src === "autopay" ? "AUTOPAY" : "ONLINE"),
+      linkPay: !!(pay().isAuto && pay().isAuto(method)),
+      invoiceMarked: false,
+      posted: true,
+      status: "POSTED",
+      memo: memo || `Posted to ${inv.id}`,
+    };
+    state.data.payments.push(p);
+    const ok = allocatePaymentToInvoice(p, inv, Math.min(payAmt, bal));
+    if (!ok) {
+      toast("Could not record that payment.");
+      return;
+    }
+    state.data.comms.unshift({
+      id: nid("CM"),
+      customerId: inv.customerId,
+      who: role()?.name || "Christy Brown",
+      channel: "Office",
+      date: TODAY,
+      text: `${method} ${p.id} recorded and applied to ${inv.id}. ${invoiceFinStatus(inv) === "PAID" ? "Invoice marked paid." : `Remaining balance ${money2(invoiceBalance(inv))}.`}`,
+    });
+    state.applyPay = null;
+    state.payFocusId = null;
+    state.modal = null;
+    toast(`${inv.id} · ${invoiceFinStatus(inv)} · balance ${money2(invoiceBalance(inv))}`);
     render();
   }
 
@@ -12466,6 +13894,11 @@
     if (!isFieldRole() && !can("mobile.act")) return;
     const s = state.data.stops.find((x) => x.id === id);
     if (!s) return;
+    if (s.day !== fieldDay()) {
+      toast(`That stop is ${s.day}. Start it on that day’s route.`);
+      return;
+    }
+    captureFieldDraft(id);
     const other = (state.data.stops || []).find((x) => x.techId === s.techId && x.status === "in_progress" && x.id !== s.id);
     if (other) {
       toast(`Finish ${stopLabel(other)} before starting another stop.`);
@@ -12474,7 +13907,7 @@
     s.status = "in_progress";
     s.startedAt = Date.now();
     persist();
-    toast("Clock started.");
+    toast("Activity started.");
     render();
   }
 
@@ -12482,6 +13915,10 @@
     if (!isFieldRole() && !can("mobile.act")) return;
     const s = state.data.stops.find((x) => x.id === id);
     if (!s) return;
+    if (s.day !== fieldDay()) {
+      toast(`That stop is ${s.day}. Complete it on that day’s route.`);
+      return;
+    }
     captureFieldDraft(id);
     const ms = s.startedAt ? Date.now() - Number(s.startedAt) : 0;
     const mins = Math.max(1, Math.round(ms / 60000) || 1);
@@ -12489,10 +13926,14 @@
     s.endedAt = Date.now();
     s.actualMin = mins;
     s.actualSec = Math.round(ms / 1000);
-    s.removals = { count: Number(val("rem-count") || s.draftCount || 0), weight: Number(val("rem-wt") || s.draftWt || 0) };
+    s.removals = {
+      sighted: Number(val("rem-sighted") || s.draftSighted || 0),
+      count: Number(val("rem-count") || s.draftCount || 0),
+      weight: Number(val("rem-wt") || s.draftWt || 0),
+    };
     state.mobileStop = null;
     persist();
-    toast(`Stop complete · ${fmtHours(mins)} on the clock. Catch ${s.removals.count} / ${s.removals.weight} lb.`);
+    toast(`Stop complete · ${fmtHours(mins)} on the clock. Sighted ${s.removals.sighted} · removed ${s.removals.count} · ${s.removals.weight} lb.`);
     render();
   }
 
@@ -12600,11 +14041,15 @@
     if (!isFieldRole() && !can("mobile.act")) return;
     const s = state.data.stops.find((x) => x.id === id);
     if (!s) return;
+    if (s.day !== fieldDay()) {
+      toast(`That stop is ${s.day}. Log it on that day’s route.`);
+      return;
+    }
     captureFieldDraft(id);
     const policy = applyNoShow(s, val("miss-reason") || s.draftReason || "gate", val("miss-note") || s.missNote);
     state.mobileStop = null;
     persist();
-    toast(`Miss logged: ${policy.label}. Rick will decide on an extra visit.`);
+    toast(`Unable to complete: ${policy.label}. Rick will decide on an extra visit.`);
     render();
   }
 

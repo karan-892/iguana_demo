@@ -31,6 +31,12 @@
           <div class="loc-map-fields">
             <div class="intake-grid">
               ${field("Property name", `<input id="nc-loc-name-${i}" value="${esc(p.name || "")}" placeholder="Residence, Building B, Canal lot">`)}
+              ${field("Location type", `<select id="nc-loc-type-${i}">
+                <option value="residential" ${(p.locationType || "residential") === "residential" ? "selected" : ""}>Residential</option>
+                <option value="commercial" ${p.locationType === "commercial" ? "selected" : ""}>Commercial</option>
+                <option value="hoa" ${p.locationType === "hoa" ? "selected" : ""}>HOA / community</option>
+                <option value="municipal" ${p.locationType === "municipal" ? "selected" : ""}>Municipal</option>
+              </select>`, "What this property is — Christy can change it later.")}
               ${field("Subdivision", `<input id="nc-loc-subdiv-${i}" value="${esc(p.subdivision || "")}" placeholder="Palm Cove, Lakeside, etc.">`)}
               ${field("Street", `<input id="nc-loc-street-${i}" value="${esc(p.street || "")}" data-preview-pin="intake-pin-${i}" data-preview-x="nc-loc-x-${i}" data-preview-y="nc-loc-y-${i}" data-loc-index="${i}" placeholder="418 NE 4th St">`)}
               ${field("City", `<input id="nc-loc-city-${i}" value="${esc(p.city || "")}" data-preview-pin="intake-pin-${i}" data-preview-x="nc-loc-x-${i}" data-preview-y="nc-loc-y-${i}" data-loc-index="${i}" placeholder="Boca Raton">`)}
@@ -57,16 +63,18 @@
     `;
   }
 
-  function formHtml(prefill = {}, billTos = [], locCount = 1) {
+  function formHtml(prefill = {}, billTos = [], locCount = 0) {
     const p = prefill || {};
     const channel = p.channel || "Call";
-    const type = p.locationType || p.type || "residential";
+    const billType = p.billToType || p.type || "residential";
+    const locType = p.locationType || p.type || billType;
     const billOptions = (billTos || []).map((b) =>
       `<option value="${esc(b.id)}">${esc(b.label || b.name)}${b.type === "hoa" ? " · HOA" : ""}</option>`
     ).join("");
-    const n = Math.max(1, Number(locCount) || 1);
+    const n = Math.max(0, Number(locCount) || 0);
     const firstLoc = {
       name: p.locationName || "",
+      locationType: locType,
       street: p.street || "",
       city: p.city || "",
       state: p.state || "FL",
@@ -74,7 +82,7 @@
       x: p.x,
       y: p.y,
     };
-    const locs = Array.from({ length: n }, (_, i) => locationBlock(i, i === 0 ? firstLoc : {}, i > 0));
+    const locs = Array.from({ length: n }, (_, i) => locationBlock(i, i === 0 ? firstLoc : {}, true));
 
     return `
       <div class="intake">
@@ -82,7 +90,7 @@
           <div>
             <div class="tiny">After the call or message</div>
             <h2>Add customer</h2>
-            <p class="muted">One Bill-To, then the properties. Save first — quote comes after. Don’t pick a plan on this form.</p>
+            <p class="muted">Save the Bill-To now. A property is optional — add it when they give the address.</p>
           </div>
           <div class="actions">
             <button class="btn btn-ghost" data-act="cancel-add" type="button">Cancel</button>
@@ -120,22 +128,16 @@
         <section class="intake-card" id="nc-contact-card">
           <h3>Contact on the Bill-To</h3>
           <div class="intake-grid">
-            ${field("Bill-To type", `<select id="nc-billtype">
-              <option value="residential" ${(p.billToType || type) === "residential" ? "selected" : ""}>Residential</option>
-              <option value="commercial" ${(p.billToType || type) === "commercial" ? "selected" : ""}>Commercial</option>
-              <option value="hoa" ${(p.billToType || type) === "hoa" ? "selected" : ""}>HOA</option>
-              <option value="municipal" ${(p.billToType || type) === "municipal" ? "selected" : ""}>Municipal</option>
-            </select>`)}
-            ${field("Location type", `<select id="nc-type" data-act="intake-type">
-              <option value="residential" ${type === "residential" ? "selected" : ""}>Residential</option>
-              <option value="commercial" ${type === "commercial" ? "selected" : ""}>Commercial</option>
-              <option value="hoa" ${type === "hoa" ? "selected" : ""}>HOA / community</option>
-              <option value="municipal" ${type === "municipal" ? "selected" : ""}>Municipal</option>
-            </select>`)}
-            <div class="intake-field" id="nc-company-wrap" ${type === "hoa" ? "" : "hidden"}>
+            ${field("Bill-To type", `<select id="nc-billtype" data-act="intake-type">
+              <option value="residential" ${billType === "residential" ? "selected" : ""}>Residential</option>
+              <option value="commercial" ${billType === "commercial" ? "selected" : ""}>Commercial</option>
+              <option value="hoa" ${billType === "hoa" ? "selected" : ""}>HOA</option>
+              <option value="municipal" ${billType === "municipal" ? "selected" : ""}>Municipal</option>
+            </select>`, "Who pays. Each property has its own location type below.")}
+            <div class="intake-field" id="nc-company-wrap" ${billType === "hoa" ? "" : "hidden"}>
               <label>Company / HOA name</label>
-              <input id="nc-company" value="${esc(type === "hoa" ? (p.company || "") : "")}" placeholder="Palm Cove HOA, Lakeside Community…">
-              <span class="tiny">Only for HOA / community locations</span>
+              <input id="nc-company" value="${esc(billType === "hoa" ? (p.company || "") : "")}" placeholder="Palm Cove HOA, Lakeside Community…">
+              <span class="tiny">Only when the Bill-To is an HOA / community</span>
             </div>
             ${field("First name", `<input id="nc-first" value="${esc(p.firstName || "")}">`)}
             ${field("Last name", `<input id="nc-last" value="${esc(p.lastName || "")}" placeholder="Homeowner last name">`)}
@@ -145,21 +147,22 @@
             ${field("Alt. phone", `<input id="nc-alt" value="${esc(p.altPhone || "")}">`)}
           </div>
         </section>
-
-        <section class="intake-card">
+         <section class="intake-card">
           <div class="loc-section-head">
             <div>
-              <h3>Service locations</h3>
-              <p class="tiny">Same payer. Each address gets its own map pin. Do not pick a plan here — that comes after the quote.</p>
+              <h3>Property / location</h3>
+              <p class="tiny">Optional. Save the customer without an address if they have not given it yet. Add it here now, or later from the account.</p>
             </div>
-            <button type="button" class="btn btn-ghost" data-act="add-loc-row">+ Another location</button>
+            <button type="button" class="btn btn-ghost" data-act="add-loc-row">${n ? "+ Another location" : "+ Add property"}</button>
           </div>
-          <div id="nc-locs">${locs.join("")}</div>
+          ${n
+            ? `<div id="nc-locs">${locs.join("")}</div>`
+            : `<p class="muted" id="nc-locs">No property yet. Click + Add property if they already gave an address.</p>`}
         </section>
 
         <section class="intake-card">
           <h3>Instructions</h3>
-          <p class="tiny">Where to go, how the client behaves, gate codes, dogs, park on the street — what the tech needs on site.</p>
+          <p class="tiny">Where to go, how the client behaves, gate codes, dogs, park on the street — what the tech needs on site. You can fill this later with the property.</p>
           <textarea id="nc-instructions" rows="5" placeholder="Gate on the left. Dogs in the yard — go around the side. Meet at the clubhouse…">${esc(p.note || p.instructions || "")}</textarea>
           <div class="intake-field" style="margin-top:12px">
             <label>Internal office note</label>
@@ -168,14 +171,16 @@
         </section>
 
         <section class="intake-card">
-          <h3>Messages</h3>
-          <p class="tiny">Whether this customer accepts texts and emails from the office.</p>
+          <h3>Batch output</h3>
+          <p class="tiny">How this customer gets invoices and visit notices. Print and email are on by default; SMS is off unless they opt in.</p>
           <div class="chip-row">
-            <label class="chk"><input type="checkbox" id="nc-sms"> Accept text / SMS (visit notices)</label>
-            <label class="chk"><input type="checkbox" id="nc-mail" checked> Accept email</label>
-            <label class="chk"><input type="checkbox" id="nc-prospect" checked> Mark as prospect</label>
+            <label class="chk"><input type="checkbox" id="nc-print" checked> Print</label>
+            <label class="chk"><input type="checkbox" id="nc-mail" checked> Email</label>
+            <label class="chk"><input type="checkbox" id="nc-sms"> SMS</label>
           </div>
         </section>
+
+       
 
         <div class="intake-foot">
           <button class="btn btn-ghost" data-act="cancel-add" type="button">Cancel</button>
@@ -194,13 +199,14 @@
       const st = document.getElementById(`nc-loc-state-${i}`)?.value || "FL";
       const zip = (document.getElementById(`nc-loc-zip-${i}`)?.value || "").trim();
       const name = (document.getElementById(`nc-loc-name-${i}`)?.value || "").trim();
+      const locationType = document.getElementById(`nc-loc-type-${i}`)?.value || "residential";
       const subdivision = (document.getElementById(`nc-loc-subdiv-${i}`)?.value || "").trim();
       const x = document.getElementById(`nc-loc-x-${i}`)?.value;
       const y = document.getElementById(`nc-loc-y-${i}`)?.value;
       const lat = (document.getElementById(`nc-loc-lat-${i}`)?.value || "").trim();
       const lng = (document.getElementById(`nc-loc-lng-${i}`)?.value || "").trim();
       return {
-        name, subdivision, street, city, state: st, zip,
+        name, locationType, subdivision, street, city, state: st, zip,
         x: x !== "" && x != null ? Number(x) : null,
         y: y !== "" && y != null ? Number(y) : null,
         lat: lat !== "" ? Number(lat) : null,
