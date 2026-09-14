@@ -48,6 +48,7 @@
     eye: svg(["M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z", "M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6"]),
     search: svg(["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.35-4.35"]),
     pencil: svg(["M12 20h9", "M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"]),
+    service: svg(["M8 4h8v4H8z", "M5 8h14v13H5z", "M9 13h6"]),
     back: svg(["M15 18l-6-6 6-6"]),
     user: svg(["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8"]),
   };
@@ -118,11 +119,12 @@
 
     { id: "customers", label: "Customers", group: "Customers", icon: "people", roles: ["owner", "ops", "admin", "sales"] },
     { id: "locations", label: "Locations", group: "Customers", icon: "map", roles: ["owner", "ops", "admin", "sales"] },
+    { id: "services", label: "Services", group: "Customers", icon: "service", roles: ["owner", "ops", "admin", "sales"] },
     { id: "quotes", label: "Quotes", group: "Customers", icon: "mail", roles: ["sales", "owner", "admin"] },
 
     { id: "schedule", label: "Schedule", group: "Operations", icon: "cal", roles: ["owner", "ops"] },
     { id: "ready-schedule", label: "Ready to schedule", group: "Operations", icon: "list", roles: ["owner", "ops"] },
-    { id: "optimizer", label: "Multi-Day Optimizer", group: "Operations", icon: "route", roles: ["owner", "ops"] },
+    { id: "optimizer", label: "Route optimizer", group: "Operations", icon: "route", roles: ["owner", "ops"] },
     { id: "map", label: "Dispatch", group: "Operations", icon: "map", roles: ["owner", "ops"] },
     { id: "trappers", label: "Trappers", group: "Operations", icon: "people", roles: ["owner", "ops", "admin"] },
     { id: "oneoffs", label: "One-off jobs", group: "Operations", icon: "bolt", roles: ["owner", "ops"] },
@@ -1771,16 +1773,16 @@
       return;
     }
     const customers = (state.data.customers || []).filter((c) => c.status !== "lapsed");
-    const selected = customerId || state.selectedCustomer || customers[0]?.id || "";
-    const c = custBy(selected);
+    const fromLocation = !!locationId;
+    const selected = fromLocation ? (customerId || state.selectedCustomer || "") : (customerId || "");
+    const c = selected ? custBy(selected) : null;
     const locs = c?.locations || [];
     const defaultAssignee = state.role === "admin" ? "ops" : state.role === "ops" ? "admin" : "admin";
-    const locationLocked = !!locationId;
-    const selectedLoc = locationId ? locs.find((l) => l.id === locationId) : null;
+    const selectedLoc = fromLocation ? locs.find((l) => l.id === locationId) : null;
     state.modal = {
       html: `
         <h3>Create task</h3>
-        ${locationLocked ? `
+        ${fromLocation ? `
           <div class="task-location-context">
             <div><span>Bill-To</span><strong>${esc(c?.billTo || c?.name || selected)}</strong></div>
             <div><span>Location</span><strong>${esc(selectedLoc?.name || "Location")}</strong><small>${esc(selectedLoc?.address || "No address")}</small></div>
@@ -1788,12 +1790,15 @@
           <input id="tk-cust" type="hidden" value="${esc(selected)}">
           <input id="tk-loc" type="hidden" value="${esc(locationId)}">
         ` : `
-          <p>Assign work to Tom, Rick, or Christy.</p>
-          <div class="field"><label>Customer (Bill-To)</label>
-            <select id="tk-cust" data-act="task-cust-change">${customers.map((x) => `<option value="${x.id}" ${x.id === selected ? "selected" : ""}>${esc(x.billTo || x.name)} · ${esc(x.id)}</option>`).join("")}</select>
+          <p>Assign work to Tom, Rick, or Christy. Customer and property are optional.</p>
+          <div class="field"><label>Customer (optional)</label>
+            <select id="tk-cust" data-act="task-cust-change">
+              <option value="">No customer</option>
+              ${customers.map((x) => `<option value="${x.id}" ${x.id === selected ? "selected" : ""}>${esc(x.billTo || x.name)} · ${esc(x.id)}</option>`).join("")}
+            </select>
           </div>
           <div class="field"><label>Property (optional)</label>
-            <select id="tk-loc"><option value="">Whole Bill-To</option>${locs.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}</select>
+            <select id="tk-loc"${selected ? "" : " disabled"}><option value="">No property</option>${locs.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}</select>
           </div>
         `}
         <div class="field"><label>Assign to</label>
@@ -1820,22 +1825,24 @@
     const sel = document.getElementById("tk-loc");
     if (!sel) return;
     const locs = c?.locations || [];
-    sel.innerHTML = `<option value="">Whole Bill-To</option>${locs.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}`;
+    sel.innerHTML = `<option value="">No property</option>${locs.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}`;
+    sel.disabled = !cid;
   }
 
   function saveTask() {
     if (!can("task.create")) return;
-    const customerId = val("tk-cust");
+    const customerId = val("tk-cust") || null;
     const title = (val("tk-title") || "").trim();
-    if (!customerId || !title) {
-      toast("Pick a customer and enter a title.");
+    if (!title) {
+      toast("Enter a title.");
       return;
     }
     const assignee = val("tk-assignee") || "admin";
+    const locationId = customerId ? (val("tk-loc") || null) : null;
     const task = {
       id: nid("TSK"),
       customerId,
-      locationId: val("tk-loc") || null,
+      locationId,
       title,
       notes: (val("tk-notes") || "").trim(),
       createdBy: state.role,
@@ -1848,11 +1855,12 @@
     };
     if (!Array.isArray(state.data.tasks)) state.data.tasks = [];
     state.data.tasks.unshift(task);
+    const who = customerId ? (custBy(customerId)?.billTo || customerId) : "no customer";
     pushNotify({
       type: "TASK",
       severity: "info",
       title: `Task for ${taskAssigneeLabel(assignee)}`,
-      text: `${title} · ${custBy(customerId)?.billTo || customerId} · due ${task.due}`,
+      text: `${title} · ${who} · due ${task.due}`,
       customerId,
       locationId: task.locationId,
     });
@@ -1905,8 +1913,8 @@
       html: `
         <h3>Edit task</h3>
         <div class="task-location-context">
-          <div><span>Bill-To</span><strong>${esc(c?.billTo || c?.name || "—")}</strong></div>
-          <div><span>Location</span><strong>${esc(loc?.name || "Whole Bill-To")}</strong>${loc ? `<small>${esc(loc.address || "No address")}</small>` : ""}</div>
+          <div><span>Bill-To</span><strong>${esc(c?.billTo || c?.name || "No customer")}</strong></div>
+          <div><span>Location</span><strong>${esc(loc?.name || "No property")}</strong>${loc ? `<small>${esc(loc.address || "No address")}</small>` : ""}</div>
         </div>
         <div class="field"><label>Assign to</label>
           <select id="et-assignee">${TASK_ASSIGNEES.map((a) => `<option value="${a.id}" ${a.id === t.assignee ? "selected" : ""}>${esc(a.label)}</option>`).join("")}</select>
@@ -1957,7 +1965,7 @@
     state.modal = {
       html: `
         <h3>Remove task?</h3>
-        <p><strong>${esc(t.title)}</strong> will be removed from this location.</p>
+        <p><strong>${esc(t.title)}</strong> will be removed.</p>
         <div class="actions">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
           <button class="btn btn-primary" data-act="confirm-remove-task" data-id="${t.id}">Remove task</button>
@@ -1997,7 +2005,7 @@
           ${taskPriorityBadge(t.priority)}
           <strong>${esc(t.title)}</strong>
           <div class="tiny">
-            ${options.hideCustomer ? "" : `${c ? `<button class="btn btn-ghost linkish" data-act="open-customer" data-id="${c.id}">${esc(c.billTo || c.name)}</button>` : "—"}${loc ? ` · ${esc(loc.name)}` : ""} · `}
+            ${options.hideCustomer ? "" : `${c ? `<button class="btn btn-ghost linkish" data-act="open-customer" data-id="${c.id}">${esc(c.billTo || c.name)}</button>${loc ? ` · ${esc(loc.name)}` : ""} · ` : (loc ? `${esc(loc.name)} · ` : `<span class="muted">No customer</span> · `)}`}
             Due ${esc(t.due || "—")} · To ${esc(taskAssigneeLabel(t.assignee))} · From ${esc(taskAssigneeLabel(t.createdBy))}
           </div>
           ${t.notes ? `<div class="tiny">${esc(t.notes)}</div>` : ""}
@@ -2965,51 +2973,15 @@
       .map((row) => ({ id: row.id, time: row.arrive }));
   }
 
-  function optimizerCapValue(config, key) {
-    const n = Number(config?.limits?.[key]);
-    return Number.isFinite(n) && n > 0 ? n : null;
-  }
-
-  function optimizerApplyCaps(techId, ordered, config) {
-    const reachable = [];
-    const unreachable = [];
-    const maxJobs = optimizerCapValue(config, "maxJobs");
-    const maxService = optimizerCapValue(config, "maxService");
-    const maxWorkingInput = optimizerCapValue(config, "maxWorking");
-    const maxDrive = optimizerCapValue(config, "maxDrive");
-    const maxProduction = optimizerCapValue(config, "maxProduction");
-    const leaveOpen = optimizerCapValue(config, "leaveOpen") || 0;
-    const maxWorking = Math.min(maxWorkingInput || Infinity, Math.max(0, 600 - leaveOpen));
-    ordered.forEach((s) => {
-      const proposed = reachable.concat(s);
-      const service = proposed.reduce((n, x) => n + Number(x.durationMin || 0), 0);
-      const drive = optimizerDriveMinutes(techId, proposed);
-      const working = service + drive;
-      const production = proposed.reduce((n, x) => n + optimizerProduction(x), 0);
-      const cannotFit =
-        (maxJobs && proposed.length > maxJobs)
-        || (maxService && service > maxService)
-        || (Number.isFinite(maxWorking) && working > maxWorking)
-        || (maxDrive && drive > maxDrive)
-        || (maxProduction && production > maxProduction);
-      (cannotFit ? unreachable : reachable).push(s);
-    });
-    const serviceMin = reachable.reduce((n, s) => n + Number(s.durationMin || 0), 0);
-    const driveMin = optimizerDriveMinutes(techId, reachable);
-    const production = reachable.reduce((n, s) => n + optimizerProduction(s), 0);
-    const warnings = [];
-    const minJobs = optimizerCapValue(config, "minJobs");
-    const minProduction = optimizerCapValue(config, "minProduction");
-    if (minJobs && reachable.length < minJobs) warnings.push(`Below minimum jobs (${reachable.length}/${minJobs})`);
-    if (minProduction && production < minProduction) warnings.push(`Below minimum production (${money(production)}/${money(minProduction)})`);
+  function optimizerRouteTotals(techId, stops) {
+    const serviceMin = stops.reduce((n, s) => n + Number(s.durationMin || 0), 0);
+    const driveMin = optimizerDriveMinutes(techId, stops);
+    const production = stops.reduce((n, s) => n + optimizerProduction(s), 0);
     return {
-      reachable,
-      unreachable,
       serviceMin,
       driveMin,
       workingMin: serviceMin + driveMin,
       production,
-      warnings,
     };
   }
 
@@ -3084,23 +3056,23 @@
           ? prevIds.map((id) => byId[id]).filter(Boolean).concat(bucket.stops.filter((s) => !prevIds.includes(s.id)))
           : bucket.stops.slice().sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
         const ordered = optimizerNearestOrder(bucket.techId, sequenced, anchorId);
-        const capped = optimizerApplyCaps(bucket.techId, ordered, config);
+        const totals = optimizerRouteTotals(bucket.techId, ordered);
         return {
           date: bucket.date,
           day: bucket.day,
           techId: bucket.techId,
           anchorId,
           originalStopIds: original.map((s) => s.id),
-          optimized: optimizerTimes(bucket.techId, capped.reachable),
-          unreachableIds: capped.unreachable.map((s) => s.id),
+          optimized: optimizerTimes(bucket.techId, ordered),
+          unreachableIds: [],
           beforeDrive: optimizerDriveMinutes(bucket.techId, original),
-          afterDrive: capped.driveMin,
-          serviceMin: capped.serviceMin,
-          workingMin: capped.workingMin,
-          production: capped.production,
+          afterDrive: totals.driveMin,
+          serviceMin: totals.serviceMin,
+          workingMin: totals.workingMin,
+          production: totals.production,
           originalServiceMin: origService,
           originalProduction: origProduction,
-          warnings: capped.warnings,
+          warnings: [],
         };
       });
     const beforeDrive = Object.entries(originalGroups).reduce((sum, [key, list]) => {
@@ -3108,7 +3080,6 @@
       return sum + optimizerDriveMinutes(techId, list);
     }, 0);
     const afterDrive = routes.reduce((n, r) => n + r.afterDrive, 0);
-    const unreachable = routes.reduce((n, r) => n + r.unreachableIds.length, 0);
     const stopSnapshots = Object.fromEntries(source.map((s) => [s.id, optimizerStopSnapshot(s)]).filter(([, snap]) => snap));
     const startDate = config.startDate;
     const endDate = config.endDate;
@@ -3126,7 +3097,7 @@
       routeCount: routes.length,
       beforeDrive,
       afterDrive,
-      unreachable,
+      unreachable: 0,
       status: "draft",
       committed: false,
       createdAt: optimizerNowStamp(),
@@ -4018,6 +3989,11 @@
       DRAFT: ["badge-mute", "Draft"],
       unassigned_done: ["badge-warn", "Waiting to drop"],
       not_covered: ["badge-mute", "Not covered"],
+      continuing: ["badge-ok", "Continuing"],
+      needs_trapper: ["badge-warn", "Needs trapper"],
+      ended: ["badge-mute", "Ended"],
+      cancelled: ["badge-bad", "Cancelled"],
+      new: ["badge-sea", "New"],
     };
     const [cls, label] = map[status] || ["badge-mute", status];
     return `<span class="badge ${cls}">${esc(label)}</span>`;
@@ -4266,6 +4242,7 @@
       dashboard: viewDashboard,
       customers: viewCustomers,
       locations: viewLocations,
+      services: viewServices,
       quotes: viewQuotes,
       schedule: viewSchedule,
       "ready-schedule": viewReadySchedule,
@@ -5025,7 +5002,7 @@
           <option value="">All statuses</option>
           ${statuses.map((status) => `<option value="${esc(status)}">${statusBadge(status).replace(/<[^>]+>/g, "")}</option>`).join("")}
         </select>
-        ${options.types ? `<select id="${prefix}-filter-type" data-list-filter="${prefix}"><option value="">All types</option>${options.types.map((type) => `<option value="${esc(type)}">${esc(locTypeLabel(type))}</option>`).join("")}</select>` : ""}
+        ${options.types ? `<select id="${prefix}-filter-type" data-list-filter="${prefix}"><option value="">All types</option>${options.types.map((type) => `<option value="${esc(type)}">${esc((options.typeLabel || locTypeLabel)(type))}</option>`).join("")}</select>` : ""}
         ${options.techs ? `<select id="${prefix}-filter-tech" data-list-filter="${prefix}"><option value="">All trappers</option>${TECHS.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select>` : ""}
         <button class="btn btn-ghost" data-act="clear-list-filters" data-prefix="${prefix}">Clear</button>
         <span class="tiny" id="${prefix}-filter-count"></span>
@@ -5125,6 +5102,62 @@
     `;
   }
 
+  function serviceListStatusKey(s) {
+    if (!s) return "";
+    if (s.status === "cancelled" || s.cancelDate) return "cancelled";
+    if (s.status === "ended") return "ended";
+    if (!s.techId) return "needs_trapper";
+    if (s.status === "new") return "new";
+    return "continuing";
+  }
+
+  function viewServices() {
+    const allowed = new Set(visibleCustomers().map((c) => c.id));
+    const rows = (state.data.services || [])
+      .filter((s) => allowed.has(s.customerId))
+      .slice()
+      .sort((a, b) => {
+        const aLive = svcIsContinuing(a) ? 0 : 1;
+        const bLive = svcIsContinuing(b) ? 0 : 1;
+        if (aLive !== bLive) return aLive - bLive;
+        return String(b.start || "").localeCompare(String(a.start || "")) || String(a.id).localeCompare(String(b.id));
+      })
+      .map((s) => {
+        const c = custBy(s.customerId);
+        const loc = locBy(s.customerId, s.locationId);
+        const status = serviceListStatusKey(s);
+        return {
+          search: [s.id, svcTypeLabel(s.type), c?.name, c?.billTo, c?.id, loc?.name, loc?.address, techName(s.techId), s.days].join(" "),
+          status,
+          type: s.type || "",
+          tech: s.techId || "",
+          cells: [
+            `<strong>${esc(svcTypeLabel(s.type))}</strong><div class="tiny">${esc(s.id)}</div>`,
+            loc
+              ? `<button class="btn btn-text" data-act="open-location" data-id="${esc(s.customerId)}" data-loc="${esc(s.locationId)}">${esc(loc.name || "Property")}</button><div class="tiny">${esc((loc.address || "No address").split(",")[0])}</div>`
+              : `<span class="muted">No property</span>`,
+            c
+              ? `<button class="btn btn-text" data-act="open-customer" data-id="${esc(c.id)}">${esc(c.billTo || c.name)}</button>`
+              : `<span class="muted">—</span>`,
+            esc(s.techId ? techName(s.techId) : "Unassigned"),
+            esc(s.days || "—"),
+            svcStatusBadge(s),
+            c && loc ? esc(locNextVisitLabel(c, loc)) : "—",
+            loc
+              ? `<button class="icon-btn table-icon-btn" data-act="open-location" data-id="${esc(s.customerId)}" data-loc="${esc(s.locationId)}" title="View location" aria-label="View ${esc(loc.name || "property")}">${ICONS.eye}</button>`
+              : "",
+          ],
+        };
+      });
+    const statuses = [...new Set(rows.map((row) => row.status).filter(Boolean))];
+    const types = [...new Set(rows.map((row) => row.type).filter(Boolean))];
+    return `
+      ${head("Services", "Every service on a property. Open a row for the location.")}
+      ${listFilterBar("service", statuses, { types, typeLabel: svcTypeLabel, techs: true, placeholder: "Search service, customer, property, or trapper" })}
+      ${filterableTable(["Service", "Location", "Customer", "Trapper", "Schedule", "Status", "Next visit", ""], rows, "service")}
+    `;
+  }
+
   function visibleCustomers() {
     if (state.role === "sales") {
       const quoted = new Set(state.data.quotes.map((q) => q.customerId));
@@ -5185,28 +5218,43 @@
       </div>`;
   }
 
-  function billToTreeHtml(c) {
-    const selectedId = locBy(c.id, state.selectedLocation)?.id || c.locations?.[0]?.id || "";
+  function customerOverviewServicesHtml(c) {
+    const services = servicesForCustomer(c.id).filter((s) => s.status !== "cancelled");
+    const live = services.filter(svcIsContinuing);
+    const shown = (live.length ? live : services).slice(0, 8);
+    const uncovered = (c.locations || []).filter((l) => !svcFor(c.id, l.id));
+    const rows = shown.map((s) => {
+      const loc = locBy(c.id, s.locationId);
+      return `<div class="fit-row overview-svc-row">
+        <div>
+          ${loc
+            ? `<button type="button" class="btn btn-ghost linkish" data-act="open-location" data-id="${esc(c.id)}" data-loc="${esc(loc.id)}">${esc(loc.name || "Property")}</button>`
+            : `<strong>No property</strong>`}
+          <div class="tiny">${esc(svcTypeLabel(s.type))} · ${esc(s.techId ? techName(s.techId) : "Unassigned")} · ${esc(s.days || "—")}</div>
+        </div>
+        <div class="actions">
+          ${svcStatusBadge(s)}
+        </div>
+      </div>`;
+    }).join("");
+    const emptyLocs = uncovered.map((l) => `
+      <div class="fit-row overview-svc-row">
+        <div>
+          <button type="button" class="btn btn-ghost linkish" data-act="open-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}">${esc(l.name || "Property")}</button>
+          <div class="tiny">No service yet</div>
+        </div>
+        <div class="actions">${can("service.create") ? btn("service.create", "Create", "open-service", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost") : `<span class="muted">None</span>`}</div>
+      </div>`).join("");
     return `
       <div class="card">
-        <h3>Bill-To → locations</h3>
-        <ul class="billto-tree">
-          <li class="billto-root">
-            <small>Bill-To</small>
-            <strong>${esc(c.billTo || c.name)}</strong>
-            <span class="tiny">${esc(c.id)} · ${(c.locations || []).length} locations</span>
-          </li>
-          ${(c.locations || []).map((l) => {
-            const svc = svcFor(c.id, l.id);
-            return `<li>
-              <button type="button" class="billto-branch ${l.id === selectedId ? "on" : ""}" data-act="select-customer-location" data-id="${esc(c.id)}" data-loc="${esc(l.id)}">
-                <strong>${esc(l.name || "Property")}</strong>
-                <span class="tiny">${esc(l.address || "No address")}</span>
-                <span class="tiny">${svc ? esc(svcTypeLabel(svc.type)) : "No service"} · ${locationStatus(c, l)}</span>
-              </button>
-            </li>`;
-          }).join("") || `<li class="tiny">No locations yet.</li>`}
-        </ul>
+        <div class="customer-location-head">
+          <div>
+            <h3>Services</h3>
+            <p class="tiny">${live.length} active · ${(c.locations || []).length} propert${(c.locations || []).length === 1 ? "y" : "ies"}</p>
+          </div>
+          <button type="button" class="btn btn-ghost btn-text" data-act="customer-tab" data-tab="services">View all</button>
+        </div>
+        ${rows || emptyLocs ? `${rows}${emptyLocs}` : `<p class="muted">No services yet.</p>`}
       </div>`;
   }
 
@@ -5283,7 +5331,7 @@
       body = `
         <div class="customer-overview-grid">
           <div class="stack">
-            ${billToTreeHtml(c)}
+            ${customerOverviewServicesHtml(c)}
             ${customerActivityHtml(c)}
           </div>
           <div class="card customer-map-card is-compact">
@@ -6035,15 +6083,10 @@
     const draftOpen = preview && optimizerStatusOf(preview) === "draft";
     return `
       <div class="seg opt-nav">
-        <button class="${active === "setup" ? "on" : ""}" data-act="optimizer-new">New optimization</button>
-        <button class="${active === "history" ? "on" : ""}" data-act="optimizer-history">Saved optimizations</button>
+        <button class="${active === "setup" ? "on" : ""}" data-act="optimizer-new">New run</button>
+        <button class="${active === "history" ? "on" : ""}" data-act="optimizer-history">Saved</button>
         ${preview && active !== "result" ? `<button class="${active === "result" ? "on" : ""}" data-act="optimizer-open-result">${draftOpen ? "Open draft" : "Open last viewed"}</button>` : ""}
       </div>`;
-  }
-  function optimizerLimitField(id, label, unit, help, placeholder = "No cap") {
-    const key = id.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    const current = state.optimizerPreview?.config?.limits?.[key] || "";
-    return `<div class="field"><label for="opt-${id}">${esc(label)}</label>${help ? `<p class="tiny opt-limit-help">${esc(help)}</p>` : ""}<div class="opt-input-unit"><input id="opt-${id}" type="number" min="0" step="1" value="${esc(current)}" placeholder="${esc(placeholder)}"><span>${esc(unit)}</span></div></div>`;
   }
   function optimizerTechGroups(preview) {
     const byTech = {};
@@ -6080,17 +6123,16 @@
     const trappers = optimizerTechGroups(preview).length;
     return `
       <div class="opt-run-summary card">
-        <div class="opt-run-kicker">Run summary — estimated drive-time impact</div>
+        <div class="opt-run-kicker">Drive time</div>
         <div class="opt-summary">
-          <div class="stat"><span>Total stops</span><strong>${preview.stopCount} → ${preview.stopCount - preview.unreachable}</strong></div>
+          <div class="stat"><span>Stops</span><strong>${preview.stopCount}</strong></div>
           <div class="stat"><span>Trappers</span><strong>${trappers}</strong></div>
-          <div class="stat"><span>Drive before</span><strong>${fmtHours(preview.beforeDrive)}</strong></div>
-          <div class="stat"><span>Drive after</span><strong>${fmtHours(preview.afterDrive)}</strong><small class="${optimizerDriveClass(preview.beforeDrive, preview.afterDrive)}">${saved > 0 ? fmtHours(saved) + " saved" : saved < 0 ? fmtHours(Math.abs(saved)) + " added" : "No change"}</small></div>
-          <div class="stat"><span>Did not fit</span><strong>${preview.unreachable}</strong></div>
+          <div class="stat"><span>Drive now</span><strong>${fmtHours(preview.beforeDrive)}</strong></div>
+          <div class="stat"><span>Proposed drive</span><strong>${fmtHours(preview.afterDrive)}</strong><small class="${optimizerDriveClass(preview.beforeDrive, preview.afterDrive)}">${saved > 0 ? fmtHours(saved) + " shorter" : saved < 0 ? fmtHours(Math.abs(saved)) + " longer" : "Same"}</small></div>
         </div>
         <p class="opt-insight">${saved > 0
-          ? "Less drive time means more billable stops per day — payroll is the biggest line item, so this is where the optimizer earns its keep."
-          : "Drive time is estimated from trapper home to each stop and back. Unlock dates or pick one trapper if you want the engine to try a tighter sequence."}</p>
+          ? "Shorter drive between the same stops. Commit if this is the order trappers should run."
+          : "Drive is estimated from home to each stop and back. Uncheck “keep on the same day” or “keep the same trapper” if you want it to try a different mix."}</p>
       </div>`;
   }
   function optimizerTechRow(group) {
@@ -6102,26 +6144,23 @@
           <strong>${esc(techName(group.techId))}</strong>
           <div class="tiny">${esc(techBy(group.techId)?.home || "")} · ${esc(group.routes.map((r) => `${r.day} ${r.optimized.length}`).join(" · "))}</div>
         </td>
-        <td><strong>${group.jobsOrig} → ${group.jobsOpt}</strong></td>
-        <td><strong>${group.unreachable}</strong></td>
+        <td><strong>${group.jobsOpt}</strong></td>
         <td><strong>${fmtHours(group.serviceMin)}</strong></td>
         <td>
           <strong>${fmtHours(group.beforeDrive)} → ${fmtHours(group.afterDrive)}</strong>
           <div class="tiny ${optimizerDriveClass(group.beforeDrive, group.afterDrive)}">${saved > 0 ? fmtHours(saved) + " shorter" : saved < 0 ? "Longer" : "Same"}</div>
         </td>
-        <td><strong>${money(group.production)}</strong></td>
-        <td>${group.unreachable ? `<span class="badge badge-bad">${group.unreachable} did not fit</span>` : `<span class="badge badge-ok">All fit</span>`}</td>
-        <td><button class="btn ${open ? "btn-sun" : "btn-ghost"} btn-small" data-act="${open ? "optimizer-hide" : "optimizer-detail"}" data-tech="${esc(group.techId)}" data-date="${esc(group.routes[0]?.date || "")}">${open ? "Hide route" : "Show route"}</button></td>
+        <td><button class="btn ${open ? "btn-sun" : "btn-ghost"} btn-small" data-act="${open ? "optimizer-hide" : "optimizer-detail"}" data-tech="${esc(group.techId)}" data-date="${esc(group.routes[0]?.date || "")}">${open ? "Hide order" : "Show order"}</button></td>
       </tr>
-      ${open ? `<tr class="opt-tech-detail-row"><td colspan="8">${optimizerTechDetail(group)}</td></tr>` : ""}`;
+      ${open ? `<tr class="opt-tech-detail-row"><td colspan="5">${optimizerTechDetail(group)}</td></tr>` : ""}`;
   }
   function optimizerOrderTable(rows, date, techId, allowAnchor) {
     return `
       <div class="table-wrap opt-order-wrap">
         <table class="opt-order-table">
           <thead><tr>
-            <th>Order</th><th>Name &amp; address</th><th>Arrive</th><th>Depart</th><th>Drive to next</th>
-            <th>Service</th><th>Prod. value</th><th>Date</th>${allowAnchor ? "<th>Start remaining</th>" : ""}
+            <th>#</th><th>Stop</th><th>Arrive</th><th>Leave</th><th>Drive to next</th>
+            ${allowAnchor ? "<th></th>" : ""}
           </tr></thead>
           <tbody>
             ${rows.map((row) => {
@@ -6129,14 +6168,11 @@
               return `
               <tr class="opt-order-${row.kind}${isStart ? " is-start" : ""}">
                 <td>${esc(row.order)}</td>
-                <td><strong>${esc(row.name)}</strong>${row.address ? `<div class="tiny">${esc(row.address)}${row.eligibleTime ? ` · ${esc(row.eligibleTime)}` : ""}</div>` : ""}</td>
+                <td><strong>${esc(row.name)}</strong>${row.address ? `<div class="tiny">${esc(row.address)}</div>` : ""}</td>
                 <td>${row.arrive ? fmtClockTime(row.arrive) : "—"}</td>
                 <td>${row.depart ? fmtClockTime(row.depart) : "—"}</td>
                 <td>${row.driveToNext ? fmtHours(row.driveToNext) : "—"}</td>
-                <td>${esc(row.service || "—")}</td>
-                <td>${row.kind === "stop" ? money(row.production) : "—"}</td>
-                <td>${esc(row.eligibleDate || "—")}</td>
-                ${allowAnchor ? `<td>${row.kind === "stop" ? `<button type="button" class="btn ${isStart ? "btn-sun" : "btn-ghost"} btn-small" data-act="optimizer-anchor" data-date="${esc(date)}" data-tech="${esc(techId)}" data-id="${esc(row.id)}">${isStart ? "Starting here" : "Start here"}</button>` : ""}</td>` : ""}
+                ${allowAnchor ? `<td>${row.kind === "stop" ? `<button type="button" class="btn ${isStart ? "btn-sun" : "btn-ghost"} btn-small" data-act="optimizer-anchor" data-date="${esc(date)}" data-tech="${esc(techId)}" data-id="${esc(row.id)}">${isStart ? "Starts here" : "Start here"}</button>` : ""}</td>` : ""}
               </tr>`;
             }).join("")}
           </tbody>
@@ -6153,21 +6189,18 @@
     ).filter((s) => s.id);
     const originalTimeline = optimizerTimeline(route.techId, originalStops, true);
     const optimizedTimeline = optimizerTimeline(route.techId, optimizedStops, true);
-    const unreachable = (route.unreachableIds || []).map((id) => optimizerResolveStop(preview, id)).filter((s) => s.id);
     const nOpt = optimizedStops.length;
     const nOrig = originalStops.length;
     return `
       <section class="opt-day-block" data-opt-day="${esc(route.date)}">
         <h4>${esc(route.day)} · ${esc(fmtUsDate(route.date))} · ${nOpt} stop${nOpt === 1 ? "" : "s"}</h4>
-        <p class="tiny">${esc(fmtHours(route.afterDrive))} drive · ${esc(money(route.production))} production · ${esc(fmtHours(route.serviceMin))} at properties · starts and ends at ${esc(techBy(route.techId)?.home || "home")}. Home start/end are travel, not jobs.</p>
-        ${nOrig !== nOpt || unreachable.length ? `<p class="tiny">${nOrig} on the current book${unreachable.length ? ` · ${unreachable.length} did not fit this day’s limit` : ""}.</p>` : ""}
+        <p class="tiny">${esc(fmtHours(route.afterDrive))} driving · ${esc(fmtHours(route.serviceMin))} on site · starts and ends at ${esc(techBy(route.techId)?.home || "home")}.</p>
         <h5>Proposed order</h5>
         ${optimizerOrderTable(optimizedTimeline, route.date, route.techId, allowAnchor)}
         <details class="opt-prior-order">
-          <summary>Order before this run · ${nOrig} stop${nOrig === 1 ? "" : "s"}</summary>
+          <summary>Current order · ${nOrig} stop${nOrig === 1 ? "" : "s"}</summary>
           ${optimizerOrderTable(originalTimeline, route.date, route.techId, false)}
         </details>
-        ${unreachable.length ? `<div class="notice locked section-gap"><strong>Did not fit the day limit</strong><p class="tiny">These stay on the current book if you commit. They are not deleted.</p>${unreachable.map((s) => `<div>${esc(stopLabel(s))} · ${fmtClockTime(s.time)}</div>`).join("")}</div>` : ""}
       </section>`;
   }
   function optimizerTechDetail(group) {
@@ -6177,7 +6210,7 @@
     const n = group.jobsOpt;
     return `
       <div class="opt-tech-detail">
-        <p class="tiny opt-tech-total"><strong>${n} stop${n === 1 ? "" : "s"}</strong> for ${esc(techName(group.techId))} across ${esc(days.map((r) => `${r.day} (${r.optimized.length})`).join(" · "))}. Numbers above are this total — each day is listed in full below.${allowAnchor ? " <strong>Start here</strong> on a stop resequences the rest of that day from that point." : ""}</p>
+        <p class="tiny opt-tech-total"><strong>${n} stop${n === 1 ? "" : "s"}</strong> for ${esc(techName(group.techId))} · ${esc(days.map((r) => `${r.day} (${r.optimized.length})`).join(" · "))}.${allowAnchor ? " Use <strong>Start here</strong> if a stop has to stay first; the rest of that day is reordered from that point." : ""}</p>
         ${days.map((route) => optimizerDaySection(preview, route, allowAnchor)).join("")}
       </div>`;
   }
@@ -6190,10 +6223,18 @@
 
   function viewOptimizerSetup() {
     return `
-      ${head("Route optimizer", "Calculate a proposed stop order. It is saved as a draft. The live schedule and trapper phones do not change until you commit.")}
+      ${head("Route optimizer", "Reorder stops already on the book so trappers drive less. Nothing changes on phones until you commit.")}
       ${writeBar("schedule.optimize", "Optimize routes")}
       ${optimizerNav("setup")}
-      <div class="notice">This is not Best Fit. Best Fit (on the map) picks who should own a new customer. This screen only sequences work that is already assigned.</div>
+      <div class="card opt-section">
+        <h3>How it works</h3>
+        <ol class="opt-steps">
+          <li>Pick the dates and which trappers to include.</li>
+          <li>Run it. You get a proposed stop order and estimated drive time.</li>
+          <li>If it looks right, commit. That is what updates the live schedule and trapper phones.</li>
+        </ol>
+        <p class="tiny">This does not assign new customers. Best Fit on Dispatch still does that. Shared properties stay with the trapper who already has them.</p>
+      </div>
       <div class="card opt-section">
         <h3>Dates and trappers</h3>
         <div class="opt-fields">
@@ -6201,40 +6242,17 @@
           <div class="field"><label for="opt-end">Through</label><input id="opt-end" type="date" value="${esc(DAY_DATES.Wed)}"></div>
           <div class="field"><label for="opt-tech">Trappers</label><select id="opt-tech"><option value="all">All trappers</option>${TECHS.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select></div>
         </div>
-        <p class="tiny">Demo week is Mon 08/24–Fri 08/28/2026.</p>
+        <p class="tiny">Demo week is Mon Aug 24 – Fri Aug 28, 2026.</p>
       </div>
       <div class="card opt-section">
-        <h3>What the optimizer may change</h3>
-        <label class="check-row"><input id="opt-keep-date" type="checkbox" checked> Keep each stop on its current day — only change the order that day. Uncheck to let a stop move to another day in the range.</label>
-        <label class="check-row"><input id="opt-keep-tech" type="checkbox" checked> Keep each stop on its current trapper — only reorder that trapper’s book. Uncheck to hand a stop to a closer trapper for those dates.</label>
-      </div>
-      <div class="card opt-section">
-        <details class="opt-limits">
-          <summary>
-            <strong>Day limits</strong>
-            <span class="tiny">Optional — leave closed unless a trapper must not be overloaded</span>
-          </summary>
-          <p class="tiny opt-limit-lead">These are caps for <em>one trapper on one day</em>. Leave every box blank for no cap (the usual case). If a stop would push the day over a cap, it is left on the current book — labeled “did not fit” — not deleted and not silently squeezed in.</p>
-          <div class="opt-limit-grid opt-limit-main">
-            ${optimizerLimitField("max-jobs", "Max stops that day", "stops", "Hard ceiling. Extra stops stay on the current book.")}
-            ${optimizerLimitField("max-drive", "Max driving that day", "min", "Cap on travel. Useful when a book is already too spread out.")}
-            ${optimizerLimitField("leave-open", "Minutes to keep free", "min", "Buffer at the end of the day for walk-ups and call-ins. The day is treated as shorter by this many minutes.")}
-            ${optimizerLimitField("max-working", "Max whole day", "min", "Time at properties plus driving. Leave blank unless you need a hard finish.")}
-          </div>
-          <details class="opt-more-limits">
-            <summary>More caps (rarely needed)</summary>
-            <div class="opt-limit-grid">
-              ${optimizerLimitField("min-jobs", "Warn if fewer than this many stops", "stops", "Warning only — it does not invent work.")}
-              ${optimizerLimitField("max-service", "Cap on time at properties", "min", "On-site minutes only, not driving.")}
-              ${optimizerLimitField("min-production", "Warn if production is under", "$", "Warning only.")}
-              ${optimizerLimitField("max-production", "Cap production value", "$", "Stops that would go over stay on the current book.")}
-            </div>
-          </details>
-        </details>
+        <h3>What may move</h3>
+        <label class="check-row"><input id="opt-keep-date" type="checkbox" checked> Keep each stop on its current day — only change the driving order that day.</label>
+        <label class="check-row"><input id="opt-keep-tech" type="checkbox" checked> Keep each stop on its current trapper — only reorder that person’s book.</label>
+        <p class="tiny">Uncheck a box only if Rick is okay moving a stop to another day or another trapper in this date range.</p>
       </div>
       <div class="actions opt-actions">
-        <button class="btn btn-primary" data-act="optimizer-run">Start optimization</button>
-        <button class="btn btn-ghost" data-act="optimizer-history">Saved optimizations</button>
+        <button class="btn btn-primary" data-act="optimizer-run">Propose new order</button>
+        <button class="btn btn-ghost" data-act="optimizer-history">Saved runs</button>
       </div>
     `;
   }
@@ -6248,21 +6266,21 @@
     const drifted = optimizerLiveDrifted(preview);
     return `
       ${head(optimizerRunTitle(preview), status === "draft"
-        ? "This is a proposed route. The live schedule and trapper phones still follow the current book."
+        ? "Proposed order only. Phones still follow the current book until you commit."
         : status === "superseded"
-          ? "An older committed run. A newer commit replaced it on the live schedule. This page is the saved copy."
-          : "This run was written to the live schedule. Trappers follow this order unless the book has changed since.")}
+          ? "An older run. A newer commit replaced it on the live schedule."
+          : "This order was written to the live schedule.")}
       ${writeBar("schedule.optimize", "Optimize routes")}
       ${optimizerNav("result")}
       <div class="opt-results-head">
         <div>
-          <p class="tiny">${esc(preview.id)} · ${esc(fmtUsDate(preview.config?.startDate || preview.startDate))} – ${esc(fmtUsDate(preview.config?.endDate || preview.endDate))} · ${esc(optimizerRunTechLabel(preview))} · ${esc(preview.createdBy || "Rick")}</p>
+          <p class="tiny">${esc(fmtUsDate(preview.config?.startDate || preview.startDate))} – ${esc(fmtUsDate(preview.config?.endDate || preview.endDate))} · ${esc(optimizerRunTechLabel(preview))} · ${esc(preview.createdBy || "Rick")}</p>
         </div>
         ${optimizerStatusBadge(preview)}
       </div>
-      ${status === "draft" ? `<div class="notice">Draft — not yet the live schedule. Review the stop order, then commit if this is the book trappers should follow.</div>` : ""}
-      ${status === "committed" && drifted ? `<div class="notice locked">The live schedule has changed since this was committed. You are looking at the saved snapshot, not today’s book.</div>` : ""}
-      ${status === "committed" && !drifted ? `<div class="notice">On the live schedule since ${esc(fmtUsDate(preview.committedAt || TODAY))}. Trapper phones use this stop order for these dates.</div>` : ""}
+      ${status === "draft" ? `<div class="notice">Draft. Review the order, then commit if trappers should follow it.</div>` : ""}
+      ${status === "committed" && drifted ? `<div class="notice locked">The live schedule has changed since this was committed. You are looking at the saved copy.</div>` : ""}
+      ${status === "committed" && !drifted ? `<div class="notice">On the live schedule since ${esc(fmtUsDate(preview.committedAt || TODAY))}.</div>` : ""}
       ${optimizerSummary(preview)}
       <div class="card opt-route-list">
         ${groups.length ? `
@@ -6271,24 +6289,21 @@
               <thead>
                 <tr>
                   <th>Trapper</th>
-                  <th>Stops now → proposed</th>
-                  <th>Did not fit</th>
-                  <th>Time at properties</th>
-                  <th>Drive time</th>
-                  <th>Production</th>
-                  <th>Status</th>
+                  <th>Stops</th>
+                  <th>On site</th>
+                  <th>Drive now → proposed</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>${groups.map(optimizerTechRow).join("")}</tbody>
             </table>
           </div>
-        ` : `<p class="muted">No scheduled stops matched these dates and trappers.</p>`}
+        ` : `<p class="muted">No scheduled stops on these dates for these trappers.</p>`}
       </div>
       <div class="opt-commit-bar">
         ${canCommit ? `
           <div class="opt-commit-explain">
-            <strong>Commit</strong> writes this stop order and times onto the live schedule for these dates. Trapper phones update. Who permanently owns the account does not change unless you unlocked “keep on current trapper.”
+            <strong>Commit</strong> puts this stop order and times on the live schedule. Trapper phones update. Account ownership does not change unless you allowed moving stops to another trapper.
           </div>
           <button class="btn btn-primary" data-act="optimizer-commit">Commit to live schedule</button>
         ` : `<button class="btn btn-ghost" data-act="optimizer-history">Back to saved</button>`}
@@ -6299,7 +6314,7 @@
   function viewOptimizerHistory() {
     const rows = (state.data.optimizerRuns || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     return `
-      ${head("Saved optimizations", "Each run is a snapshot. Drafts do not touch the live schedule. Commit is what the trappers follow.")}
+      ${head("Saved runs", "Drafts do not change the live schedule. Commit is what trappers follow.")}
       ${writeBar("schedule.optimize", "Optimize routes")}
       ${optimizerNav("history")}
       <div class="card opt-history-card">
@@ -6326,7 +6341,7 @@
           </div>`).join("") || `<p class="muted" style="padding:18px 0">No saved optimizations yet. Start one to see it here.</p>`}
       </div>
       <div class="actions opt-actions">
-        <button class="btn btn-primary" data-act="optimizer-new">New optimization</button>
+        <button class="btn btn-primary" data-act="optimizer-new">New run</button>
       </div>
     `;
   }
@@ -6375,7 +6390,6 @@
         techIds: optimizerRunTechIds(run),
         keepDate: true,
         keepTech: true,
-        limits: {},
       },
     };
     state.optimizerScreen = "result";
@@ -6407,26 +6421,12 @@
     let startDate = val("opt-start") || DAY_DATES.Tue;
     let endDate = val("opt-end") || DAY_DATES.Wed;
     if (startDate > endDate) [startDate, endDate] = [endDate, startDate];
-    const numberValue = (id) => {
-      const raw = val(id);
-      return raw === "" ? null : Math.max(0, Number(raw) || 0);
-    };
     return {
       startDate,
       endDate,
       techId: val("opt-tech") || "all",
       keepDate: checked("opt-keep-date"),
       keepTech: checked("opt-keep-tech"),
-      limits: {
-        leaveOpen: numberValue("opt-leave-open"),
-        minJobs: numberValue("opt-min-jobs"),
-        maxJobs: numberValue("opt-max-jobs"),
-        maxService: numberValue("opt-max-service"),
-        maxWorking: numberValue("opt-max-working"),
-        maxDrive: numberValue("opt-max-drive"),
-        minProduction: numberValue("opt-min-production"),
-        maxProduction: numberValue("opt-max-production"),
-      },
     };
   }
 
@@ -6535,11 +6535,9 @@
   function commitOptimizerRun() {
     const preview = state.optimizerPreview;
     if (!optimizerCanCommit(preview)) return;
-    const unreachable = new Set((preview.routes || []).flatMap((r) => r.unreachableIds || []));
     let changed = 0;
     preview.routes.forEach((route) => {
       (route.optimized || []).forEach((item) => {
-        if (unreachable.has(item.id)) return;
         const stop = state.data.stops.find((s) => s.id === item.id);
         if (!stop) return;
         stop.techId = route.techId;
@@ -6555,7 +6553,7 @@
     saveOptimizerRun(preview);
     state.optimizerScreen = "result";
     persist();
-    toast(`${changed} stop${changed === 1 ? "" : "s"} now on the live schedule.${preview.unreachable ? ` ${preview.unreachable} stayed on the current book.` : ""}`);
+    toast(`${changed} stop${changed === 1 ? "" : "s"} now on the live schedule.`);
     render();
   }
 
@@ -8689,7 +8687,7 @@
       ["all", "Everything"],
     ];
     return `
-      ${head("Tasks", "Tom, Rick, and Christy leave tasks for each other on a customer. Open the Bill-To from the task, or create one from the customer page.")}
+      ${head("Tasks", "Tom, Rick, and Christy leave tasks for each other. Customer and property are optional. Creating from a location attaches that property.")}
       ${writeBar("task.create", "Create task")}
       <div class="seg" style="margin-bottom:12px">
         ${filters.map(([id, lab]) => `<button class="${filter === id ? "on" : ""}" data-act="task-filter" data-filter="${id}">${lab}</button>`).join("")}
@@ -9222,7 +9220,6 @@
         techIds: optimizerRunTechIds(run),
         keepDate: true,
         keepTech: true,
-        limits: {},
       };
     }
     return run;

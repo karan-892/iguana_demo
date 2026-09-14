@@ -3926,12 +3926,19 @@ h2 .inline-edit:focus { border-color: var(--line-strong); }
 .opt-setup {
   padding: 20px;
 }
-.opt-fields,
-.opt-limit-grid {
+.opt-fields {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
+.opt-steps {
+  margin: 0 0 8px 18px;
+  padding: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.opt-steps li { margin: 4px 0; }
 .opt-locks {
   display: flex;
   flex-wrap: wrap;
@@ -4653,6 +4660,8 @@ h2 .inline-edit:focus { border-color: var(--line-strong); }
   grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.6fr);
   gap: 12px;
 }
+.overview-svc-row:last-child { border-bottom: 0; padding-bottom: 2px; }
+.overview-svc-row:first-of-type { padding-top: 8px; }
 .cust-hero h2 { font-size: 22px !important; margin: 4px 0 2px !important; }
 .filter-bar { gap: 8px; margin-bottom: 10px; }
 .section-gap { margin-top: 12px; }
