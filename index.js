@@ -2006,7 +2006,7 @@
           <strong>${esc(t.title)}</strong>
           <div class="tiny">
             ${options.hideCustomer ? "" : `${c ? `<button class="btn btn-ghost linkish" data-act="open-customer" data-id="${c.id}">${esc(c.billTo || c.name)}</button>${loc ? ` · ${esc(loc.name)}` : ""} · ` : (loc ? `${esc(loc.name)} · ` : `<span class="muted">No customer</span> · `)}`}
-            Due ${esc(t.due || "—")} · To ${esc(taskAssigneeLabel(t.assignee))} · From ${esc(taskAssigneeLabel(t.createdBy))}
+            Due ${esc(fmtUsDate(t.due))} · To ${esc(taskAssigneeLabel(t.assignee))} · From ${esc(taskAssigneeLabel(t.createdBy))}
           </div>
           ${t.notes ? `<div class="tiny">${esc(t.notes)}</div>` : ""}
         </div>
@@ -4448,7 +4448,7 @@
                 <span class="badge badge-warn">${isMunicipal(c) ? "Municipal · service first" : "Paid · ready"}</span>
                 <strong>${esc(l.name)}</strong>
                 <div class="tiny">${esc(c.billTo || c.name)} · ${esc(l.address || "No address")}</div>
-                <div class="tiny">${esc(program?.name || "Program not selected")}${latestPayment ? ` · Paid ${esc(latestPayment.date)} · ${esc(latestPayment.method || "Payment")}` : ""}</div>
+                <div class="tiny">${esc(program?.name || "Program not selected")}${latestPayment ? ` · Paid ${esc(fmtUsDate(latestPayment.date))} · ${esc(latestPayment.method || "Payment")}` : ""}</div>
               </div>
               <div class="ready-schedule-acts">
                 <button class="icon-btn" data-act="open-location" data-id="${c.id}" data-loc="${l.id}" title="View location" aria-label="View ${esc(l.name)}">${ICONS.eye}</button>
@@ -4511,7 +4511,7 @@
               <div>
                 <span class="badge ${n.severity === "alert" ? "badge-bad" : n.severity === "ok" ? "badge-ok" : "badge-sea"}">${esc(n.type || "INFO")}</span>
                 <strong>${esc(n.title)}</strong>
-                <div class="tiny">${esc(n.date)} · ${esc(n.text)}</div>
+                <div class="tiny">${esc(fmtUsDate(n.date))} · ${esc(n.text)}</div>
               </div>
               <div class="actions">
                 ${n.mtoId ? `<button class="btn btn-ghost" data-act="open-mto" data-id="${n.mtoId}">Open MTO</button>` : n.customerId ? `<button class="btn btn-ghost" data-act="open-customer" data-id="${n.customerId}">Open</button>` : ""}
@@ -4563,7 +4563,7 @@
               <div>
                 <span class="badge badge-bad">${esc(a.failureCode || "FAILED")}</span>
                 <strong>${esc(c?.name || "—")}</strong>${loc ? ` · ${esc(loc.name)}` : ""}
-                <div class="tiny">${esc(a.method || "")}${a.last4 ? " ····" + esc(a.last4) : ""} · ${esc((a.failedAt || "").slice(0, 10))} · external pay → allocate</div>
+                <div class="tiny">${esc(a.method || "")}${a.last4 ? " ····" + esc(a.last4) : ""} · ${esc(fmtUsDate(a.failedAt))} · external pay → allocate</div>
               </div>
               <div class="actions">
                 <button class="btn btn-sun" data-act="contact-autopay" data-id="${c?.id}" data-loc="${a.locationId || ""}">Log contact</button>
@@ -4577,7 +4577,7 @@
               <div>
                 <span class="badge badge-bad">Declined</span>
                 <strong>${esc(c?.name || "—")}</strong>
-                <div class="tiny">${esc(p.date)} · ${esc(p.method)}${p.last4 ? " · " + esc(p.last4) : ""} · ${money(p.amount)}</div>
+                <div class="tiny">${esc(fmtUsDate(p.date))} · ${esc(p.method)}${p.last4 ? " · " + esc(p.last4) : ""} · ${money(p.amount)}</div>
               </div>
               <button class="btn btn-ghost" data-act="open-customer" data-id="${c?.id}">Open Bill-To</button>
             </div>`;
@@ -4598,7 +4598,7 @@
               : `<label class="chk"><input type="checkbox" data-act="renew-toggle" data-id="${row.id}" ${(state.renewPick || []).includes(row.id) ? "checked" : ""}></label>`,
             custBtn(row.customerId, row.name),
             esc(row.locName),
-            row.expires,
+            fmtUsDate(row.expires),
             money(row.amount),
             m.flag,
           ];
@@ -4644,7 +4644,7 @@
           ${due.length ? due.map((i) => {
             const c = custBy(i.customerId);
             return `<div class="fit-row">
-              <div><strong>${esc(i.id)}</strong> · ${custBtn(i.customerId, c?.name || "")}<div class="tiny">${esc(invProperty(i))} · ${money(i.amount)} · bal ${money(invoiceBalance(i))} · ${esc(invoiceFinStatus(i))} · sent ${esc(i.sent || "—")}</div></div>
+              <div><strong>${esc(i.id)}</strong> · ${custBtn(i.customerId, c?.name || "")}<div class="tiny">${esc(invProperty(i))} · ${money(i.amount)} · bal ${money(invoiceBalance(i))} · ${esc(invoiceFinStatus(i))} · sent ${esc(fmtUsDate(i.sent))}</div></div>
               <button class="btn btn-ghost" data-act="open-customer" data-id="${c?.id}">Open property</button>
             </div>`;
           }).join("") : `<p class="muted">No open invoices.</p>`}
@@ -5282,7 +5282,7 @@
         <ul class="activity-list">
           ${items.slice(0, 16).map((x) => `
             <li>
-              <time>${esc(fmtPrettyDate(String(x.date || "").slice(0, 10)) || x.date || "—")}</time>
+              <time>${esc(fmtUsDate(x.date))}</time>
               <i class="act-dot ${esc(x.kind)}"></i>
               <div><div class="act-kind">${esc(x.kind === "internal" ? "Internal" : x.kind === "customer" ? "Customer" : "System")}</div>${esc(x.label)} — ${esc(x.text)}</div>
             </li>`).join("") || `<li><div class="muted">No activity yet.</div></li>`}
@@ -5462,7 +5462,7 @@
                     </td>
                     <td>${esc(s.techId ? techName(s.techId) : "Unassigned")}</td>
                     <td>${esc(s.days || "—")}</td>
-                    <td>${esc(s.start || "—")} → ${esc(s.expires || s.cancelDate || "—")}</td>
+                    <td>${esc(fmtUsRange(s.start, s.expires || s.cancelDate))}</td>
                     <td>${svcStatusBadge(s)}</td>
                   </tr>`).join("")}</tbody>
               </table>
@@ -5494,21 +5494,21 @@
             <h3>Billing history</h3>
             <dl class="kv section-gap">
               <dt>Program</dt><dd>${esc(prog?.name || "—")}${can("payment.viewAmount") && plan.amount ? ` · ${money(plan.amount)}` : ""}</dd>
-              <dt>Plan dates</dt><dd>${esc(plan.start || "—")} → ${esc(plan.expires || "—")}</dd>
+              <dt>Plan dates</dt><dd>${esc(fmtUsRange(plan.start, plan.expires))}</dd>
             </dl>
             ${invoices.length || locationPayments.length ? `
               <table class="mini-table location-history-table">
                 <thead><tr><th>Date</th><th>Record</th><th>Amount</th><th>Method</th><th>Status</th></tr></thead>
                 <tbody>
                   ${invoices.map((i) => `<tr>
-                    <td>${esc(i.date || i.due || "—")}</td>
+                    <td>${esc(fmtUsDate(i.date || i.due))}</td>
                     <td>${invoiceBtn(i.id)}<div class="tiny">${esc(invKindLabel(i.kind))} invoice</div></td>
                     <td>${can("payment.viewAmount") ? money(i.amount) : "—"}</td>
                     <td>—</td>
                     <td>${statusBadge(invoiceFinStatus(i))}</td>
                   </tr>`).join("")}
                   ${locationPayments.map((p) => `<tr>
-                    <td>${esc(p.date || "—")}</td>
+                    <td>${esc(fmtUsDate(p.date))}</td>
                     <td>${esc(p.id)}<div class="tiny">Payment</div></td>
                     <td>${can("payment.viewAmount") ? money(p.amount) : "—"}</td>
                     <td>${esc(p.method || p.source || "—")}</td>
@@ -5623,13 +5623,13 @@
                 </div>
                 <div class="tiny">${esc(l.address)}</div>
                 <div class="tiny">GPS ${esc(gps)}${l.subdivision ? ` · ${esc(l.subdivision)}` : ""}</div>
-                <div class="tiny"><strong>Contract</strong> ${ct ? `${esc(ct.id)} · ${esc(ct.program || "")} · ${esc(ct.startDate || "")} → ${esc(ct.endDate || "")}` : "None yet"}</div>
+                <div class="tiny"><strong>Contract</strong> ${ct ? `${esc(ct.id)} · ${esc(ct.program || "")} · ${esc(fmtUsRange(ct.startDate, ct.endDate))}` : "None yet"}</div>
                 <div class="tiny"><strong>Billing plan</strong> ${esc(billingPlanLabel(l))}${onAutopay ? " · AutoPay charges & allocates overnight — Christy does not mark those lines" : ""}</div>
                 ${apaFail ? `<div class="tiny" style="color:var(--bad,#b42318)">Declined: call them, take external pay, allocate, then generate the next period by hand. Rick can stop service if they won’t pay.</div>` : ""}
                 ${billingPeriodLabel(l) ? `<div class="tiny">${esc(billingPeriodLabel(l))}</div>` : ""}
                 ${periods.length ? `<div class="tiny" style="margin-top:6px"><strong>Periods</strong></div>
                   <table class="mini-table"><thead><tr><th>#</th><th>Dates</th><th>Amt</th><th>Inv</th><th>Status</th></tr></thead><tbody>
-                  ${periods.map((p) => `<tr><td>${p.sequence}</td><td>${esc(p.periodStart)} → ${esc(p.periodEnd)}</td><td>${money(p.amount)}</td><td>${esc(p.invoiceId || "—")}</td><td>${esc(p.status)}</td></tr>`).join("")}
+                  ${periods.map((p) => `<tr><td>${p.sequence}</td><td>${esc(fmtUsRange(p.periodStart, p.periodEnd))}</td><td>${money(p.amount)}</td><td>${esc(p.invoiceId || "—")}</td><td>${esc(p.status)}</td></tr>`).join("")}
                   </tbody></table>` : ""}
                 <div class="tiny" style="margin-top:6px"><strong>Invoices</strong> ${invs.length ? invs.map((i) => {
                   const st = invoiceFinStatus(i);
@@ -5643,12 +5643,12 @@
                     <table class="mini-table"><thead><tr><th>Date</th><th>Amt</th><th>Alloc</th><th>Method</th><th>Status</th></tr></thead><tbody>
                     ${locPays.slice(0, 5).map((p) => {
                       const st = p.failed ? "Failed" : payNeedsMark(p) ? "Awaiting" : "Allocated";
-                      return `<tr><td>${esc(p.date)}</td><td>${money(p.amount)}</td><td>${money(paymentAllocatedAmount(p.id))}</td><td>${esc(p.method || "—")}</td><td>${esc(st)}</td></tr>`;
+                      return `<tr><td>${esc(fmtUsDate(p.date))}</td><td>${money(p.amount)}</td><td>${money(paymentAllocatedAmount(p.id))}</td><td>${esc(p.method || "—")}</td><td>${esc(st)}</td></tr>`;
                     }).join("")}
                     </tbody></table>
                     ${locPays.length > 5 ? `<div class="tiny">+${locPays.length - 5} more on Bill-To payment history below</div>` : ""}`;
                 })()}
-                <div class="tiny">Quote: ${q?.sent ? `Sent ${esc(q.date || "")}` : "Not yet"} · Plan dates: ${plan.programId ? `${esc(prog?.name || plan.programId)}${showProgramPrice ? ` · ${money(plan.amount)}` : ""}${plan.start ? ` · ${esc(plan.start)} → ${esc(plan.expires || "—")}` : ""}` : (q?.sent ? "On quote" : "No plan yet")}</div>
+                <div class="tiny">Quote: ${q?.sent ? `Sent ${esc(fmtUsDate(q.date))}` : "Not yet"} · Plan dates: ${plan.programId ? `${esc(prog?.name || plan.programId)}${showProgramPrice ? ` · ${money(plan.amount)}` : ""}${plan.start ? ` · ${esc(fmtUsRange(plan.start, plan.expires))}` : ""}` : (q?.sent ? "On quote" : "No plan yet")}</div>
                 <div class="tiny">${svcs.length ? svcs.map((s) => {
                   const sch = SERVICE_SCHEDULES.find((x) => x.id === s.schedule)?.label || s.days || "—";
                   const label = s.techId ? `${techName(s.techId)} · ${sch}` : `Setup · ${sch}`;
@@ -5763,7 +5763,7 @@
                   <td>${esc(svcTypeLabel(s.type))}</td>
                   <td>${esc(s.techId ? techName(s.techId) : "Unassigned")}</td>
                   <td>${esc(sch)} · ${s.durationMin || "—"}m</td>
-                  <td class="tiny">${esc(s.start || "—")} → ${esc(s.expires || "—")}</td>
+                  <td class="tiny">${esc(fmtUsRange(s.start, s.expires))}</td>
                   <td>${svcStatusBadge(s)}</td>
                   <td>${live && canEdit
                     ? `<div class="actions">
@@ -5857,7 +5857,7 @@
         acts.push(`<button class="btn btn-ghost" data-act="edit-memo" data-id="${p.id}">Memo</button>`);
       }
       return [
-        esc(p.date),
+        esc(fmtUsDate(p.date)),
         esc(loc?.name || "—"),
         esc(p.invoiceId || "—"),
         money(p.amount),
@@ -5903,7 +5903,7 @@
         <div class="timeline" data-keep-scroll="billing-tl">
           ${rows.map((t) => `
               <div class="tl-item">
-                <div class="when">${esc(t.when)}</div>
+                <div class="when">${esc(fmtUsDate(t.when))}</div>
                 <div class="tl-rail"><i class="${t.kind === "bad" ? "bad" : t.kind === "warn" ? "warn" : ""}"></i></div>
                 <div>${esc(t.text)}</div>
               </div>
@@ -5919,7 +5919,7 @@
       <div class="card comm-log-card">
         <h3>Communication log</h3>
         <div class="comm-log-list" data-keep-scroll="comm-log">
-          ${items.map((x) => `<div class="comm-item"><strong>${esc(x.who)}</strong> · ${esc(x.channel)} · ${esc(x.date)}<div>${esc(x.text)}</div></div>`).join("") || `<p class="muted">No correspondence yet.</p>`}
+          ${items.map((x) => `<div class="comm-item"><strong>${esc(x.who)}</strong> · ${esc(x.channel)} · ${esc(fmtUsDate(x.date))}<div>${esc(x.text)}</div></div>`).join("") || `<p class="muted">No correspondence yet.</p>`}
         </div>
         ${state.role !== "tech" ? `
           <div class="comm-log-compose">
@@ -5940,7 +5940,7 @@
       const programCell = !q.sent && can("quote.send")
         ? `<span class="tiny">Not sent</span>`
         : (q.programId ? (progBy(q.programId)?.name || "—") : (q.sent ? "Programs listed — awaiting choice" : "—"));
-      return [q.id, custBtn(q.customerId, c?.billTo || c?.name || "—"), esc(quotePropertyLabel(q)), programCell, q.sent ? statusBadge("sent") : statusBadge("draft"), q.date,
+      return [q.id, custBtn(q.customerId, c?.billTo || c?.name || "—"), esc(quotePropertyLabel(q)), programCell, q.sent ? statusBadge("sent") : statusBadge("draft"), fmtUsDate(q.date),
         q.sent ? (q.programId ? "Client chose" : "Waiting on client") : btn("quote.send", "Preview & send", "send-quote", `data-id="${q.customerId}"`)];
     });
     return `
@@ -5961,7 +5961,7 @@
       <div class="notice">Covering a day moves those visits off the original trapper. It does not copy them. Monday/Wednesday standing routes stay put. Cypress-style split days are already two standing services.</div>
       <div class="seg" style="margin-bottom:10px">
         <button class="${!day ? "on" : ""}" data-act="sched-day" data-day="">All days</button>
-        ${DAYS.map((d) => `<button class="${day === d ? "on" : ""}" data-act="sched-day" data-day="${d}">${d}<span class="tiny" style="margin-left:6px">${DAY_DATES[d].slice(5)}</span></button>`).join("")}
+        ${DAYS.map((d) => `<button class="${day === d ? "on" : ""}" data-act="sched-day" data-day="${d}">${d}<span class="tiny" style="margin-left:6px">${fmtUsMonthDay(DAY_DATES[d])}</span></button>`).join("")}
       </div>
       <div class="filter-bar list-filter-bar">
         <select data-act="sched-tech">
@@ -5984,18 +5984,31 @@
     const pad = (n) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
-  function fmtUsDate(iso) {
-    const s = String(iso || "").slice(0, 10);
-    const [y, m, d] = s.split("-");
-    if (!d) return iso || "—";
-    return `${m}/${d}/${y}`;
+  function fmtUsDate(raw) {
+    const text = String(raw == null ? "" : raw).trim();
+    if (!text || text === "—") return "—";
+    const ym = text.match(/^(\d{4})-(\d{2})$/);
+    if (ym) return `${ym[2]}/${ym[1]}`;
+    const m = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (!m) return text;
+    const date = `${m[2]}/${m[3]}/${m[1]}`;
+    if (m[4] == null) return date;
+    let hour = Number(m[4]);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    hour = hour % 12 || 12;
+    return `${date} ${hour}:${m[5]} ${ampm}`;
+  }
+  function fmtUsRange(start, end) {
+    return `${fmtUsDate(start)} → ${fmtUsDate(end)}`;
+  }
+  function fmtUsMonthDay(iso) {
+    const text = String(iso || "").slice(0, 10);
+    const parts = text.split("-");
+    if (parts.length !== 3 || !parts[2]) return iso || "—";
+    return `${parts[1]}/${parts[2]}`;
   }
   function fmtPrettyDate(iso) {
-    const s = String(iso || "").slice(0, 10);
-    const [y, m, d] = s.split("-").map(Number);
-    if (!d) return iso || "—";
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return `${months[m - 1]} ${d}, ${y}`;
+    return fmtUsDate(iso);
   }
   function fmtStartTime(raw) {
     const text = String(raw || "");
@@ -6487,7 +6500,7 @@
   function runOptimizer(config, existingId) {
     const dates = optimizerDates(config.startDate, config.endDate);
     if (!dates.length) {
-      toast("Choose dates in the demo week: 24–28 Aug 2026.");
+      toast("Choose dates in the demo week: 08/24/2026 – 08/28/2026.");
       return;
     }
     const preview = buildOptimizerPreview(config);
@@ -7417,7 +7430,7 @@
       <div class="split">
         <div class="card">
           <h3>Master calendar · OPS-12a / OPS-13</h3>
-          <p class="muted">Block a date company-wide. The engine will not schedule anyone. This week’s board is 24–28 Aug 2026 — block Friday to see it live.</p>
+          <p class="muted">Block a date company-wide. The engine will not schedule anyone. This week’s board is 08/24/2026 – 08/28/2026 — block Friday to see it live.</p>
           <div class="ns-form-row">
             <div class="field"><label>Date</label><input id="bo-date" type="date" value="2026-08-28"></div>
             <div class="field"><label>Type</label>
@@ -7429,13 +7442,13 @@
           </div>
           <div class="field"><label>Reason</label><input id="bo-reason" placeholder="Company meeting, Thanksgiving, July 4th…"></div>
           ${btn("blackout.edit", "Block this date", "add-blackout")}
-          ${thisWeekBlocked.length ? `<p class="tiny" style="margin-top:8px">This week excluded: ${thisWeekBlocked.map((d) => `${d} ${DAY_DATES[d]}`).join(", ")}.</p>` : ""}
+          ${thisWeekBlocked.length ? `<p class="tiny" style="margin-top:8px">This week excluded: ${thisWeekBlocked.map((d) => `${d} ${fmtUsDate(DAY_DATES[d])}`).join(", ")}.</p>` : ""}
           ${blocks.length ? `
             <table class="mini-table" style="width:100%;margin-top:12px">
               <thead><tr><th>Date</th><th>Kind</th><th>Reason</th><th></th></tr></thead>
               <tbody>
                 ${blocks.map((b) => `<tr>
-                  <td>${esc(b.date)}${DAYS.find((d) => DAY_DATES[d] === b.date) ? ` <span class="tiny">· this week</span>` : ""}</td>
+                  <td>${esc(fmtUsDate(b.date))}${DAYS.find((d) => DAY_DATES[d] === b.date) ? ` <span class="tiny">· this week</span>` : ""}</td>
                   <td>${esc(b.kind === "holiday" ? "Holiday" : "Meeting")}</td>
                   <td>${esc(b.reason)}</td>
                   <td>${btn("blackout.edit", "Remove", "remove-blackout", `data-kind="${esc(b.kind)}" data-date="${esc(b.date)}"`, "btn-ghost")}</td>
@@ -7452,7 +7465,7 @@
               <select id="ns-tech">${TECHS.map((t) => `<option value="${t.id}" ${t.id === "johnny" ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select>
             </div>
             <div class="field"><label>Day</label>
-              <select id="ns-day">${DAYS.map((d) => `<option value="${d}" ${d === "Thu" ? "selected" : ""}>${d} ${DAY_DATES[d]}</option>`).join("")}</select>
+              <select id="ns-day">${DAYS.map((d) => `<option value="${d}" ${d === "Thu" ? "selected" : ""}>${d} ${fmtUsDate(DAY_DATES[d])}</option>`).join("")}</select>
             </div>
           </div>
           <div class="field"><label>Reason</label>
@@ -7525,7 +7538,7 @@
     const rows = state.data.stops
       .filter((s) => s.removals && s.removals.count > 0)
       .map((s) => {
-        return [DAY_DATES[s.day] || s.day, stopLabel(s), techName(s.techId), s.removals.count, s.removals.weight + " lb"];
+        return [fmtUsDate(DAY_DATES[s.day] || s.day), stopLabel(s), techName(s.techId), s.removals.count, s.removals.weight + " lb"];
       });
     return `
       ${head("Monthly removal report", "Only days with actual removals. Zero-catch visits stay off this list.")}
@@ -7635,7 +7648,7 @@
           <div class="card wl-day section-gap">
             <div class="wl-day-head">
               <div>
-                <h3>${g.day} · ${MONTHS[new Date(`${g.date}T12:00:00`).getMonth()]} ${Number(g.date.slice(8))}</h3>
+                <h3>${g.day} · ${esc(fmtUsDate(g.date))}</h3>
                 <p class="tiny">${g.list.length} stop${g.list.length === 1 ? "" : "s"} · ${fmtHours(g.onSite)} on site · ${g.window}</p>
               </div>
               ${loadBadge(g.onSite)}
@@ -7687,7 +7700,7 @@
       const bal = invoiceBalance(i);
       let act = "";
       if (i.status === "draft") act = btn("invoice.send", "Preview & send", "send-invoice", `data-id="${i.id}"`);
-      else if (st === "PAID") act = `<span class="tiny">Paid ${esc(i.paidOn || "")}</span>`;
+      else if (st === "PAID") act = `<span class="tiny">Paid ${esc(fmtUsDate(i.paidOn))}</span>`;
       else act = btn("payment.post", "Post invoice", "open-record-pay", `data-id="${i.id}"`);
       return [
         i.id ? invoiceBtn(i.id) : "—",
@@ -7700,7 +7713,7 @@
         money(bal),
         statusBadge(st),
         esc(invKindLabel(i.kind)),
-        i.sent || "—",
+        i.sent ? fmtUsDate(i.sent) : "—",
         act,
       ];
     });
@@ -7762,7 +7775,7 @@
           ? `<span class="badge badge-warn">Needs posting</span>`
           : `<span class="badge badge-ok">Posted</span>`;
       return [
-        p.date,
+        p.date ? fmtUsDate(p.date) : "—",
         c ? `<button class="btn btn-ghost linkish" data-act="open-pay-row" data-id="${p.id}">${esc(c.billTo || c.name)}</button>` : "—",
         esc(p.method || "—"),
         p.invoiceId ? invoiceBtn(p.invoiceId) : "—",
@@ -7814,7 +7827,7 @@
   function payFilterLabel(filter) {
     const map = { today: "Today", week: "This week", month: "This month", prev: "Previous month", all: "All dates" };
     const r = payFilterRange(filter);
-    return `${map[filter] || "This month"} (${r.from} → ${r.to})`;
+    return `${map[filter] || "This month"} (${fmtUsDate(r.from)} → ${fmtUsDate(r.to)})`;
   }
   function paymentsInFilter(filter) {
     const r = payFilterRange(filter || state.payFilter || "month");
@@ -8224,7 +8237,7 @@
         ${c
           ? `<button class="btn btn-ghost linkish" data-act="open-pay-row" data-id="${p.id}">${esc(c.billTo || c.name)}</button>`
           : `<strong>${esc(p.memo || "—")}</strong>`}
-        <div class="tiny">${esc(p.date)} · ${esc(src)} · ${esc(p.method || "")}${p.last4 ? " · ····" + esc(p.last4) : ""} · ${money(p.amount)} · alloc ${money(paymentAllocatedAmount(p.id))} · ${p.invoiceId ? esc(p.invoiceId) + " · " : ""}${esc(p.memo || "")}</div>
+        <div class="tiny">${esc(fmtUsDate(p.date))} · ${esc(src)} · ${esc(p.method || "")}${p.last4 ? " · ····" + esc(p.last4) : ""} · ${money(p.amount)} · alloc ${money(paymentAllocatedAmount(p.id))} · ${p.invoiceId ? esc(p.invoiceId) + " · " : ""}${esc(p.memo || "")}</div>
       </div>
       ${c
         ? needs && can("payment.post")
@@ -8275,11 +8288,11 @@
         ? statusBadge("sent")
         : `<span class="badge badge-mute">Ready</span>`;
       const act = alreadySent
-        ? `<span class="tiny">Sent ${esc((existing.sentAt || "").slice(0, 10))}</span>`
+        ? `<span class="tiny">Sent ${esc(fmtUsDate(existing.sentAt))}</span>`
         : `<button class="btn btn-ghost" data-act="review-renewal" data-id="${row.id}">Review / edit</button>`;
       const proposed = existing?.proposedText || renewalProposedText(row, pickProgram);
       const planCell = `${esc(progBy(pickProgram)?.name || pickProgram || "—")}<div class="tiny">${esc(proposed)}</div>`;
-      return [send, custBtn(row.customerId, row.name), esc(row.locName), row.expires, m.window, money(existing?.amount != null ? existing.amount : row.amount), planCell, m.flag, status, act];
+      return [send, custBtn(row.customerId, row.name), esc(row.locName), fmtUsDate(row.expires), m.window, money(existing?.amount != null ? existing.amount : row.amount), planCell, m.flag, status, act];
     });
     const pickable = candidates.filter((row) => {
       const ct = contractForLoc(row.customerId, row.locationId);
@@ -8406,7 +8419,7 @@
           ? `<button class="btn btn-ghost linkish" data-act="open-location" data-id="${esc(b.customerId)}" data-loc="${esc(b.locationId)}">${esc(loc.address || loc.name)}</button>`
           : "—"}</dd>
         <dt>Invoice</dt><dd>${invoiceBtn(b.invoiceId)}${inv ? ` · ${esc(invKindLabel(inv.kind))}` : ""}</dd>
-        <dt>Payment</dt><dd>${esc(b.paymentId || "—")}${pay ? ` · ${esc(pay.method || "")} · ${esc(pay.date || "")}` : ""}</dd>
+        <dt>Payment</dt><dd>${esc(b.paymentId || "—")}${pay ? ` · ${esc(pay.method || "")} · ${esc(fmtUsDate(pay.date))}` : ""}</dd>
         <dt>Renewal</dt><dd>${esc(b.renewalLabel || renewalLabelForInvoice(inv))}</dd>
         <dt>Qualifying payment</dt><dd>${money2(b.paymentAmount || 0)}</dd>
         <dt>Bonus rate</dt><dd>${esc(String(b.rate || bonusRate()))}%</dd>
@@ -8520,7 +8533,7 @@
       wide: true,
       html: `
         <h3>${esc(inv.id)}</h3>
-        <p class="tiny">${esc(invKindLabel(inv.kind))} · ${statusBadge(st)} · sent ${esc(inv.sent || "—")}${inv.paidOn ? ` · paid ${esc(inv.paidOn)}` : ""}</p>
+        <p class="tiny">${esc(invKindLabel(inv.kind))} · ${statusBadge(st)} · sent ${esc(fmtUsDate(inv.sent))}${inv.paidOn ? ` · paid ${esc(fmtUsDate(inv.paidOn))}` : ""}</p>
         <div class="invoice-sheet">
           <p>Bill-To ${esc(c?.billTo || c?.name || "—")}</p>
           <p>Property ${esc(loc?.name || "—")} · ${esc(loc?.address || "")}</p>
@@ -8534,13 +8547,13 @@
             : "—"}</dd>
           <dt>Invoice type</dt><dd>${esc(invKindLabel(inv.kind))}${renewal ? " · trapper bonus eligible" : ""}</dd>
           <dt>Amount</dt><dd>${money2(inv.amount)} · paid ${money2(allocated(inv.id))} · balance ${money2(invoiceBalance(inv))}</dd>
-          <dt>Contract</dt><dd>${ct ? `${esc(ct.id)} · ${esc(ct.program || "")}<div class="tiny">${esc(ct.startDate || "—")} → ${esc(ct.endDate || "—")} · ${esc(ct.status || "")}</div>` : "None linked"}</dd>
+          <dt>Contract</dt><dd>${ct ? `${esc(ct.id)} · ${esc(ct.program || "")}<div class="tiny">${esc(fmtUsRange(ct.startDate, ct.endDate))} · ${esc(ct.status || "")}</div>` : "None linked"}</dd>
           <dt>Service</dt><dd>${svcs.length
-            ? svcs.map((s) => `${esc(svcTypeLabel(s.type))} · ${esc(s.techId ? techName(s.techId) : "Unassigned")}<div class="tiny">${esc(s.days || "—")} · ${esc(s.start || "—")} → ${esc(s.expires || "—")}</div>`).join("")
+            ? svcs.map((s) => `${esc(svcTypeLabel(s.type))} · ${esc(s.techId ? techName(s.techId) : "Unassigned")}<div class="tiny">${esc(s.days || "—")} · ${esc(fmtUsRange(s.start, s.expires))}</div>`).join("")
             : "No live service on this property"}</dd>
           ${renewal ? `<dt>Renewal</dt><dd>${esc(renewalLabelForInvoice(inv))}</dd>` : ""}
           <dt>Payments</dt><dd>${pays.length
-            ? pays.map((p) => `${esc(p.id)} · ${money2(p.amount)} · ${esc(p.method || "")} · ${esc(p.date || "")} · ${p.failed ? "Failed" : payNeedsMark(p) ? "Needs posting" : "Posted"}`).join("<br>")
+            ? pays.map((p) => `${esc(p.id)} · ${money2(p.amount)} · ${esc(p.method || "")} · ${esc(fmtUsDate(p.date))} · ${p.failed ? "Failed" : payNeedsMark(p) ? "Needs posting" : "Posted"}`).join("<br>")
             : "None yet"}</dd>
           ${renewal ? `<dt>Trapper bonus</dt><dd>${
             bonus
@@ -8613,7 +8626,7 @@
         ${d.note ? `<div class="tiny doc-note">${esc(d.note)}</div>` : ""}
       </div>
       <div class="doc-meta">
-        <span class="muted">${esc(d.date)}</span>
+        <span class="muted">${esc(fmtUsDate(d.date))}</span>
         ${d.dataUrl || d.fileName ? `<button type="button" class="btn btn-ghost" data-act="view-doc" data-id="${d.id}">View</button>` : `<button type="button" class="btn btn-ghost" data-act="view-doc" data-id="${d.id}">Details</button>`}
         ${showCustomer ? `<button type="button" class="btn btn-ghost" data-act="open-customer" data-id="${d.customerId}">Open account</button>` : ""}
       </div>
@@ -8626,7 +8639,7 @@
       ${head("Communication log", "Calls, emails, and texts on the account — the office can all see them.")}
       ${items.map((x) => {
         const c = custBy(x.customerId);
-        return `<div class="comm-item">${custBtn(x.customerId, c?.name)} · ${esc(x.who)} · ${esc(x.channel)} · ${esc(x.date)}<div>${esc(x.text)}</div></div>`;
+        return `<div class="comm-item">${custBtn(x.customerId, c?.name)} · ${esc(x.who)} · ${esc(x.channel)} · ${esc(fmtUsDate(x.date))}<div>${esc(x.text)}</div></div>`;
       }).join("")}
       ${state.role !== "sales" ? `
         <div class="card section-gap">
@@ -8781,7 +8794,7 @@
       <div class="mto-card-top">
         ${m.read ? "" : `<span class="badge badge-warn">Unread</span>`}
         <span class="badge ${mtoDept(m) === "admin" ? "badge-sea" : "badge-ok"}">${esc(mtoDeptLabel(mtoDept(m)))}</span>
-        <span class="tiny">${esc(m.date)}</span>
+        <span class="tiny">${esc(fmtUsDate(m.date))}</span>
         ${c ? `<button class="btn btn-text" data-act="open-customer" data-id="${c.id}">${esc(c.name)}</button>` : `<span class="tiny">Walk-up</span>`}
       </div>
       <div class="tiny">${esc(place || "Field")}</div>
@@ -8858,7 +8871,7 @@
       return `<div class="fit-row trap-asset-row">
         <div>
           <strong>${esc(trapName(t))}</strong> · ${statusBadge(trapStatusKey(t))}
-          <div class="tiny">${esc(t.serial || "")} · ${esc(trapStatusLabel(t))} · last ${esc(t.lastSeen || "—")}${t.note ? ` · ${esc(t.note)}` : ""} · ${money(t.value || 80)}</div>
+          <div class="tiny">${esc(t.serial || "")} · ${esc(trapStatusLabel(t))} · last ${esc(fmtUsDate(t.lastSeen))}${t.note ? ` · ${esc(t.note)}` : ""} · ${money(t.value || 80)}</div>
           ${opts.fromLocation ? "" : `<div class="tiny" style="margin-top:4px">${locLine}</div>`}
         </div>
         <div class="actions trap-asset-actions">
@@ -9693,7 +9706,7 @@
       (state.data.payments || []).forEach((p) => {
         const blob = [p.id, p.checkNo, p.memo, p.last4, p.method].join(" ").toLowerCase();
         if (blob.includes(needle)) {
-          push({ kind: "Payment", title: p.id, sub: `${money(p.amount)} · ${p.method || ""} · ${p.date || ""}`, act: "open-pay-row", id: p.id });
+          push({ kind: "Payment", title: p.id, sub: `${money(p.amount)} · ${p.method || ""} · ${fmtUsDate(p.date)}`, act: "open-pay-row", id: p.id });
         }
       });
       TECHS.forEach((t) => {
@@ -11193,7 +11206,7 @@
         <strong>${esc(p.name)}</strong>
         <div>Billing: ${commitment.billingFrequency === "monthly" ? "Monthly" : "Upfront"} · Invoice amount: ${money(amount)}${commitment.autoPay ? " · AutoPay recommended" : ""}</div>
         <div>Visit pattern: ${esc(p.freq)}</div>
-        <div>Start ${TODAY} → expires ${expires} <span class="tiny">(calculated from the program)</span></div>
+        <div>Start ${fmtUsDate(TODAY)} → expires ${fmtUsDate(expires)} <span class="tiny">(calculated from the program)</span></div>
         <div class="tiny" style="margin-top:6px">${esc(billing)}</div>
       </div>
     `;
@@ -11451,7 +11464,7 @@
       return `<div class="fit-row" style="align-items:flex-start">
         <div>
           <strong>${esc(row.name)}</strong> · ${esc(row.locName)}
-          <div class="tiny">Expires ${esc(row.expires)} · ${esc(progBy(programId)?.name || programId || "—")} · ${money(amount)}</div>
+          <div class="tiny">Expires ${esc(fmtUsDate(row.expires))} · ${esc(progBy(programId)?.name || programId || "—")} · ${money(amount)}</div>
           <div class="tiny">${esc(proposed)}</div>
         </div>
       </div>`;
@@ -11508,7 +11521,7 @@
         <h3>Review renewal · ${esc(row.locName)}</h3>
         <p>Choose the renewal program (can differ from the current plan), edit terms, then send. AutoPay is <strong>not</strong> charged on send.</p>
         <div class="preview">
-          <strong>${esc(row.name)}</strong> · ${esc(row.locName)} · expires ${esc(row.expires)}
+          <strong>${esc(row.name)}</strong> · ${esc(row.locName)} · expires ${esc(fmtUsDate(row.expires))}
           <div class="tiny">Current program: ${esc(currentName)} · ${esc(m.flag)}</div>
         </div>
         <div class="field req"><label>Renewal program</label>
@@ -12132,7 +12145,7 @@
       loc.techId = null;
     }
     if (c) {
-      c.opsNote = [c.opsNote, `Service stopped ${TODAY}: ${reason}`].filter(Boolean).join(" ");
+      c.opsNote = [c.opsNote, `Service stopped ${fmtUsDate(TODAY)}: ${reason}`].filter(Boolean).join(" ");
       const stillLive = (c.locations || []).some((l) => {
         const s = svcFor(c.id, l.id);
         return s && svcIsContinuing(s);
@@ -13670,7 +13683,7 @@
         wide: true,
         html: `
           <h3>${esc(d.name)}</h3>
-          <p class="tiny">${custBtn(d.customerId, c?.billTo || c?.name || "—")} · ${esc(d.by)} · ${esc(d.date)}${d.size ? ` · ${fmtDocSize(d.size)}` : ""}</p>
+          <p class="tiny">${custBtn(d.customerId, c?.billTo || c?.name || "—")} · ${esc(d.by)} · ${esc(fmtUsDate(d.date))}${d.size ? ` · ${fmtDocSize(d.size)}` : ""}</p>
           ${d.note ? `<p class="tiny">${esc(d.note)}</p>` : ""}
           <div class="doc-view-frame"><img src="${d.dataUrl}" alt="${esc(d.name)}"></div>
           <div class="actions" style="margin-top:12px">
@@ -13702,7 +13715,7 @@
     state.modal = {
       html: `
         <h3>${esc(d.name)}</h3>
-        <p class="tiny">${docKindBadge(d.kind)} · ${custBtn(d.customerId, c?.billTo || c?.name || "—")} · ${esc(d.by)} · ${esc(d.date)}</p>
+        <p class="tiny">${docKindBadge(d.kind)} · ${custBtn(d.customerId, c?.billTo || c?.name || "—")} · ${esc(d.by)} · ${esc(fmtUsDate(d.date))}</p>
         ${d.note ? `<p>${esc(d.note)}</p>` : ""}
         <div class="notice">This is a sample placeholder — no real file behind it. Attach a new one with <strong>Choose file…</strong> if you want to open or download it.</div>
         <div class="actions" style="margin-top:12px"><button class="btn btn-primary" data-act="close-modal">Close</button></div>
@@ -13882,7 +13895,7 @@
         ? `<h3>${esc(name)}</h3><div class="preview">${sample}</div><button class="btn btn-primary" data-act="close-modal">Looks right</button>`
         : visit
           ? `<h3>${esc(name)}</h3><div class="preview">Hi Diane Walsh,<br>A technician is scheduled Friday 07:30 at Riverside Park.<br><br>This is an automated message from Iguana Control. You cannot reply to this text or email.</div><button class="btn btn-primary" data-act="close-modal">Looks right</button>`
-          : `<h3>${esc(name)}</h3><div class="preview"><strong>Subject: Sarah Chen · C-1091 · renewal</strong><br><br>Hello Sarah Chen,<br>Account C-1091 expires 24 Sep 2026.<br><br>Your iguana removal program is ready to renew.<br>— Iguana Control</div><button class="btn btn-primary" data-act="close-modal">Looks right</button>`,
+          : `<h3>${esc(name)}</h3><div class="preview"><strong>Subject: Sarah Chen · C-1091 · renewal</strong><br><br>Hello Sarah Chen,<br>Account C-1091 expires 09/24/2026.<br><br>Your iguana removal program is ready to renew.<br>— Iguana Control</div><button class="btn btn-primary" data-act="close-modal">Looks right</button>`,
     };
     render();
   }
