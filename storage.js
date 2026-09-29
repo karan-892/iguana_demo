@@ -8,7 +8,7 @@
     "customers", "quotes", "invoices", "payments", "stops", "comms", "mtos", "mail",
     "documents", "users", "holidays", "commissions", "traps", "inbound", "services",
     "contracts", "billingPlans", "billingPeriods", "paymentAllocations", "autopayAuthorizations",
-    "renewals", "notifications", "tasks", "optimizerRuns",
+    "renewals", "notifications", "tasks", "optimizerRuns", "emails",
   ];
 
   function load(seedFn) {

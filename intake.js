@@ -13,6 +13,27 @@
     </div>`;
   }
 
+  function mapLocType(t) {
+    if (t === "corporate") return "commercial";
+    if (t === "muni") return "municipal";
+    if (t === "residential" || t === "commercial" || t === "hoa" || t === "municipal") return t;
+    return "residential";
+  }
+
+  function locTypeSelect(id, selected) {
+    const sel = mapLocType(selected);
+    if (typeof window.IguanaLocTypeOptions === "function") {
+      return `<select id="${esc(id)}">${window.IguanaLocTypeOptions(sel)}</select>`;
+    }
+    const opts = [
+      ["residential", "Residential"],
+      ["commercial", "Corporate"],
+      ["hoa", "HOA / community"],
+      ["municipal", "Municipal"],
+    ];
+    return `<select id="${esc(id)}">${opts.map(([v, lab]) => `<option value="${v}" ${sel === v ? "selected" : ""}>${esc(lab)}</option>`).join("")}</select>`;
+  }
+
   function locationBlock(index, prefill = {}, removable) {
     const i = index;
     const p = prefill || {};
@@ -31,12 +52,7 @@
           <div class="loc-map-fields">
             <div class="intake-grid">
               ${field("Property name", `<input id="nc-loc-name-${i}" value="${esc(p.name || "")}" placeholder="Residence, Building B, Canal lot">`)}
-              ${field("Location type", `<select id="nc-loc-type-${i}">
-                <option value="residential" ${(p.locationType || "residential") === "residential" ? "selected" : ""}>Residential</option>
-                <option value="commercial" ${p.locationType === "commercial" ? "selected" : ""}>Commercial</option>
-                <option value="hoa" ${p.locationType === "hoa" ? "selected" : ""}>HOA / community</option>
-                <option value="municipal" ${p.locationType === "municipal" ? "selected" : ""}>Municipal</option>
-              </select>`, "What this property is — Christy can change it later.")}
+              ${field("Location type", locTypeSelect(`nc-loc-type-${i}`, p.locationType || "residential"), "Residential, corporate, HOA, or municipal. The package is chosen on the quote.")}
               ${field("Subdivision", `<input id="nc-loc-subdiv-${i}" value="${esc(p.subdivision || "")}" placeholder="Palm Cove, Lakeside, etc.">`)}
               ${field("Street", `<input id="nc-loc-street-${i}" value="${esc(p.street || "")}" data-preview-pin="intake-pin-${i}" data-preview-x="nc-loc-x-${i}" data-preview-y="nc-loc-y-${i}" data-loc-index="${i}" placeholder="418 NE 4th St">`)}
               ${field("City", `<input id="nc-loc-city-${i}" value="${esc(p.city || "")}" data-preview-pin="intake-pin-${i}" data-preview-x="nc-loc-x-${i}" data-preview-y="nc-loc-y-${i}" data-loc-index="${i}" placeholder="Boca Raton">`)}
@@ -67,7 +83,7 @@
     const p = prefill || {};
     const channel = p.channel || "Call";
     const billType = p.billToType || p.type || "residential";
-    const locType = p.locationType || p.type || billType;
+    const locType = mapLocType(p.locationType || p.type || billType);
     const billOptions = (billTos || []).map((b) =>
       `<option value="${esc(b.id)}">${esc(b.label || b.name)}${b.type === "hoa" ? " · HOA" : ""}</option>`
     ).join("");
@@ -82,7 +98,7 @@
       x: p.x,
       y: p.y,
     };
-    const locs = Array.from({ length: n }, (_, i) => locationBlock(i, i === 0 ? firstLoc : {}, true));
+    const locs = Array.from({ length: n }, (_, i) => locationBlock(i, i === 0 ? firstLoc : { locationType: locType }, true));
 
     return `
       <div class="intake">
@@ -199,7 +215,7 @@
       const st = document.getElementById(`nc-loc-state-${i}`)?.value || "FL";
       const zip = (document.getElementById(`nc-loc-zip-${i}`)?.value || "").trim();
       const name = (document.getElementById(`nc-loc-name-${i}`)?.value || "").trim();
-      const locationType = document.getElementById(`nc-loc-type-${i}`)?.value || "residential";
+      const locationType = mapLocType(document.getElementById(`nc-loc-type-${i}`)?.value || "residential");
       const subdivision = (document.getElementById(`nc-loc-subdiv-${i}`)?.value || "").trim();
       const x = document.getElementById(`nc-loc-x-${i}`)?.value;
       const y = document.getElementById(`nc-loc-y-${i}`)?.value;

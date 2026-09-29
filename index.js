@@ -21,6 +21,10 @@
   function svg(paths) {
     return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths.map((d) => `<path d="${d}"/>`).join("")}</svg>`;
   }
+  const LOGO_SRC = "images/logo.png";
+  function brandMark() {
+    return `<div class="mark"><img class="brand-logo" src="${LOGO_SRC}" alt="Iguana Control"></div>`;
+  }
   const ICONS = {
     home: svg(["M3 10.5 12 3l9 7.5V21H3z", "M9 21v-8h6v8"]),
     people: svg(["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8"]),
@@ -66,7 +70,7 @@
     ops: {
       id: "ops",
       name: "Rick Torgerson",
-      title: "Operations / Dispatcher",
+      title: "Operations",
       initials: "RT",
       color: "#2d6a4c",
       access: "Register shows who paid. Create the service, put it on the map, click a trapper’s home for their book. No trapper bonus or payroll here.",
@@ -125,7 +129,7 @@
     { id: "schedule", label: "Schedule", group: "Operations", icon: "cal", roles: ["owner", "ops"] },
     { id: "ready-schedule", label: "Ready to schedule", group: "Operations", icon: "list", roles: ["owner", "ops"] },
     { id: "optimizer", label: "Route optimizer", group: "Operations", icon: "route", roles: ["owner", "ops"] },
-    { id: "map", label: "Dispatch", group: "Operations", icon: "map", roles: ["owner", "ops"] },
+    { id: "map", label: "Map & routing", group: "Operations", icon: "map", roles: ["owner", "ops"] },
     { id: "trappers", label: "Trappers", group: "Operations", icon: "people", roles: ["owner", "ops", "admin"] },
     { id: "oneoffs", label: "One-off jobs", group: "Operations", icon: "bolt", roles: ["owner", "ops"] },
     { id: "traps", label: "Trap assets", group: "Operations", icon: "trap", roles: ["owner", "ops"] },
@@ -138,7 +142,7 @@
     { id: "commission", label: "Trapper bonuses", group: "Billing", icon: "star", roles: ["owner", "admin"] },
 
     { id: "documents", label: "Documents", group: "Workspace", icon: "file", roles: ["owner", "ops", "admin"] },
-    { id: "comms", label: "Communication log", group: "Workspace", icon: "chat", roles: ["owner", "ops", "admin"] },
+    { id: "comms", label: "Email", group: "Workspace", icon: "mail", roles: ["owner", "ops", "admin"] },
     { id: "mtos", label: "Memo to Office", group: "Workspace", icon: "memo", roles: ["owner", "ops", "admin"] },
     { id: "tasks", label: "Tasks", group: "Workspace", icon: "list", roles: ["owner", "ops", "admin"] },
 
@@ -185,13 +189,14 @@
     "lists.edit": ["sysadmin", "owner"],
     "settings.edit": ["sysadmin", "owner"],
     "template.edit": ["sysadmin", "admin", "owner"],
+    "email.send": ["admin", "ops", "owner", "sales"],
     "mobile.act": ["tech", "trapper"],
   };
 
   /** Roles Avery can assign on Users. Trapper login opens Johnny’s field phone. */
   const USER_ROLE_OPTIONS = [
     { id: "owner", title: "Owner" },
-    { id: "ops", title: "Operations / Dispatcher" },
+    { id: "ops", title: "Operations" },
     { id: "admin", title: "Administration" },
     { id: "sales", title: "Sales / Intake" },
     { id: "trapper", title: "Trapper" },
@@ -213,17 +218,196 @@
     { id: "alejo", name: "Alejo", home: "Naples", color: "#40916c", x: "18%", y: "72%" },
   ];
 
+  const TERM_LABELS = {
+    "1mo": "1-month",
+    "3mo": "3-month",
+    "6mo": "6-month AutoPay",
+    "6pre": "6-month prepaid · last month free",
+    "12mo": "12-month AutoPay",
+    "12pre": "12-month prepaid · last two months free",
+    "2wk": "HOA / 2-week",
+    "po": "Municipal PO period",
+  };
+  const PROPERTY_PACKAGES = [
+    { id: "res-half", short: "Res <½ acre", label: "Single family residential < ½ acre", group: "Residential", billToType: "residential", durationMin: 10, visitsPerWeek: 2, terms: [
+      { key: "1mo", months: 1, billing: "upfront", list: 500 },
+      { key: "3mo", months: 3, billing: "upfront", list: 900 },
+      { key: "6mo", months: 6, billing: "monthly", list: 1410, monthly: 235 },
+      { key: "6pre", months: 6, billing: "upfront", list: 1410, prepaid: 1175, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 2400, monthly: 200 },
+      { key: "12pre", months: 12, billing: "upfront", list: 2400, prepaid: 2000, freeMonths: 2 },
+    ] },
+    { id: "res-acre", short: "Res >½ acre", label: "Single family residential > ½ acre", group: "Residential", billToType: "residential", durationMin: 20, visitsPerWeek: 2, terms: [
+      { key: "1mo", months: 1, billing: "upfront", list: 650 },
+      { key: "3mo", months: 3, billing: "upfront", list: 1050 },
+      { key: "6mo", months: 6, billing: "monthly", list: 1800, monthly: 300 },
+      { key: "6pre", months: 6, billing: "upfront", list: 1800, prepaid: 1500, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 3240, monthly: 270 },
+      { key: "12pre", months: 12, billing: "upfront", list: 3240, prepaid: 2700, freeMonths: 2 },
+    ] },
+    { id: "res-neighbor", short: "Neighbor discount", label: "Multiple-home / neighbor discount", group: "Residential", billToType: "residential", durationMin: 10, visitsPerWeek: 2, terms: [
+      { key: "1mo", months: 1, billing: "upfront", list: 400 },
+      { key: "3mo", months: 3, billing: "upfront", list: 720 },
+      { key: "6mo", months: 6, billing: "monthly", list: 1260, monthly: 210 },
+      { key: "6pre", months: 6, billing: "upfront", list: 1260, prepaid: 1050, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 2160, monthly: 180 },
+      { key: "12pre", months: 12, billing: "upfront", list: 2160, prepaid: 1800, freeMonths: 2 },
+    ] },
+    { id: "corp-1", short: "Corp L1", label: "Corporate level 1", group: "Corporate", billToType: "commercial", durationMin: 30, visitsPerWeek: 2, terms: [
+      { key: "1mo", months: 1, billing: "upfront", list: 1000 },
+      { key: "3mo", months: 3, billing: "upfront", list: 1500 },
+      { key: "6mo", months: 6, billing: "monthly", list: 2100, monthly: 350 },
+      { key: "6pre", months: 6, billing: "upfront", list: 2100, prepaid: 1750, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 3840, monthly: 320 },
+      { key: "12pre", months: 12, billing: "upfront", list: 3840, prepaid: 3200, freeMonths: 2 },
+    ] },
+    { id: "corp-2", short: "Corp L2", label: "Corporate level 2", group: "Corporate", billToType: "commercial", durationMin: 30, visitsPerWeek: 2, terms: [
+      { key: "1mo", months: 1, billing: "upfront", list: 1200 },
+      { key: "3mo", months: 3, billing: "upfront", list: 1760 },
+      { key: "6mo", months: 6, billing: "monthly", list: 2640, monthly: 440 },
+      { key: "6pre", months: 6, billing: "upfront", list: 2640, prepaid: 2200, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 4200, monthly: 350 },
+      { key: "12pre", months: 12, billing: "upfront", list: 4200, prepaid: 3500, freeMonths: 2 },
+    ] },
+    { id: "corp-3", short: "Corp L3", label: "Corporate level 3", group: "Corporate", billToType: "commercial", durationMin: 45, visitsPerWeek: 2, terms: [
+      { key: "1mo", months: 1, billing: "upfront", list: 1500 },
+      { key: "3mo", months: 3, billing: "upfront", list: 2250 },
+      { key: "6mo", months: 6, billing: "monthly", list: 3150, monthly: 525 },
+      { key: "6pre", months: 6, billing: "upfront", list: 3150, prepaid: 2625, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 4800, monthly: 400 },
+      { key: "12pre", months: 12, billing: "upfront", list: 4800, prepaid: 4000, freeMonths: 2 },
+    ] },
+    { id: "corp-4", short: "Corp L4", label: "Corporate level 4", group: "Corporate", billToType: "commercial", durationMin: 60, visitsPerWeek: 2, terms: [
+      { key: "1mo", months: 1, billing: "upfront", list: 1920 },
+      { key: "3mo", months: 3, billing: "upfront", list: 2880 },
+      { key: "6mo", months: 6, billing: "monthly", list: 4032, monthly: 672 },
+      { key: "6pre", months: 6, billing: "upfront", list: 4032, prepaid: 3360, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 6216, monthly: 518 },
+      { key: "12pre", months: 12, billing: "upfront", list: 6216, prepaid: 5180, freeMonths: 2 },
+    ] },
+    { id: "corp-5", short: "Corp L5", label: "Corporate level 5", group: "Corporate", billToType: "commercial", durationMin: 60, visitsPerWeek: 2, terms: [
+      { key: "1mo", months: 1, billing: "upfront", list: 2125 },
+      { key: "3mo", months: 3, billing: "upfront", list: 3200 },
+      { key: "6mo", months: 6, billing: "monthly", list: 4800, monthly: 800 },
+      { key: "6pre", months: 6, billing: "upfront", list: 4800, prepaid: 4000, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 6840, monthly: 570 },
+      { key: "12pre", months: 12, billing: "upfront", list: 6840, prepaid: 5700, freeMonths: 2 },
+    ] },
+    { id: "corp-6", short: "Corp L6", label: "Corporate level 6", group: "Corporate", billToType: "commercial", durationMin: 90, visitsPerWeek: 2, terms: [
+      { key: "1mo", months: 1, billing: "upfront", list: 2800 },
+      { key: "3mo", months: 3, billing: "upfront", list: 4200 },
+      { key: "6mo", months: 6, billing: "monthly", list: 5880, monthly: 980 },
+      { key: "6pre", months: 6, billing: "upfront", list: 5880, prepaid: 4900, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 8820, monthly: 735 },
+      { key: "12pre", months: 12, billing: "upfront", list: 8820, prepaid: 7350, freeMonths: 2 },
+    ] },
+    { id: "corp-7", short: "Corp L7", label: "Corporate level 7", group: "Corporate", billToType: "commercial", durationMin: 90, visitsPerWeek: 2, terms: [
+      { key: "1mo", months: 1, billing: "upfront", list: 2800 },
+      { key: "3mo", months: 3, billing: "upfront", list: 4200 },
+      { key: "6mo", months: 6, billing: "monthly", list: 6480, monthly: 1080 },
+      { key: "6pre", months: 6, billing: "upfront", list: 6480, prepaid: 5400, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 10020, monthly: 835 },
+      { key: "12pre", months: 12, billing: "upfront", list: 10020, prepaid: 8350, freeMonths: 2 },
+    ] },
+    { id: "corp-8", short: "Corp L8", label: "Corporate level 8", group: "Corporate", billToType: "commercial", durationMin: 150, visitsPerWeek: 2, terms: [
+      { key: "1mo", months: 1, billing: "upfront", list: 3000 },
+      { key: "3mo", months: 3, billing: "upfront", list: 6000 },
+      { key: "6mo", months: 6, billing: "monthly", list: 7580, monthly: 1250 },
+      { key: "6pre", months: 6, billing: "upfront", list: 7580, prepaid: 6330, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 12000, monthly: 1000 },
+      { key: "12pre", months: 12, billing: "upfront", list: 12000, prepaid: 10000, freeMonths: 2 },
+    ] },
+    { id: "special", short: "Special discount", label: "Special discount pricing", group: "Residential", billToType: "residential", durationMin: 10, visitsPerWeek: 2, terms: [
+      { key: "1mo", months: 1, billing: "upfront", list: 500 },
+      { key: "3mo", months: 3, billing: "upfront", list: 600 },
+      { key: "6mo", months: 6, billing: "monthly", list: 900, monthly: 150 },
+      { key: "12mo", months: 12, billing: "monthly", list: 1620, monthly: 135 },
+    ] },
+    { id: "hoa", short: "HOA", label: "HOA / community", group: "Community", billToType: "hoa", durationMin: 45, visitsPerWeek: 2, freq: "Every 2 weeks", terms: [
+      { key: "2wk", months: 0.5, billing: "upfront", list: 180 },
+    ] },
+    { id: "muni", short: "Municipal", label: "Municipal / park", group: "Community", billToType: "municipal", durationMin: 180, visitsPerWeek: 2, terms: [
+      { key: "po", months: 12, billing: "upfront", list: 0 },
+    ] },
+  ];
+  function packageById(id) {
+    return PROPERTY_PACKAGES.find((p) => p.id === id) || null;
+  }
+  const PROPERTY_KINDS = [
+    { id: "residential", label: "Residential" },
+    { id: "commercial", label: "Corporate" },
+    { id: "hoa", label: "HOA / community" },
+    { id: "municipal", label: "Municipal" },
+  ];
+  function normalizeKind(id) {
+    if (id === "corporate" || id === "commercial") return "commercial";
+    if (id === "hoa") return "hoa";
+    if (id === "municipal" || id === "muni") return "municipal";
+    const pkg = packageById(id);
+    if (pkg) return pkg.billToType === "commercial" ? "commercial" : (pkg.billToType || "residential");
+    return "residential";
+  }
+  function locKindLabel(kind) {
+    const id = normalizeKind(kind);
+    return PROPERTY_KINDS.find((k) => k.id === id)?.label || "Residential";
+  }
+  function packagesForKind(kind) {
+    const k = normalizeKind(kind);
+    return PROPERTY_PACKAGES.filter((p) => p.billToType === k);
+  }
+  function kindOptions(selected) {
+    const sel = normalizeKind(selected);
+    return PROPERTY_KINDS.map((k) =>
+      `<option value="${k.id}" ${sel === k.id ? "selected" : ""}>${esc(k.label)}</option>`
+    ).join("");
+  }
+  function programsFromPackages() {
+    const out = [];
+    PROPERTY_PACKAGES.forEach((pkg) => {
+      (pkg.terms || []).forEach((t) => {
+        const monthly = t.billing === "monthly";
+        out.push({
+          id: `${pkg.id}-${t.key}`,
+          pkgId: pkg.id,
+          name: `${pkg.short}: ${TERM_LABELS[t.key] || t.key}`,
+          shortName: TERM_LABELS[t.key] || t.key,
+          months: t.months,
+          durationMin: pkg.durationMin,
+          billing: t.billing,
+          list: t.list,
+          prepaid: monthly ? null : (t.prepaid != null ? t.prepaid : t.list),
+          monthlyAmount: monthly ? t.monthly : null,
+          freeMonths: t.freeMonths || 0,
+          freq: pkg.freq || "2 visits / week",
+          visitsPerWeek: pkg.visitsPerWeek || 2,
+          packageLabel: pkg.label,
+          group: pkg.group,
+        });
+      });
+    });
+    return out;
+  }
   const SERVICE_TYPES = [
-    { id: "1mon-res", code: "1 - 1 MON RES", label: "1-month residential", desc: "Monitoring — 1 month — Residential (<½ acre)", type: "res", duration: 10, months: 1, price: 300, freq: "WEEKLY" },
-    { id: "3mon-res", code: "3 - 3 MON RES", label: "3-month residential", desc: "Monitoring — 3 months — Residential", type: "res", duration: 15, months: 3, price: 800, freq: "WEEKLY" },
-    { id: "6mon-res", code: "6 - 6 MON RES", label: "6-month residential", desc: "Monitoring — 6 months — Residential", type: "res", duration: 20, months: 6, price: 1200, freq: "BI-WEEKLY" },
-    { id: "12mon-res", code: "12 - 12 MON RES", label: "12-month residential", desc: "Monitoring — 1 year — Residential", type: "res", duration: 20, months: 12, price: 2000, freq: "BI-WEEKLY" },
-    { id: "1mon-com", code: "1 - 1 MON COM", label: "1-month commercial", desc: "Monitoring — 1 month — Commercial", type: "com", duration: 20, months: 1, price: 450, freq: "WEEKLY" },
-    { id: "12mon-com", code: "12 - 1YR COM", label: "12-month commercial", desc: "Monitoring — 1 year — Commercial", type: "com", duration: 30, months: 12, price: 3600, freq: "BI-WEEKLY" },
+    { id: "1mon-res", code: "1 - 1 MON RES", label: "1-month residential", desc: "Monitoring — 1 month — Residential (<½ acre)", type: "res", duration: 10, months: 1, price: 500, freq: "WEEKLY" },
+    { id: "3mon-res", code: "3 - 3 MON RES", label: "3-month residential", desc: "Monitoring — 3 months — Residential", type: "res", duration: 10, months: 3, price: 900, freq: "WEEKLY" },
+    { id: "6mon-res", code: "6 - 6 MON RES", label: "6-month residential", desc: "Monitoring — 6 months — Residential", type: "res", duration: 10, months: 6, price: 1175, freq: "WEEKLY" },
+    { id: "12mon-res", code: "12 - 12 MON RES", label: "12-month residential", desc: "Monitoring — 1 year — Residential", type: "res", duration: 10, months: 12, price: 2000, freq: "WEEKLY" },
+    { id: "1mon-com", code: "1 - 1 MON COM", label: "1-month commercial", desc: "Monitoring — 1 month — Commercial", type: "com", duration: 30, months: 1, price: 1000, freq: "WEEKLY" },
+    { id: "12mon-com", code: "12 - 1YR COM", label: "12-month commercial", desc: "Monitoring — 1 year — Commercial", type: "com", duration: 30, months: 12, price: 3200, freq: "WEEKLY" },
     { id: "hoa-2wk", code: "HOA 2 WK", label: "HOA / 2-week (4 visits)", desc: "HOA / community — every 2 weeks · 4 visits", type: "hoa", duration: 45, months: 0.5, price: 180, freq: "EVERY 2 WEEKS" },
     { id: "muni", code: "MUNI PARK", label: "Municipal / park", desc: "Municipal / park monitoring", type: "muni", duration: 180, months: 12, price: 0, freq: "WEEKLY" },
     { id: "callback", code: "CALLBACK", label: "Callback / one-off", desc: "One-off callback visit", type: "callback", duration: 10, months: 0, price: 0, freq: "ONE-TIME" },
-  ];
+  ].concat(PROPERTY_PACKAGES.map((pkg) => ({
+    id: pkg.id,
+    code: (pkg.short || pkg.id).toUpperCase(),
+    label: pkg.label,
+    desc: `${pkg.label} — ${pkg.durationMin} min · 2 visits / week`,
+    type: pkg.billToType === "commercial" ? "com" : pkg.billToType === "hoa" ? "hoa" : pkg.billToType === "municipal" ? "muni" : "res",
+    duration: pkg.durationMin,
+    months: 12,
+    price: 0,
+    freq: "WEEKLY",
+  })));
   const SERVICE_SCHEDULES = [
     { id: "WK-MOWE", label: "WK - MO WE", days: "Mon/Wed" },
     { id: "WK-TUTH", label: "WK - TU TH", days: "Tue/Thu" },
@@ -251,14 +435,14 @@
     { id: "other", label: "Other live call", duration: 25 },
   ];
 
-  const PROGRAMS = [
-    { id: "12pre", name: "12-month prepaid", months: 12, list: 2400, prepaid: 2000, freeMonths: 2, freq: "Bi-weekly" },
-    { id: "12mo", name: "12-month monthly", months: 12, list: 2400, prepaid: null, freeMonths: 0, freq: "Bi-weekly" },
-    { id: "6mo", name: "6-month", months: 6, list: 1400, prepaid: 1200, freeMonths: 0, freq: "Bi-weekly" },
-    { id: "3mo", name: "3-month", months: 3, list: 800, prepaid: null, freeMonths: 0, freq: "Weekly" },
-    { id: "1mo", name: "1-month", months: 1, list: 300, prepaid: null, freeMonths: 0, freq: "Weekly" },
-    { id: "hoa2", name: "HOA 2-week", months: 0.5, list: 180, prepaid: null, freeMonths: 0, freq: "Every 2 weeks" },
-  ];
+  const PROGRAMS = programsFromPackages().concat([
+    { id: "12pre", aliasOf: "res-half-12pre", pkgId: "res-half", name: "12-month prepaid", months: 12, list: 2400, prepaid: 2000, freeMonths: 2, freq: "2 visits / week", billing: "upfront", durationMin: 10 },
+    { id: "12mo", aliasOf: "res-half-12mo", pkgId: "res-half", name: "12-month monthly", months: 12, list: 2400, prepaid: null, monthlyAmount: 200, freeMonths: 0, freq: "2 visits / week", billing: "monthly", durationMin: 10 },
+    { id: "6mo", aliasOf: "res-half-6pre", pkgId: "res-half", name: "6-month prepaid", months: 6, list: 1410, prepaid: 1200, freeMonths: 1, freq: "2 visits / week", billing: "upfront", durationMin: 10 },
+    { id: "3mo", aliasOf: "res-half-3mo", pkgId: "res-half", name: "3-month", months: 3, list: 900, prepaid: null, freeMonths: 0, freq: "2 visits / week", billing: "upfront", durationMin: 10 },
+    { id: "1mo", aliasOf: "res-half-1mo", pkgId: "res-half", name: "1-month", months: 1, list: 300, prepaid: null, freeMonths: 0, freq: "2 visits / week", billing: "upfront", durationMin: 10 },
+    { id: "hoa2", aliasOf: "hoa-2wk", pkgId: "hoa", name: "HOA 2-week", months: 0.5, list: 180, prepaid: null, freeMonths: 0, freq: "Every 2 weeks", billing: "upfront", durationMin: 45 },
+  ]);
 
   function programById(id) { return allPrograms().find((p) => p.id === id); }
   function extraProgramsSafe() {
@@ -281,6 +465,8 @@
       { key: "proposal", label: "Proposal / quote" },
       { key: "invoice", label: "Invoice" },
       { key: "renewal", label: "Renewal notice" },
+      { key: "receipt", label: "AutoPay receipt (no-reply)" },
+      { key: "general", label: "General message" },
       { key: "visit", label: "Visit reminder (2 days before, no-reply)" },
     ];
     const custom = customTemplatesSafe().map((t) => ({
@@ -321,6 +507,8 @@
     ensureSeedOptimizerRuns();
     ensureSeedMtoDemo();
     ensureSeedApplyPayDemo();
+    ensureSeedMonthlyReceipts();
+    ensureSeedEmails();
   }
   function ensureSeedApplyPayDemo() {
     const payments = state.data.payments || [];
@@ -330,20 +518,150 @@
     const portal = payments.find((p) => p.id === "P-9231");
     if (portal && !portal.invoiceMarked) portal.method = portal.method === "Check" ? "Online" : (portal.method || "Online");
   }
+  function ensureSeedMonthlyReceipts() {
+    const dropIds = new Set(
+      (state.data.invoices || [])
+        .filter((i) => i.kind === "autopay" || /^INV-448[4-8]$/.test(i.id))
+        .map((i) => i.id)
+    );
+    if (dropIds.size) {
+      state.data.invoices = (state.data.invoices || []).filter((i) => !dropIds.has(i.id));
+      state.data.paymentAllocations = (state.data.paymentAllocations || []).filter((a) => !dropIds.has(a.invoiceId));
+    }
+    const payMap = { 1: "P-9176", 2: "P-9177", 3: "P-9178", 4: "P-9179" };
+    (state.data.billingPeriods || []).forEach((per) => {
+      if (per.contractId !== "CON-1066a") return;
+      if (dropIds.has(per.invoiceId) || String(per.invoiceId || "").startsWith("INV-448")) per.invoiceId = null;
+      if (per.sequence <= 4 && !per.paymentId) per.paymentId = payMap[per.sequence] || null;
+    });
+    (state.data.payments || []).forEach((p) => {
+      if (p.customerId !== "C-1066") return;
+      const src = String(p.source || "").toLowerCase();
+      if (dropIds.has(p.invoiceId) || src === "autopay") {
+        if (dropIds.has(p.invoiceId)) p.invoiceId = null;
+        if (!p.failed) {
+          p.receiptEmailed = true;
+          p.receiptId = p.receiptId || String(p.id || "").replace(/^P-/, "RCPT-");
+          p.invoiceMarked = true;
+          p.appliedAuto = true;
+        }
+      }
+    });
+    (state.data.notifications || []).forEach((n) => {
+      if (n.invoiceId && dropIds.has(n.invoiceId)) n.invoiceId = null;
+    });
+  }
+  function seedEmailRows() {
+    return [
+      {
+        id: "EM-1", threadId: "TH-1", customerId: "C-1091", locationId: "L-1091a",
+        direction: "out", fromName: "Christy Brown", fromEmail: "billing@iguanacontrol.com",
+        toName: "Sarah Chen", toEmail: "sarah.chen@email.com",
+        subject: "Your iguana removal program is in the renewal window",
+        body: "Hello Sarah Chen,\nAccount C-1091 is in the renewal window.\nSame terms unless Administration notes otherwise.\n\nReply if you want to switch prepaid vs monthly.\n— Christy, Iguana Control",
+        templateKey: "renewal", date: "2026-08-20", time: "10:12",
+        noReply: false, readByOffice: true, readByClient: true,
+      },
+      {
+        id: "EM-2", threadId: "TH-1", customerId: "C-1091", locationId: "L-1091a",
+        direction: "in", fromName: "Sarah Chen", fromEmail: "sarah.chen@email.com",
+        toName: "Christy Brown", toEmail: "billing@iguanacontrol.com",
+        subject: "Re: Your iguana removal program is in the renewal window",
+        body: "Hi Christy — can I switch to the monthly plan instead of prepaid? The $2,000 is a lot at once.",
+        templateKey: null, date: "2026-08-21", time: "09:40",
+        noReply: false, readByOffice: true, readByClient: true,
+      },
+      {
+        id: "EM-3", threadId: "TH-1", customerId: "C-1091", locationId: "L-1091a",
+        direction: "out", fromName: "Christy Brown", fromEmail: "billing@iguanacontrol.com",
+        toName: "Sarah Chen", toEmail: "sarah.chen@email.com",
+        subject: "Re: Your iguana removal program is in the renewal window",
+        body: "Yes. Monthly is $200/month charged to the card on file. We email a receipt — no invoice. Reply if you want me to send that instead of the prepaid renewal.",
+        templateKey: null, date: "2026-08-22", time: "11:05",
+        noReply: false, readByOffice: true, readByClient: true,
+      },
+      {
+        id: "EM-4", threadId: "TH-2", customerId: "C-1066", locationId: "L-1066a",
+        direction: "out", fromName: "Christy Brown", fromEmail: "billing@iguanacontrol.com",
+        toName: "Harbor Oaks Management", toEmail: "mgr@harboroaks.com",
+        subject: "AutoPay declined — month 5",
+        body: "Hello Harbor Oaks Management,\nThe card on file (····3301) declined for this month’s $200 charge. Monthly AutoPay does not send an invoice — please reply with another card or a Zelle/check so we can keep service on.\n— Christy, Iguana Control",
+        templateKey: "general", date: "2026-08-26", time: "14:20",
+        noReply: false, readByOffice: true, readByClient: true,
+      },
+      {
+        id: "EM-5", threadId: "TH-2", customerId: "C-1066", locationId: "L-1066a",
+        direction: "in", fromName: "Harbor Oaks Management", fromEmail: "mgr@harboroaks.com",
+        toName: "Christy Brown", toEmail: "billing@iguanacontrol.com",
+        subject: "Re: AutoPay declined — month 5",
+        body: "We'll Zelle $200 today. Please retry the card next month. Thank you.",
+        templateKey: null, date: "2026-08-27", time: "08:15",
+        noReply: false, readByOffice: false, readByClient: true,
+      },
+      {
+        id: "EM-6", threadId: "TH-3", customerId: "C-1042", locationId: "L-1042a",
+        direction: "out", fromName: "Iguana Control", fromEmail: "noreply@iguanacontrol.com",
+        toName: "Diane Walsh", toEmail: "diane.walsh@email.com",
+        subject: "Visit reminder — technician in two days",
+        body: "Hi Diane Walsh, a technician is scheduled in two days. This is an automated message — you cannot reply.",
+        templateKey: "visit", date: "2026-08-25", time: "07:00",
+        noReply: true, readByOffice: true, readByClient: false,
+      },
+      {
+        id: "EM-7", threadId: "TH-4", customerId: "C-1180", locationId: "L-1180a",
+        direction: "out", fromName: "Christy Brown", fromEmail: "billing@iguanacontrol.com",
+        toName: "Elena Vasquez", toEmail: "elena.v@email.com",
+        subject: "Your iguana removal quote is ready",
+        body: "Hello Elena Vasquez,\nAccount C-1180.\nYour iguana removal program quote is ready.\n\nReply with the program you want and we will send the invoice (or charge the card for monthly).\n— Christy, Iguana Control",
+        templateKey: "proposal", date: "2026-08-24", time: "15:30",
+        noReply: false, readByOffice: true, readByClient: false,
+      },
+      {
+        id: "EM-8", threadId: "TH-5", customerId: "C-1066", locationId: "L-1066a",
+        direction: "out", fromName: "Iguana Control", fromEmail: "noreply@iguanacontrol.com",
+        toName: "Harbor Oaks Management", toEmail: "mgr@harboroaks.com",
+        subject: "Receipt RCPT-9179 — card charged",
+        body: "Hello Harbor Oaks Management,\nReceipt RCPT-9179 — we charged the card on file $200 for month 4. Monthly AutoPay does not send an invoice.\nThis is an automated receipt — you cannot reply.",
+        templateKey: "receipt", date: "2026-07-02", time: "06:05",
+        noReply: true, readByOffice: true, readByClient: true,
+      },
+    ];
+  }
+  function ensureSeedEmails() {
+    if (!Array.isArray(state.data.emails)) state.data.emails = [];
+    const tpls = state.data.templates || (state.data.templates = {});
+    if (!tpls.receipt) tpls.receipt = "Hello {customer_name},\nReceipt {invoice_or_quote} — we charged the card on file. Monthly AutoPay does not send an invoice.\nThis is an automated receipt — you cannot reply.";
+    if (!tpls.general) tpls.general = "Hello {customer_name},\n\n\n— Iguana Control";
+    seedEmailRows().forEach((row) => {
+      if (!state.data.emails.some((e) => e.id === row.id)) state.data.emails.push(row);
+    });
+  }
   function programBillAmount(p) {
     if (!p) return 0;
-    if (p.id === "12mo") return Math.round(p.list / Math.max(1, p.months));
+    if (programIsMonthly(p)) return p.monthlyAmount != null ? p.monthlyAmount : Math.round(p.list / Math.max(1, p.months));
     return p.prepaid != null ? p.prepaid : p.list;
   }
-  function buildCommitment(programId, startDate) {
+  function programIsMonthly(pOrId) {
+    const p = typeof pOrId === "string" ? programById(pOrId) : pOrId;
+    if (p) return p.billing === "monthly" || p.id === "12mo";
+    const id = String(pOrId || "");
+    return id === "12mo" || /-(6|12)mo$/.test(id);
+  }
+  function programUnit(pOrId) {
+    return programIsMonthly(pOrId) ? "/mo" : "";
+  }
+  function buildCommitment(programId, startDate, billedAmount) {
     const p = programById(programId) || PROGRAMS[0];
-    const monthly = p.id === "12mo";
+    const monthly = programIsMonthly(p);
     const periods = monthly ? Math.max(1, Math.round(p.months)) : 1;
-    const installmentAmount = programBillAmount(p);
+    const hasQuote = billedAmount != null && Number.isFinite(Number(billedAmount));
+    const installmentAmount = hasQuote ? Number(billedAmount) : programBillAmount(p);
     return {
       programId: p.id,
       termMonths: p.months,
-      totalValue: p.list,
+      totalValue: hasQuote
+        ? (monthly ? installmentAmount * periods : installmentAmount)
+        : p.list,
       billingFrequency: monthly ? "monthly" : "upfront",
       installmentAmount,
       periods,
@@ -390,6 +708,11 @@
       commitment,
       billingPeriods,
     };
+  }
+  function seedLocPkg(id) {
+    const pkg = packageById(id);
+    const kind = pkg ? (pkg.billToType === "commercial" ? "commercial" : (pkg.billToType || "residential")) : "residential";
+    return { packageId: id, locationType: kind };
   }
 
   const REASSIGN_REASONS = [
@@ -438,8 +761,8 @@
           days: "Mon/Wed",
           durationMin: 20,
           locations: [
-            { id: "L-1042a", name: "Residence", address: "418 NE 4th St, Boca Raton, FL", x: "30%", y: "40%", covered: true, techId: "johnny", days: "Mon/Wed", gps: "26.3587, -80.0831", ...seedLocBilling("12pre", "2026-03-01", "INV-4419", "active", true) },
-            { id: "L-1042b", name: "Rental", address: "902 NE 20th Ave, Fort Lauderdale, FL", x: "32%", y: "50%", covered: true, requestService: true, requestedAt: 2, techId: "johnny", days: "Mon/Wed", ...seedLocBilling("6mo", "2026-08-01", "INV-4420", "active", true) },
+            { id: "L-1042a", name: "Residence", address: "418 NE 4th St, Boca Raton, FL", x: "30%", y: "40%", covered: true, techId: "johnny", days: "Mon/Wed", gps: "26.3587, -80.0831", ...seedLocPkg("res-half"), ...seedLocBilling("12pre", "2026-03-01", "INV-4419", "active", true) },
+            { id: "L-1042b", name: "Rental", address: "902 NE 20th Ave, Fort Lauderdale, FL", x: "32%", y: "50%", covered: true, requestService: true, requestedAt: 2, techId: "johnny", days: "Mon/Wed", ...seedLocPkg("res-acre"), ...seedLocBilling("6mo", "2026-08-01", "INV-4420", "active", true) },
           ],
           notes: "Gate code 4419. Dogs in backyard — use side path. Client asked to catch iguanas at the Fort Lauderdale rental too. Two properties, two plans, two invoices — Diane is the only Bill-To.",
           opsNote: "Customer asked to skip the week of Labor Day if possible.",
@@ -464,10 +787,10 @@
           days: "Tue/Thu",
           durationMin: 90,
           locations: [
-            { id: "L-1108a", name: "Clubhouse", address: "12 Palm Cove Dr, Fort Lauderdale, FL", x: "33%", y: "54%", covered: true, techId: "bobby", days: "Tue/Thu" },
-            { id: "L-1108b", name: "Lot 14", address: "14 Palm Cove Dr, Fort Lauderdale, FL", x: "34%", y: "55%", covered: true, techId: "bobby", days: "Tue/Thu" },
-            { id: "L-1108c", name: "Lot 22", address: "22 Palm Cove Dr, Fort Lauderdale, FL", x: "35%", y: "53%", covered: true, techId: "bobby", days: "Tue/Thu" },
-            { id: "L-1108d", name: "Lot 31", address: "31 Palm Cove Dr, Fort Lauderdale, FL", x: "36%", y: "56%", covered: false },
+            { id: "L-1108a", name: "Clubhouse", address: "12 Palm Cove Dr, Fort Lauderdale, FL", x: "33%", y: "54%", covered: true, techId: "bobby", days: "Tue/Thu", ...seedLocPkg("hoa") },
+            { id: "L-1108b", name: "Lot 14", address: "14 Palm Cove Dr, Fort Lauderdale, FL", x: "34%", y: "55%", covered: true, techId: "bobby", days: "Tue/Thu", ...seedLocPkg("hoa") },
+            { id: "L-1108c", name: "Lot 22", address: "22 Palm Cove Dr, Fort Lauderdale, FL", x: "35%", y: "53%", covered: true, techId: "bobby", days: "Tue/Thu", ...seedLocPkg("hoa") },
+            { id: "L-1108d", name: "Lot 31", address: "31 Palm Cove Dr, Fort Lauderdale, FL", x: "36%", y: "56%", covered: false, ...seedLocPkg("hoa") },
             ...Array.from({ length: 18 }, (_, i) => ({
               id: `L-1108n${i + 40}`,
               name: `Lot ${i + 40}`,
@@ -477,6 +800,7 @@
               covered: true,
               techId: "bobby",
               days: "Tue/Thu",
+              ...seedLocPkg("hoa"),
             })),
           ],
           notes: "Bill-To covers the community this term. Lot 31 unpaid. Dense HOA — all lots stay visible on the map (no 20-stop cutoff).",
@@ -511,6 +835,7 @@
             shared: true,
             gps: "26.1358, -80.1412",
             manualPin: true,
+            ...seedLocPkg("hoa"),
           }],
           notes: "Six hours a week on one property — split across two trappers on different days. Gray pin on the map.",
           opsNote: "Johnny Mon 3 hrs · Bobby Wed 3 hrs. Do not copy the stop — each trapper has their own service.",
@@ -534,7 +859,7 @@
           backupId: "johnny",
           days: "Mon/Wed",
           durationMin: 25,
-          locations: [{ id: "L-1091a", name: "Residence", address: "880 Northlake Blvd, West Palm Beach, FL", x: "40%", y: "26%", ...seedLocBilling("12pre", "2025-09-24", "INV-4510", "waiting_payment", false) }],
+          locations: [{ id: "L-1091a", name: "Residence", address: "880 Northlake Blvd, West Palm Beach, FL", x: "40%", y: "26%", ...seedLocPkg("res-half"), ...seedLocBilling("12pre", "2025-09-24", "INV-4510", "waiting_payment", false) }],
           notes: "Standard prepaid rate. Review and send.",
           opsNote: "",
         },
@@ -568,9 +893,10 @@
             techId: "miguel",
             days: "Tue/Thu",
             gps: "27.9506, -82.4572",
-            ...seedLocBilling("12mo", "2026-04-01", "INV-4488", "past_due", false),
+            ...seedLocPkg("corp-1"),
+            ...seedLocBilling("12mo", "2026-04-01", null, "past_due", false),
           }],
-          notes: "12-month monthly AutoPay. Service set up once in April — do not recreate each month. Months 1–4 paid. August installment declined.",
+          notes: "12-month monthly AutoPay. Card on file is charged each month and a receipt is emailed — no invoice. Service set up once in April. Months 1–4 paid. August charge declined.",
           opsNote: "Card declined Aug 26 — leave off route. Call them; stop service if they cannot pay.",
         },
         {
@@ -599,7 +925,7 @@
           backupId: "miguel",
           days: "Fri",
           durationMin: 180,
-          locations: [{ id: "L-1020a", name: "Riverside Park", address: "Riverside Park (manual pin), Naples, FL", x: "20%", y: "74%", gps: "26.1420, -81.7948", manualPin: true }],
+          locations: [{ id: "L-1020a", name: "Riverside Park", address: "Riverside Park (manual pin), Naples, FL", x: "20%", y: "74%", gps: "26.1420, -81.7948", manualPin: true, ...seedLocPkg("muni") }],
           notes: "Municipal PO — schedule without waiting for payment. Invoice after the service period. PO hours are the hard limit.",
           opsNote: "Pin is GPS-overridden; techs must tap-to-navigate.",
         },
@@ -622,8 +948,40 @@
           backupId: null,
           days: null,
           durationMin: 20,
-          locations: [{ id: "L-1180a", name: "Residence", address: "55 SE 2nd Ave, Fort Lauderdale, FL", x: "31%", y: "50%", lifecycle: "quoted" }],
+          locations: [{ id: "L-1180a", name: "Residence", address: "55 SE 2nd Ave, Fort Lauderdale, FL", x: "31%", y: "50%", lifecycle: "quoted", ...seedLocPkg("res-half") }],
           notes: "Quote sent with plan options. Waiting for Elena to say which program she wants — then Christy creates and sends the invoice.",
+          opsNote: "",
+        },
+        {
+          id: "C-1195",
+          name: "West Bay Offices",
+          phone: "(561) 555-1195",
+          email: "pm@westbayoffices.com",
+          type: "commercial",
+          billTo: "West Bay Offices",
+          status: "inquiry",
+          programId: null,
+          amount: 0,
+          start: null,
+          expires: null,
+          paid: false,
+          autoPay: false,
+          municipal: false,
+          techId: null,
+          backupId: null,
+          days: null,
+          durationMin: 45,
+          locations: [{
+            id: "L-1195a",
+            name: "Campus",
+            address: "900 W Palmetto Park Rd, Boca Raton, FL",
+            x: "28%",
+            y: "42%",
+            lifecycle: "inquiry",
+            locationType: "commercial",
+            packageId: null,
+          }],
+          notes: "New corporate account. On the quote, pick Level 1–8, duration, and which 1 / 3 / 6 / 12 month options (AutoPay vs prepaid) to send.",
           opsNote: "",
         },
         {
@@ -649,8 +1007,8 @@
           handedAt: 0,
           createdBy: "admin",
           locations: [
-            { id: "L-1188a", name: "Residence", address: "210 SE 3rd Ave, Fort Lauderdale, FL", x: "31%", y: "51%", covered: true, requestService: true, requestedAt: 1, ...seedLocBilling("6mo", "2026-08-27", "INV-4688", "waiting_payment", false) },
-            { id: "L-1188b", name: "Canal house", address: "44 SE 10th St, Deerfield Beach, FL", x: "29%", y: "43%", covered: true, requestService: true, requestedAt: 3, ...seedLocBilling("12pre", "2026-08-27", "INV-4689", "waiting_payment", false) },
+            { id: "L-1188a", name: "Residence", address: "210 SE 3rd Ave, Fort Lauderdale, FL", x: "31%", y: "51%", covered: true, requestService: true, requestedAt: 1, ...seedLocPkg("res-half"), ...seedLocBilling("6mo", "2026-08-27", "INV-4688", "waiting_payment", false) },
+            { id: "L-1188b", name: "Canal house", address: "44 SE 10th St, Deerfield Beach, FL", x: "29%", y: "43%", covered: true, requestService: true, requestedAt: 3, ...seedLocPkg("res-acre"), ...seedLocBilling("12pre", "2026-08-27", "INV-4689", "waiting_payment", false) },
           ],
           notes: "Commitment + invoices sent. Waiting for payment on each property before Rick creates service.",
           opsNote: "Do not create service until Christy marks each property paid.",
@@ -680,8 +1038,8 @@
           handedAt: 4,
           createdBy: "sales",
           locations: [
-            { id: "L-1210a", name: "Boca house", address: "610 NE 3rd Ave, Boca Raton, FL", x: "29%", y: "41%", covered: true, techId: "johnny", days: "Mon/Wed", gps: "26.3591, -80.0822", ...seedLocBilling("12pre", "2026-08-20", "INV-4710", "active", true) },
-            { id: "L-1210b", name: "Deerfield rental", address: "88 SE 8th St, Deerfield Beach, FL", x: "28%", y: "44%", covered: true, techId: "bobby", days: "Tue/Thu", ...seedLocBilling("6mo", "2026-08-20", "INV-4711", "active", true) },
+            { id: "L-1210a", name: "Boca house", address: "610 NE 3rd Ave, Boca Raton, FL", x: "29%", y: "41%", covered: true, techId: "johnny", days: "Mon/Wed", gps: "26.3591, -80.0822", ...seedLocPkg("res-half"), ...seedLocBilling("12pre", "2026-08-20", "INV-4710", "active", true) },
+            { id: "L-1210b", name: "Deerfield rental", address: "88 SE 8th St, Deerfield Beach, FL", x: "28%", y: "44%", covered: true, techId: "bobby", days: "Tue/Thu", ...seedLocPkg("res-acre"), ...seedLocBilling("6mo", "2026-08-20", "INV-4711", "active", true) },
           ],
           notes: "Jony called for two properties. Bill-To is only Jony. Boca house is 12-month prepaid; the rental is 6-month. Two invoices, two services.",
           opsNote: "Do not merge these into one job. Each address has its own trapper and invoice.",
@@ -705,7 +1063,7 @@
           backupId: "bobby",
           days: "Thu",
           durationMin: 25,
-          locations: [{ id: "L-1077a", name: "Residence", address: "900 E Camino Real, Boca Raton, FL", x: "27%", y: "44%", gps: "26.3502, -80.0849", ...seedLocBilling("1mo", "2026-08-22", "INV-4531", "active", true) }],
+          locations: [{ id: "L-1077a", name: "Residence", address: "900 E Camino Real, Boca Raton, FL", x: "27%", y: "44%", gps: "26.3502, -80.0849", ...seedLocPkg("res-half"), ...seedLocBilling("1mo", "2026-08-22", "INV-4531", "active", true) }],
           notes: "Short-term 1-month. Do not send another 1-month as the renewal — offer a 6- or 12-month rollover.",
           opsNote: "Prefers morning window before 9:30.",
         },
@@ -728,7 +1086,7 @@
           backupId: "bobby",
           days: null,
           durationMin: 15,
-          locations: [{ id: "L-1004a", name: "Residence", address: "1901 N Federal Hwy, Boca Raton, FL", x: "29%", y: "38%" }],
+          locations: [{ id: "L-1004a", name: "Residence", address: "1901 N Federal Hwy, Boca Raton, FL", x: "29%", y: "38%", ...seedLocPkg("res-half") }],
           notes: "Did not renew. Off active routing. Trap IC-208 is still in the field — retrieve it.",
           opsNote: "",
         },
@@ -745,11 +1103,6 @@
         { id: "INV-4516", customerId: "C-1108", locationId: "L-1108b", amount: 1500, status: "sent", sent: "2026-08-12", paidOn: "2026-08-22", kind: "renewal" },
         { id: "INV-4531", customerId: "C-1077", locationId: "L-1077a", contractId: "CON-1077a", amount: 300, status: "sent", sent: "2026-08-20", paidOn: "2026-08-26", kind: "initial" },
         { id: "INV-4601", customerId: "C-1020", locationId: "L-1020a", amount: 0, status: "draft", sent: null, paidOn: null, kind: "municipal", period: "August 2026", po: "PO-4481" },
-        { id: "INV-4484", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 200, status: "sent", sent: "2026-04-01", paidOn: "2026-04-02", kind: "autopay", periodN: 1, description: "12-month monthly — Billing Period 1" },
-        { id: "INV-4485", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 200, status: "sent", sent: "2026-05-01", paidOn: "2026-05-02", kind: "autopay", periodN: 2, description: "12-month monthly — Billing Period 2" },
-        { id: "INV-4486", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 200, status: "sent", sent: "2026-06-01", paidOn: "2026-06-02", kind: "autopay", periodN: 3, description: "12-month monthly — Billing Period 3" },
-        { id: "INV-4487", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 200, status: "sent", sent: "2026-07-01", paidOn: "2026-07-02", kind: "autopay", periodN: 4, description: "12-month monthly — Billing Period 4" },
-        { id: "INV-4488", customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a", amount: 200, status: "sent", sent: "2026-08-01", paidOn: null, kind: "autopay", periodN: 5, description: "12-month monthly — Billing Period 5" },
         { id: "INV-4301", customerId: "C-1004", locationId: "L-1004a", amount: 2000, status: "sent", sent: "2025-06-20", paidOn: "2025-06-22", kind: "initial" },
         { id: "INV-4688", customerId: "C-1188", locationId: "L-1188a", contractId: "CON-1188a", amount: 1200, status: "sent", sent: "2026-08-27", paidOn: null, kind: "initial" },
         { id: "INV-4689", customerId: "C-1188", locationId: "L-1188b", contractId: "CON-1188b", amount: 2000, status: "sent", sent: "2026-08-27", paidOn: null, kind: "initial" },
@@ -762,11 +1115,11 @@
         { id: "P-9114", invoiceId: "INV-4502", customerId: "C-1108", locationId: "L-1108a", amount: 2100, method: "ACH", last4: "", source: "ach", date: "2026-07-03", memo: "Palm Cove HOA · July · team entered on register", invoiceMarked: true, linkPay: false },
         { id: "P-9115", invoiceId: "INV-4502", customerId: "C-1108", locationId: "L-1108b", amount: 2100, method: "Zelle", last4: "", source: "zelle", date: "2026-07-29", memo: "Zelle · team entered on register · Palm Cove", invoiceMarked: true, linkPay: false },
         { id: "P-9116", invoiceId: "INV-4419", customerId: "C-1042", locationId: "L-1042a", amount: 200, method: "Check", last4: "2201", source: "check", date: "2026-07-30", memo: "Check #2201 · team entered · Diane", invoiceMarked: true, linkPay: false },
-        { id: "P-9176", invoiceId: "INV-4484", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-04-02", memo: "AutoPay · Harbor Oaks · month 1 · service already live", invoiceMarked: true, linkPay: true, posted: true, appliedAuto: true },
-        { id: "P-9177", invoiceId: "INV-4485", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-05-02", memo: "AutoPay · Harbor Oaks · month 2 · no new service", invoiceMarked: true, linkPay: true, posted: true, appliedAuto: true },
-        { id: "P-9178", invoiceId: "INV-4486", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-06-02", memo: "AutoPay · Harbor Oaks · month 3 · no new service", invoiceMarked: true, linkPay: true, posted: true, appliedAuto: true },
-        { id: "P-9179", invoiceId: "INV-4487", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-07-02", memo: "AutoPay · Harbor Oaks · month 4 · no new service", invoiceMarked: true, linkPay: true, posted: true, appliedAuto: true },
-        { id: "P-9180", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-08-26", memo: "Declined — Harbor Oaks monthly installment 5", invoiceMarked: false, failed: true, linkPay: true, posted: true, status: "FAILED" },
+        { id: "P-9176", invoiceId: null, billingPeriodId: "PER-1066a-1", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-04-02", memo: "AutoPay · Harbor Oaks · month 1 · receipt emailed", invoiceMarked: true, linkPay: true, posted: true, appliedAuto: true, receiptEmailed: true, receiptId: "RCPT-9176" },
+        { id: "P-9177", invoiceId: null, billingPeriodId: "PER-1066a-2", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-05-02", memo: "AutoPay · Harbor Oaks · month 2 · receipt emailed", invoiceMarked: true, linkPay: true, posted: true, appliedAuto: true, receiptEmailed: true, receiptId: "RCPT-9177" },
+        { id: "P-9178", invoiceId: null, billingPeriodId: "PER-1066a-3", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-06-02", memo: "AutoPay · Harbor Oaks · month 3 · receipt emailed", invoiceMarked: true, linkPay: true, posted: true, appliedAuto: true, receiptEmailed: true, receiptId: "RCPT-9178" },
+        { id: "P-9179", invoiceId: null, billingPeriodId: "PER-1066a-4", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-07-02", memo: "AutoPay · Harbor Oaks · month 4 · receipt emailed", invoiceMarked: true, linkPay: true, posted: true, appliedAuto: true, receiptEmailed: true, receiptId: "RCPT-9179" },
+        { id: "P-9180", invoiceId: null, billingPeriodId: "PER-1066a-5", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Auto-pay", last4: "3301", source: "autopay", date: "2026-08-26", memo: "Declined — Harbor Oaks monthly charge 5 · no receipt", invoiceMarked: false, failed: true, linkPay: true, posted: true, status: "FAILED" },
         { id: "P-9260", invoiceId: "INV-4419", customerId: "C-1042", locationId: "L-1042a", amount: 2000, method: "Website", last4: "2291", source: "website", date: "2026-02-22", memo: "Website checkout · Diane Walsh", invoiceMarked: true, linkPay: true },
         { id: "P-9230", invoiceId: "INV-4531", customerId: "C-1077", locationId: "L-1077a", amount: 300, method: "Card", last4: "7712", source: "portal", date: "2026-08-26", memo: "Portal link · Rita Gomez — Christy marked paid", invoiceMarked: true, linkPay: true },
         { id: "P-9231", invoiceId: "INV-4510", customerId: "C-1091", locationId: "L-1091a", amount: 2000, method: "Online", last4: "1091", source: "portal", date: "2026-08-27", memo: "Portal renewal link · Sarah Chen — on register, post payment", invoiceMarked: false, linkPay: true },
@@ -776,7 +1129,7 @@
         { id: "P-9289", invoiceId: "INV-4689", customerId: "C-1188", locationId: "L-1188b", amount: 2000, method: "Check", last4: "9901", source: "check", date: "2026-08-27", memo: "Check #9901 · team entered · Nina Canal house — post payment", invoiceMarked: false, linkPay: false },
         { id: "P-9310", invoiceId: "INV-4710", customerId: "C-1210", locationId: "L-1210a", amount: 2000, method: "Card", last4: "1210", source: "portal", date: "2026-08-21", memo: "Portal · Jony Morales Boca — marked paid", invoiceMarked: true, linkPay: true },
         { id: "P-9311", invoiceId: "INV-4711", customerId: "C-1210", locationId: "L-1210b", amount: 1200, method: "ACH", last4: "", source: "ach", date: "2026-08-21", memo: "ACH · Jony Morales Deerfield — marked paid", invoiceMarked: true, linkPay: true },
-        { id: "P-9340", invoiceId: "INV-4488", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Zelle", last4: "", source: "EXTERNAL", date: "2026-08-27", memo: "Zelle replacement · Harbor Oaks month 5 — awaiting allocation", invoiceMarked: false, linkPay: false, status: "POSTED" },
+        { id: "P-9340", invoiceId: null, billingPeriodId: "PER-1066a-5", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Zelle", last4: "", source: "EXTERNAL", date: "2026-08-27", memo: "Zelle replacement · Harbor Oaks month 5 — no invoice; monthly charges the card and emails a receipt", invoiceMarked: false, linkPay: false, status: "POSTED" },
         { id: "P-9401", invoiceId: "INV-4512", customerId: "C-1112", locationId: "L-1112a", amount: 1500, method: "ACH", last4: "", source: "ach", date: "2026-08-18", memo: "Cypress Commons HOA · 2026 renewal", invoiceMarked: true, linkPay: false },
         { id: "P-9402", invoiceId: "INV-4516", customerId: "C-1108", locationId: "L-1108b", amount: 1500, method: "Check", last4: "4516", source: "check", date: "2026-08-22", memo: "Palm Cove Lot 14 · 2026 renewal", invoiceMarked: true, linkPay: false },
       ],
@@ -806,11 +1159,11 @@
         { id: "PER-1042a-1", contractId: "CON-1042a", sequence: 1, periodStart: "2026-03-01", periodEnd: "2027-03-01", amount: 2000, status: "PAID", invoiceId: "INV-4419" },
         { id: "PER-1042b-1", contractId: "CON-1042b", sequence: 1, periodStart: "2026-08-01", periodEnd: "2027-02-01", amount: 1200, status: "PAID", invoiceId: "INV-4420" },
         { id: "PER-1091a-1", contractId: "CON-1091a", sequence: 1, periodStart: "2025-09-24", periodEnd: "2026-09-24", amount: 2000, status: "DUE", invoiceId: "INV-4510" },
-        { id: "PER-1066a-1", contractId: "CON-1066a", sequence: 1, periodStart: "2026-04-01", periodEnd: "2026-05-01", amount: 200, status: "PAID", invoiceId: "INV-4484" },
-        { id: "PER-1066a-2", contractId: "CON-1066a", sequence: 2, periodStart: "2026-05-01", periodEnd: "2026-06-01", amount: 200, status: "PAID", invoiceId: "INV-4485" },
-        { id: "PER-1066a-3", contractId: "CON-1066a", sequence: 3, periodStart: "2026-06-01", periodEnd: "2026-07-01", amount: 200, status: "PAID", invoiceId: "INV-4486" },
-        { id: "PER-1066a-4", contractId: "CON-1066a", sequence: 4, periodStart: "2026-07-01", periodEnd: "2026-08-01", amount: 200, status: "PAID", invoiceId: "INV-4487" },
-        { id: "PER-1066a-5", contractId: "CON-1066a", sequence: 5, periodStart: "2026-08-01", periodEnd: "2026-09-01", amount: 200, status: "DUE", invoiceId: "INV-4488" },
+        { id: "PER-1066a-1", contractId: "CON-1066a", sequence: 1, periodStart: "2026-04-01", periodEnd: "2026-05-01", amount: 200, status: "PAID", invoiceId: null, paymentId: "P-9176" },
+        { id: "PER-1066a-2", contractId: "CON-1066a", sequence: 2, periodStart: "2026-05-01", periodEnd: "2026-06-01", amount: 200, status: "PAID", invoiceId: null, paymentId: "P-9177" },
+        { id: "PER-1066a-3", contractId: "CON-1066a", sequence: 3, periodStart: "2026-06-01", periodEnd: "2026-07-01", amount: 200, status: "PAID", invoiceId: null, paymentId: "P-9178" },
+        { id: "PER-1066a-4", contractId: "CON-1066a", sequence: 4, periodStart: "2026-07-01", periodEnd: "2026-08-01", amount: 200, status: "PAID", invoiceId: null, paymentId: "P-9179" },
+        { id: "PER-1066a-5", contractId: "CON-1066a", sequence: 5, periodStart: "2026-08-01", periodEnd: "2026-09-01", amount: 200, status: "DUE", invoiceId: null },
         { id: "PER-1188a-1", contractId: "CON-1188a", sequence: 1, periodStart: "2026-08-27", periodEnd: "2027-02-27", amount: 1200, status: "DUE", invoiceId: "INV-4688" },
         { id: "PER-1188b-1", contractId: "CON-1188b", sequence: 1, periodStart: "2026-08-27", periodEnd: "2027-08-27", amount: 2000, status: "DUE", invoiceId: "INV-4689" },
         { id: "PER-1210a-1", contractId: "CON-1210a", sequence: 1, periodStart: "2026-08-20", periodEnd: "2027-08-20", amount: 2000, status: "PAID", invoiceId: "INV-4710" },
@@ -822,10 +1175,6 @@
         { id: "ALLOC-9002", paymentId: "P-9002", invoiceId: "INV-4420", amount: 1200 },
         { id: "ALLOC-9114", paymentId: "P-9114", invoiceId: "INV-4502", amount: 2100 },
         { id: "ALLOC-9230", paymentId: "P-9230", invoiceId: "INV-4531", amount: 300 },
-        { id: "ALLOC-9176", paymentId: "P-9176", invoiceId: "INV-4484", amount: 200 },
-        { id: "ALLOC-9177", paymentId: "P-9177", invoiceId: "INV-4485", amount: 200 },
-        { id: "ALLOC-9178", paymentId: "P-9178", invoiceId: "INV-4486", amount: 200 },
-        { id: "ALLOC-9179", paymentId: "P-9179", invoiceId: "INV-4487", amount: 200 },
         { id: "ALLOC-9310", paymentId: "P-9310", invoiceId: "INV-4710", amount: 2000 },
         { id: "ALLOC-9311", paymentId: "P-9311", invoiceId: "INV-4711", amount: 1200 },
         { id: "ALLOC-9401", paymentId: "P-9401", invoiceId: "INV-4512", amount: 1500 },
@@ -894,10 +1243,10 @@
         },
       ],
       notifications: [
-        { id: "N-1", type: "AUTOPAY_FAILED", severity: "alert", title: "AutoPay declined", text: "Harbor Oaks · Campus · CARD_DECLINED ····3301. Monthly plan — service already exists. Contact customer; Rick can stop service if they will not pay.", customerId: "C-1066", locationId: "L-1066a", invoiceId: "INV-4488", date: "2026-08-26", read: false },
+        { id: "N-1", type: "AUTOPAY_FAILED", severity: "alert", title: "AutoPay declined", text: "Harbor Oaks · Campus · CARD_DECLINED ····3301. Monthly plan — no invoice. Card charge failed; no receipt. Contact customer; Rick can stop service if they will not pay.", customerId: "C-1066", locationId: "L-1066a", invoiceId: null, date: "2026-08-26", read: false },
       ],
       tasks: [
-        { id: "TSK-1", customerId: "C-1066", locationId: "L-1066a", title: "Call Harbor Oaks about declined AutoPay", notes: "Month 5 declined. Service is already live — do not recreate. Ask for Zelle/check, allocate, or have Rick stop service.", createdBy: "admin", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
+        { id: "TSK-1", customerId: "C-1066", locationId: "L-1066a", title: "Call Harbor Oaks about declined AutoPay", notes: "Month 5 card charge declined. No invoice for monthly AutoPay. Service is already live — do not recreate. Ask for Zelle/check or retry the card, or have Rick stop service.", createdBy: "admin", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
         { id: "TSK-1b", customerId: "C-1066", locationId: "L-1066a", title: "Hold / stop Harbor Oaks if unpaid", notes: "After you talk to them: if they cannot pay, stop the service on the customer record. Do not create a new service.", createdBy: "admin", assignee: "ops", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
         { id: "TSK-2", customerId: "C-1188", locationId: "L-1188a", title: "Allocate Nina residence payment", notes: "Portal payment is on the register — allocate so Rick can create service on that property only.", createdBy: "owner", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-27" },
         { id: "TSK-3", customerId: "C-1188", locationId: "L-1188a", title: "Create service after Nina Residence is paid", notes: "Wait for Christy to allocate. Then create service and assign on the map.", createdBy: "admin", assignee: "ops", due: "2026-08-28", priority: "normal", status: "open", createdAt: "2026-08-27" },
@@ -955,6 +1304,82 @@
         { id: "CM-2", customerId: "C-1066", who: "Christy Brown", channel: "Call", date: "2026-08-26", text: "Left voicemail: auto-pay declined. Service paused until they pay." },
         { id: "CM-3", customerId: "C-1042", who: "Rick Torgerson", channel: "Call", date: "2026-08-18", text: "Diane asked to pause the Labor Day week. Noted on the account." },
         { id: "CM-4", customerId: "C-1180", who: "Rocco", channel: "Web form", date: "2026-08-26", text: "Inquiry: 12-month program for a Boca/Fort Lauderdale residence." },
+        { id: "CM-5", customerId: "C-1091", who: "Christy Brown", channel: "Email", date: "2026-08-20", text: "Emailed renewal window notice to sarah.chen@email.com — thread on Email." },
+        { id: "CM-6", customerId: "C-1066", who: "Christy Brown", channel: "Email", date: "2026-08-26", text: "Emailed AutoPay decline notice to mgr@harboroaks.com — waiting on their reply." },
+      ],
+      emails: [
+        {
+          id: "EM-1", threadId: "TH-1", customerId: "C-1091", locationId: "L-1091a",
+          direction: "out", fromName: "Christy Brown", fromEmail: "billing@iguanacontrol.com",
+          toName: "Sarah Chen", toEmail: "sarah.chen@email.com",
+          subject: "Your iguana removal program is in the renewal window",
+          body: "Hello Sarah Chen,\nAccount C-1091 is in the renewal window.\nSame terms unless Administration notes otherwise.\n\nReply if you want to switch prepaid vs monthly.\n— Christy, Iguana Control",
+          templateKey: "renewal", date: "2026-08-20", time: "10:12",
+          noReply: false, readByOffice: true, readByClient: true,
+        },
+        {
+          id: "EM-2", threadId: "TH-1", customerId: "C-1091", locationId: "L-1091a",
+          direction: "in", fromName: "Sarah Chen", fromEmail: "sarah.chen@email.com",
+          toName: "Christy Brown", toEmail: "billing@iguanacontrol.com",
+          subject: "Re: Your iguana removal program is in the renewal window",
+          body: "Hi Christy — can I switch to the monthly plan instead of prepaid? The $2,000 is a lot at once.",
+          templateKey: null, date: "2026-08-21", time: "09:40",
+          noReply: false, readByOffice: true, readByClient: true,
+        },
+        {
+          id: "EM-3", threadId: "TH-1", customerId: "C-1091", locationId: "L-1091a",
+          direction: "out", fromName: "Christy Brown", fromEmail: "billing@iguanacontrol.com",
+          toName: "Sarah Chen", toEmail: "sarah.chen@email.com",
+          subject: "Re: Your iguana removal program is in the renewal window",
+          body: "Yes. Monthly is $200/month charged to the card on file. We email a receipt — no invoice. Reply if you want me to send that instead of the prepaid renewal.",
+          templateKey: null, date: "2026-08-22", time: "11:05",
+          noReply: false, readByOffice: true, readByClient: true,
+        },
+        {
+          id: "EM-4", threadId: "TH-2", customerId: "C-1066", locationId: "L-1066a",
+          direction: "out", fromName: "Christy Brown", fromEmail: "billing@iguanacontrol.com",
+          toName: "Harbor Oaks Management", toEmail: "mgr@harboroaks.com",
+          subject: "AutoPay declined — month 5",
+          body: "Hello Harbor Oaks Management,\nThe card on file (····3301) declined for this month’s $200 charge. Monthly AutoPay does not send an invoice — please reply with another card or a Zelle/check so we can keep service on.\n— Christy, Iguana Control",
+          templateKey: "general", date: "2026-08-26", time: "14:20",
+          noReply: false, readByOffice: true, readByClient: true,
+        },
+        {
+          id: "EM-5", threadId: "TH-2", customerId: "C-1066", locationId: "L-1066a",
+          direction: "in", fromName: "Harbor Oaks Management", fromEmail: "mgr@harboroaks.com",
+          toName: "Christy Brown", toEmail: "billing@iguanacontrol.com",
+          subject: "Re: AutoPay declined — month 5",
+          body: "We'll Zelle $200 today. Please retry the card next month. Thank you.",
+          templateKey: null, date: "2026-08-27", time: "08:15",
+          noReply: false, readByOffice: false, readByClient: true,
+        },
+        {
+          id: "EM-6", threadId: "TH-3", customerId: "C-1042", locationId: "L-1042a",
+          direction: "out", fromName: "Iguana Control", fromEmail: "noreply@iguanacontrol.com",
+          toName: "Diane Walsh", toEmail: "diane.walsh@email.com",
+          subject: "Visit reminder — technician in two days",
+          body: "Hi Diane Walsh, a technician is scheduled in two days. This is an automated message — you cannot reply.",
+          templateKey: "visit", date: "2026-08-25", time: "07:00",
+          noReply: true, readByOffice: true, readByClient: false,
+        },
+        {
+          id: "EM-7", threadId: "TH-4", customerId: "C-1180", locationId: "L-1180a",
+          direction: "out", fromName: "Christy Brown", fromEmail: "billing@iguanacontrol.com",
+          toName: "Elena Vasquez", toEmail: "elena.v@email.com",
+          subject: "Your iguana removal quote is ready",
+          body: "Hello Elena Vasquez,\nAccount C-1180.\nYour iguana removal program quote is ready.\n\nReply with the program you want and we will send the invoice (or charge the card for monthly).\n— Christy, Iguana Control",
+          templateKey: "proposal", date: "2026-08-24", time: "15:30",
+          noReply: false, readByOffice: true, readByClient: false,
+        },
+        {
+          id: "EM-8", threadId: "TH-5", customerId: "C-1066", locationId: "L-1066a",
+          direction: "out", fromName: "Iguana Control", fromEmail: "noreply@iguanacontrol.com",
+          toName: "Harbor Oaks Management", toEmail: "mgr@harboroaks.com",
+          subject: "Receipt RCPT-9179 — card charged",
+          body: "Hello Harbor Oaks Management,\nReceipt RCPT-9179 — we charged the card on file $200 for month 4. Monthly AutoPay does not send an invoice.\nThis is an automated receipt — you cannot reply.",
+          templateKey: "receipt", date: "2026-07-02", time: "06:05",
+          noReply: true, readByOffice: true, readByClient: true,
+        },
       ],
       documents: [
         { id: "D-1", customerId: "C-1020", locationId: "L-1020a", kind: "coi", name: "COI — Coastal Parks 2026.pdf", by: "Christy Brown", date: "2026-01-06", note: "Sent to city AP for PO-4481." },
@@ -1003,9 +1428,11 @@
         customTemplates: [],
       },
       templates: {
-        proposal: "Hello {customer_name},\nAccount {account_id}.\nYour iguana removal program quote is ready.",
-        invoice: "Hello {customer_name},\nInvoice {invoice_or_quote} is due.\nPay by invoice link, website, ACH, or bank transfer.",
-        renewal: "Hello {customer_name},\nAccount {account_id} is in the renewal window.\nSame terms unless Administration notes otherwise.",
+        proposal: "Hello {customer_name},\nAccount {account_id}.\nYour iguana removal program quote is ready. Packages follow the property type.\n\nReply to this email with the program you want. 6- and 12-month: AutoPay monthly or prepaid (last month / last two months free).\n— Iguana Control",
+        invoice: "Hello {customer_name},\nInvoice {invoice_or_quote} is due.\nPay by invoice link, website, ACH, or bank transfer.\n\nYou can reply to this email if you have a question.\n— Iguana Control",
+        renewal: "Hello {customer_name},\nAccount {account_id} is in the renewal window.\nSame terms unless Administration notes otherwise.\n\nReply if you want to switch prepaid vs monthly.\n— Iguana Control",
+        receipt: "Hello {customer_name},\nReceipt {invoice_or_quote} — we charged the card on file. Monthly AutoPay does not send an invoice.\nThis is an automated receipt — you cannot reply.",
+        general: "Hello {customer_name},\n\n\n— Iguana Control",
         visit: "Hi {customer_name}, a technician is scheduled in two days. This is an automated message — you cannot reply.",
       },
       integrations: { mapsKey: "", processor: "", sendgrid: "", notes: "" },
@@ -1027,6 +1454,7 @@
     selectedStop: null,
     toast: null,
     modal: null,
+    quoteDraft: null,
     data: window.IguanaStore ? IguanaStore.load(seed) : seed(),
     mapDay: null,
     mapTech: null,
@@ -1077,6 +1505,12 @@
     applyPay: null,
     searchOpen: false,
     customerTab: "overview",
+    mailFilter: "all",
+    mailThreadId: null,
+    mailCompose: false,
+    clientMail: false,
+    clientMailCustomer: null,
+    clientMailThread: null,
   };
   normalizeDemoData();
   if (state.page === "location" && !locBy(state.selectedCustomer, state.selectedLocation)) {
@@ -1181,7 +1615,7 @@
   function ensureData() {
     if (!state.data) state.data = seed();
     const d = state.data;
-    ["customers", "quotes", "invoices", "payments", "stops", "comms", "mtos", "mail", "documents", "users", "holidays", "commissions", "traps", "inbound", "services", "contracts", "billingPlans", "billingPeriods", "paymentAllocations", "autopayAuthorizations", "renewals", "notifications", "tasks"].forEach((k) => {
+    ["customers", "quotes", "invoices", "payments", "stops", "comms", "mtos", "mail", "documents", "users", "holidays", "commissions", "traps", "inbound", "services", "contracts", "billingPlans", "billingPeriods", "paymentAllocations", "autopayAuthorizations", "renewals", "notifications", "tasks", "emails"].forEach((k) => {
       if (!Array.isArray(d[k])) d[k] = [];
     });
     if (!d.settings) d.settings = { commissionPct: 2, renewalWindow: 60, reminder: "email", extraReasons: [] };
@@ -1191,7 +1625,19 @@
       if (!Array.isArray(c.locations)) c.locations = [];
       const anyLocProgram = c.locations.some((l) => l.programId);
       c.locations.forEach((l) => {
-        if (!l.locationType) l.locationType = c.type || c.billToType || "residential";
+        if (!l.packageId) {
+          const demoPkg = {
+            "L-1042a": "res-half", "L-1042b": "res-acre",
+            "L-1188a": "res-half", "L-1188b": "res-acre",
+            "L-1210a": "res-half", "L-1210b": "res-acre",
+            "L-1180a": "res-half", "L-1091a": "res-half", "L-1077a": "res-half", "L-1004a": "res-half",
+            "L-1066a": "corp-1", "L-1020a": "muni", "L-1112a": "hoa",
+          }[l.id] || (String(l.id || "").startsWith("L-1108") ? "hoa" : null);
+          const raw = l.locationType || c.type || c.billToType || "";
+          if (demoPkg) l.packageId = demoPkg;
+          else if (packageById(raw)) l.packageId = raw;
+        }
+        l.locationType = normalizeKind(l.locationType || l.packageId || c.type || c.billToType || "residential");
         if (l.programId || !c.programId) return;
         const hasBilling = !!(l.paid || l.amount != null || l.start || (d.invoices || []).some((i) => i.customerId === c.id && i.locationId === l.id));
         const legacyAllEmpty = !anyLocProgram && c.status !== "inquiry";
@@ -1250,30 +1696,104 @@
   }
   function programOptionLabel(p) {
     const now = programAmount(p);
-    if (p.id === "12mo") return `${p.name} — ${money(now)}/mo × ${p.months} (term ${money(p.list)})`;
+    if (programIsMonthly(p)) return `${p.name} — ${money(now)}/mo × ${p.months} (term ${money(p.list)})`;
     const promo = p.prepaid != null ? ` · billed ${money(now)}` : "";
-    const free = p.freeMonths ? ` · ${p.freeMonths} mo promotional` : "";
+    const free = p.freeMonths ? ` · last ${p.freeMonths} month${p.freeMonths === 1 ? "" : "s"} free` : "";
     return `${p.name} — list ${money(p.list)}${promo}${free}`;
   }
   function locBy(cid, lid) {
     const c = custBy(cid);
     return c?.locations?.find((l) => l.id === lid);
   }
-  const LOCATION_TYPES = [
-    { id: "residential", label: "Residential" },
-    { id: "commercial", label: "Commercial" },
-    { id: "hoa", label: "HOA / community" },
-    { id: "municipal", label: "Municipal" },
-  ];
+  const LOCATION_TYPES = PROPERTY_KINDS.map((k) => ({ id: k.id, label: k.label }));
+  function locKind(c, l) {
+    const raw = (l && (l.locationType || l.packageId)) || (c && (c.type || c.billToType)) || "residential";
+    return normalizeKind(raw);
+  }
+  function locPackageId(c, l) {
+    const raw = l && l.packageId;
+    if (packageById(raw)) return raw;
+    return null;
+  }
+  function programTermKey(p) {
+    if (!p) return "";
+    if (p.pkgId && String(p.id).startsWith(p.pkgId + "-")) return String(p.id).slice(p.pkgId.length + 1);
+    const parts = String(p.id || "").split("-");
+    return parts[parts.length - 1] || "";
+  }
+  function packageSelectLabel(pkg) {
+    if (!pkg) return "";
+    if (pkg.billToType === "commercial") {
+      const m = String(pkg.label || "").match(/level\s+(\d+)/i);
+      return m ? `Level ${m[1]}` : (pkg.short || pkg.label);
+    }
+    return pkg.label || pkg.short;
+  }
+  function termMonthLabel(months) {
+    if (months === 0.5) return "2-week";
+    if (months === 1) return "1 month";
+    if (months === 3) return "3 month";
+    if (months === 6) return "6 month";
+    if (months === 12) return "12 month";
+    return `${months} month`;
+  }
+  function packageTermGroups(pkg) {
+    const groups = [];
+    (pkg?.terms || []).forEach((t) => {
+      let g = groups.find((x) => x.months === t.months);
+      if (!g) {
+        g = { months: t.months, label: termMonthLabel(t.months), terms: [] };
+        groups.push(g);
+      }
+      g.terms.push(t);
+    });
+    return groups;
+  }
+  function allTermKeys(pkg) {
+    return (pkg?.terms || []).map((t) => t.key);
+  }
+  function termKeysFromPricing(pkgId, pricing) {
+    const keys = [];
+    Object.keys(pricing || {}).forEach((pid) => {
+      const p = progBy(pid);
+      if (p?.pkgId === pkgId) {
+        const key = programTermKey(p);
+        if (key && !keys.includes(key)) keys.push(key);
+      }
+    });
+    return keys;
+  }
+  function termCheckTitle(t) {
+    if (t.key === "6mo" || t.key === "12mo") return `${termMonthLabel(t.months)} AutoPay`;
+    if (t.key === "6pre" || t.key === "12pre") return `${termMonthLabel(t.months)} prepaid`;
+    return TERM_LABELS[t.key] || termMonthLabel(t.months);
+  }
+  function termCheckBlurb(t) {
+    if (t.billing === "monthly") return `${money(t.list)} (${money(t.monthly)}/mos) if set up on AutoPay`;
+    if (t.prepaid != null && t.list != null && t.prepaid !== t.list) {
+      const free = t.freeMonths === 2 ? "last two months free" : (t.freeMonths === 1 ? "last month free" : "prepaid");
+      return `pay ${money(t.prepaid)} and get ${free}`;
+    }
+    if (!t.list) return "Quoted on PO";
+    return money(t.list);
+  }
+  function quoteDurationForPkg(pkg, durationByPkg) {
+    const n = durationByPkg && Number(durationByPkg[pkg.id]);
+    return Number.isFinite(n) && n > 0 ? n : (pkg.durationMin || 0);
+  }
   function locTypeOf(c, l) {
-    return (l && l.locationType) || (c && (c.type || c.billToType)) || "residential";
+    return locKind(c, l);
   }
   function locTypeLabel(type) {
-    return LOCATION_TYPES.find((t) => t.id === type)?.label || type || "—";
+    if (!type) return "—";
+    if (PROPERTY_KINDS.some((k) => k.id === type) || type === "corporate") return locKindLabel(type);
+    const pkg = packageById(type);
+    return pkg?.label || LOCATION_TYPES.find((t) => t.id === type)?.label || type || "—";
   }
   function locTypeOptions(selected) {
-    return LOCATION_TYPES.map((t) => `<option value="${t.id}" ${selected === t.id ? "selected" : ""}>${esc(t.label)}</option>`).join("");
+    return kindOptions(selected);
   }
+  window.IguanaLocTypeOptions = locTypeOptions;
   function trapsForLocation(cid, lid) {
     return (state.data.traps || []).filter((t) => t.customerId === cid && t.locationId === lid);
   }
@@ -1574,25 +2094,29 @@
     const d = new Date((iso || TODAY) + "T12:00:00");
     return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   }
-  function applyPlanToLocation(l, programId, startDate) {
+  function applyPlanToLocation(l, programId, startDate, billedAmount) {
     const p = progBy(programId) || PROGRAMS[0];
     const start = startDate || l.start || TODAY;
     l.programId = p.id;
-    l.amount = programAmount(p);
+    const hasQuote = billedAmount != null && Number.isFinite(Number(billedAmount));
+    l.amount = hasQuote ? Number(billedAmount) : programAmount(p);
     l.start = start;
     l.expires = addMonths(start, p.months);
-    if (p.id === "12mo") l.autoPay = true;
+    if (programIsMonthly(p)) l.autoPay = true;
     return p;
   }
-  function commitLocationPlan(loc, programId, startDate, invoiceId, customerId) {
-    applyPlanToLocation(loc, programId, startDate);
-    const commitment = buildCommitment(programId, startDate || TODAY);
+  function commitLocationPlan(loc, programId, startDate, invoiceId, customerId, billedAmount) {
+    const cid = customerId || state.selectedCustomer;
+    const billed = billedAmount != null && Number.isFinite(Number(billedAmount))
+      ? Number(billedAmount)
+      : quotedProgramAmount(cid, loc.id, programId);
+    applyPlanToLocation(loc, programId, startDate, billed);
+    const commitment = buildCommitment(programId, startDate || TODAY, billed);
     loc.commitment = commitment;
     loc.billingPeriods = buildBillingPeriods(commitment, startDate || TODAY, invoiceId || null);
     if (invoiceId) loc.lifecycle = "waiting_payment";
     if (commitment.autoPay) loc.autoPay = true;
 
-    const cid = customerId || state.selectedCustomer;
     const start = startDate || TODAY;
     let ct = contractForLoc(cid, loc.id);
     if (!ct) {
@@ -1670,35 +2194,435 @@
       return null;
     }
     if (bp.frequency !== "monthly") {
-      if (!silent) toast("Only monthly plans generate the next billing period.");
+      if (!silent) toast("Only monthly plans queue the next month.");
       return null;
     }
     const count = periodsForContract(ct.id).length;
     if (count >= bp.installments) {
-      if (!silent) toast("All billing periods for this contract are already generated.");
+      if (!silent) toast("All months for this contract are already on the plan.");
       return null;
     }
     const start = addMonths(ct.startDate, count);
     const period = {
       id: nid("PER"), contractId: ct.id, sequence: count + 1,
       periodStart: start, periodEnd: addMonths(ct.startDate, count + 1),
-      amount: bp.installmentAmount, status: "DUE", invoiceId: null,
+      amount: bp.installmentAmount, status: "DUE", invoiceId: null, paymentId: null,
     };
-    const inv = {
-      id: nid("INV"), customerId, locationId, contractId: ct.id, billingPeriodId: period.id,
-      amount: bp.installmentAmount, status: "sent", sent: TODAY, paidOn: null,
-      kind: bp.autopay ? "autopay" : "recurring", periodN: count + 1,
-      description: `${ct.program} — Billing Period ${count + 1}`,
-    };
-    period.invoiceId = inv.id;
     state.data.billingPeriods.push(period);
-    state.data.invoices.push(inv);
     if (loc) loc.lifecycle = loc.lifecycle === "active" ? "active" : "waiting_payment";
     if (!silent) {
-      toast(`Period ${count + 1} invoice ${inv.id} created (${money(inv.amount)}).`);
+      toast(`Month ${count + 1} is due · ${money(period.amount)}. AutoPay charges the card and emails a receipt — no invoice.`);
       render();
     }
-    return inv;
+    return period;
+  }
+
+  function dueMonthlyPeriod(ct) {
+    if (!ct) return null;
+    return periodsForContract(ct.id).find((p) => p.status === "DUE" || p.status === "FAILED") || null;
+  }
+
+  function emailMonthlyReceipt(c, loc, pay, period) {
+    pay.receiptId = pay.receiptId || nid("RCPT");
+    pay.receiptEmailed = true;
+    pay.receiptSentAt = TODAY;
+    const card = pay.last4 ? `card ····${pay.last4}` : "card on file";
+    const month = period ? ` · month ${period.sequence}` : "";
+    state.data.comms.push({
+      id: nid("CM"), customerId: c.id, who: "Billing", channel: "Email", date: TODAY,
+      text: `Receipt ${pay.receiptId} emailed to ${c.email || "the Bill-To"} · ${money(pay.amount)} charged to ${card}${month} · ${loc.name}. Monthly AutoPay does not send an invoice.`,
+    });
+    pushOfficeEmail({
+      customerId: c.id,
+      locationId: loc?.id,
+      subject: `Receipt ${pay.receiptId} — card charged`,
+      body: fillMailTemplate("receipt", c, { invoice: pay.receiptId }),
+      templateKey: "receipt",
+      noReply: true,
+    });
+    return pay.receiptId;
+  }
+
+  function mailClock() {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  function officeMailbox(noReply) {
+    if (noReply) return { name: "Iguana Control", email: "noreply@iguanacontrol.com" };
+    const r = role();
+    if (state.role === "ops") return { name: r?.name || "Operations", email: "ops@iguanacontrol.com" };
+    return { name: r?.name || "Administration", email: "billing@iguanacontrol.com" };
+  }
+  function fillMailTemplate(key, c, extra) {
+    const body = (state.data.templates && key && state.data.templates[key]) || "";
+    const inv = extra?.invoice || extra?.quote || extra?.receipt || "";
+    return body
+      .replace(/\{customer_name\}/g, (c && (c.billTo || c.name)) || "")
+      .replace(/\{account_id\}/g, (c && c.id) || "")
+      .replace(/\{invoice_or_quote\}/g, inv);
+  }
+  function mailSubjectForTemplate(key, c, extra) {
+    if (key === "proposal") return "Your iguana removal quote is ready";
+    if (key === "invoice") return extra?.invoice ? `Invoice ${extra.invoice} is ready` : "Your invoice is ready";
+    if (key === "renewal") return "Your iguana removal program is in the renewal window";
+    if (key === "visit") return "Visit reminder — technician in two days";
+    if (key === "receipt") return extra?.invoice ? `Receipt ${extra.invoice} — card charged` : "Receipt — card charged";
+    if (key === "general") return "Message from Iguana Control";
+    return c ? `${c.billTo || c.name}` : "Message from Iguana Control";
+  }
+  function templateIsNoReply(key) {
+    return key === "visit" || key === "receipt";
+  }
+  function emailSortKey(m) {
+    return `${m.date || ""} ${m.time || ""} ${m.id || ""}`;
+  }
+  function allEmailThreads(customerId) {
+    const list = (state.data.emails || []).filter((e) => !customerId || e.customerId === customerId);
+    const by = {};
+    list.forEach((e) => {
+      const k = e.threadId || e.id;
+      if (!by[k]) by[k] = [];
+      by[k].push(e);
+    });
+    return Object.keys(by).map((tid) => {
+      const msgs = by[tid].slice().sort((a, b) => emailSortKey(a).localeCompare(emailSortKey(b)));
+      const last = msgs[msgs.length - 1];
+      const root = msgs[0];
+      return {
+        threadId: tid,
+        customerId: last.customerId,
+        subject: String(root.subject || last.subject || "").replace(/^Re:\s*/i, ""),
+        msgs,
+        last,
+        unreadOffice: msgs.some((m) => m.direction === "in" && !m.readByOffice),
+        unreadClient: msgs.some((m) => m.direction === "out" && !m.readByClient),
+      };
+    }).sort((a, b) => emailSortKey(b.last).localeCompare(emailSortKey(a.last)));
+  }
+  function unreadOfficeEmailCount() {
+    return allEmailThreads(null).filter((t) => t.unreadOffice).length;
+  }
+  function threadAllowsClientReply(msgs) {
+    return (msgs || []).some((m) => m.direction === "out" && !m.noReply);
+  }
+  function markThreadRead(threadId, asClient) {
+    (state.data.emails || []).filter((e) => e.threadId === threadId).forEach((m) => {
+      if (asClient) {
+        if (m.direction === "out") m.readByClient = true;
+      } else if (m.direction === "in") m.readByOffice = true;
+    });
+  }
+  function pushOfficeEmail(opts) {
+    const c = custBy(opts.customerId);
+    if (!c) return null;
+    if (!Array.isArray(state.data.emails)) state.data.emails = [];
+    const noReply = !!(opts.noReply || templateIsNoReply(opts.templateKey));
+    const from = officeMailbox(noReply);
+    const subject = opts.subject || mailSubjectForTemplate(opts.templateKey, c, opts);
+    const msg = {
+      id: nid("EM"),
+      threadId: opts.threadId || nid("TH"),
+      customerId: c.id,
+      locationId: opts.locationId || null,
+      direction: "out",
+      fromName: from.name,
+      fromEmail: from.email,
+      toName: c.billTo || c.name,
+      toEmail: c.email || "",
+      subject,
+      body: opts.body || "",
+      templateKey: opts.templateKey || null,
+      date: TODAY,
+      time: mailClock(),
+      noReply,
+      readByOffice: true,
+      readByClient: false,
+    };
+    state.data.emails.push(msg);
+    return msg;
+  }
+  function pushClientEmail(opts) {
+    const c = custBy(opts.customerId);
+    if (!c) return null;
+    if (!Array.isArray(state.data.emails)) state.data.emails = [];
+    const threadMsgs = (state.data.emails || []).filter((e) => e.threadId === opts.threadId);
+    const lastOut = threadMsgs.filter((e) => e.direction === "out").slice(-1)[0];
+    if (!threadAllowsClientReply(threadMsgs)) return null;
+    const subject = opts.subject || (lastOut?.subject ? (String(lastOut.subject).startsWith("Re:") ? lastOut.subject : "Re: " + lastOut.subject) : "Re: Iguana Control");
+    const msg = {
+      id: nid("EM"),
+      threadId: opts.threadId,
+      customerId: c.id,
+      locationId: lastOut?.locationId || null,
+      direction: "in",
+      fromName: c.billTo || c.name,
+      fromEmail: c.email || "",
+      toName: lastOut?.fromName || "Iguana Control",
+      toEmail: lastOut?.fromEmail || "billing@iguanacontrol.com",
+      subject,
+      body: opts.body || "",
+      templateKey: null,
+      date: TODAY,
+      time: mailClock(),
+      noReply: false,
+      readByOffice: false,
+      readByClient: true,
+    };
+    state.data.emails.push(msg);
+    return msg;
+  }
+  function emailBubbleHtml(m, asClient) {
+    const mine = asClient ? m.direction === "in" : m.direction === "out";
+    const tpl = m.templateKey ? ` · ${esc(m.templateKey)}` : "";
+    const nr = m.noReply ? " · no-reply" : "";
+    return `<div class="mail-bubble ${mine ? "mine" : "theirs"}">
+      <div class="mail-meta">${esc(m.fromName || "")} · ${esc(m.fromEmail || "")} · ${esc(fmtUsDate(m.date))} ${esc(m.time || "")}${nr}${tpl}</div>
+      <div class="mail-body">${esc(m.body || "").replace(/\n/g, "<br>")}</div>
+    </div>`;
+  }
+  function emailThreadPane(thread, opts) {
+    const asClient = !!(opts && opts.asClient);
+    const c = custBy(thread.customerId);
+    const canStaffReply = !asClient && can("email.send");
+    const canClientReply = asClient && threadAllowsClientReply(thread.msgs);
+    let footer = "";
+    if (canStaffReply || canClientReply) {
+      footer = `<div class="mail-reply">
+        <textarea id="mail-reply" rows="4" placeholder="${asClient ? "Reply to Iguana Control…" : "Reply to the client…"}"></textarea>
+        <button class="btn btn-primary" data-act="${asClient ? "client-mail-reply" : "office-mail-reply"}" data-thread="${esc(thread.threadId)}" data-id="${esc(thread.customerId)}">Send reply</button>
+      </div>`;
+    } else if (asClient) {
+      footer = `<p class="notice" style="margin:12px 16px">This is a no-reply message (visit reminder or receipt). The client cannot reply.</p>`;
+    } else {
+      footer = `<p class="muted" style="padding:12px 16px">You can read this thread. Sending is Administration, Operations, or Owner.</p>`;
+    }
+    return `
+      <div class="mail-pane">
+        <div class="mail-pane-head">
+          <h3>${esc(thread.subject)}</h3>
+          <p class="tiny">${esc(c?.billTo || c?.name || "")} · ${esc(c?.email || "no email on file")}${!asClient ? ` · <button class="btn btn-ghost linkish" data-act="open-customer" data-id="${esc(thread.customerId)}" data-tab="email">Account</button>` : ""}</p>
+        </div>
+        <div class="mail-thread" data-keep-scroll="mail-thread">${thread.msgs.map((m) => emailBubbleHtml(m, asClient)).join("")}</div>
+        ${footer}
+      </div>`;
+  }
+  function emailComposeForm(customerId) {
+    const cid = customerId || "";
+    const tpls = allTemplates();
+    return `
+      <div class="mail-pane">
+        <div class="mail-pane-head">
+          <h3>New email</h3>
+          <p class="tiny">Pick a template from System → Templates. The message lands in the client mailbox in this demo — it does not go out over the internet.</p>
+        </div>
+        <div class="mail-compose">
+          ${cid ? `<input type="hidden" id="mail-cust" value="${esc(cid)}">` : `
+            <div class="field"><label>Client</label>
+              <select id="mail-cust">${(state.data.customers || []).map((c) => `<option value="${c.id}">${esc(c.billTo || c.name)} · ${esc(c.email || "no email")}</option>`).join("")}</select>
+            </div>`}
+          <div class="field"><label>Template</label>
+            <select id="mail-tpl" data-act="mail-tpl-fill">
+              <option value="">Blank</option>
+              ${tpls.map((t) => `<option value="${esc(t.key)}">${esc(t.label)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field"><label>Subject</label><input id="mail-subject" placeholder="Subject"></div>
+          <div class="field"><label>Message</label><textarea id="mail-body" rows="8" placeholder="Body"></textarea></div>
+          <button class="btn btn-primary" data-act="office-mail-send"${cid ? ` data-id="${esc(cid)}"` : ""}>Send email</button>
+        </div>
+      </div>`;
+  }
+  function emailThreadListHtml(threads, selectedId, opts) {
+    const asClient = !!(opts && opts.asClient);
+    return threads.map((t) => {
+      const c = custBy(t.customerId);
+      const unread = asClient ? t.unreadClient : t.unreadOffice;
+      const preview = String(t.last.body || "").replace(/\s+/g, " ").slice(0, 88);
+      return `<button type="button" class="mail-row ${t.threadId === selectedId ? "on" : ""} ${unread ? "unread" : ""}" data-act="${asClient ? "client-open-thread" : "open-mail-thread"}" data-thread="${esc(t.threadId)}" data-id="${esc(t.customerId)}">
+        <strong>${esc(c?.billTo || c?.name || "Client")}${unread ? " · unread" : ""}</strong>
+        <span>${esc(t.subject)}</span>
+        <span class="tiny">${esc(fmtUsDate(t.last.date))} · ${esc(preview)}</span>
+      </button>`;
+    }).join("") || `<p class="muted" style="padding:14px">No emails yet.</p>`;
+  }
+  function fillMailComposeFromTpl() {
+    const key = val("mail-tpl");
+    const cid = val("mail-cust") || state.selectedCustomer;
+    const c = custBy(cid);
+    const subj = document.getElementById("mail-subject");
+    const body = document.getElementById("mail-body");
+    if (!key) return;
+    if (subj) subj.value = mailSubjectForTemplate(key, c);
+    if (body) body.value = fillMailTemplate(key, c);
+  }
+  function sendOfficeCompose(customerId) {
+    if (!can("email.send")) {
+      toast("Only Administration, Operations, or Owner send email from the system.");
+      return;
+    }
+    const cid = customerId || val("mail-cust");
+    const c = custBy(cid);
+    if (!c) {
+      toast("Pick a client.");
+      return;
+    }
+    if (!c.email) {
+      toast("This Bill-To has no email on file.");
+      return;
+    }
+    const subject = (val("mail-subject") || "").trim();
+    const body = (val("mail-body") || "").trim();
+    if (!subject || !body) {
+      toast("Add a subject and a message.");
+      return;
+    }
+    const key = val("mail-tpl") || null;
+    const msg = pushOfficeEmail({
+      customerId: cid,
+      subject,
+      body,
+      templateKey: key,
+      noReply: templateIsNoReply(key),
+    });
+    state.data.comms.unshift({
+      id: nid("CM"), customerId: cid, who: role()?.name || "Office", channel: "Email", date: TODAY,
+      text: `Emailed “${msg.subject}” to ${c.email}.`,
+    });
+    state.mailCompose = false;
+    state.mailThreadId = msg.threadId;
+    toast(`Sent to ${c.email}. Open the client mailbox to see it land.`);
+    render();
+  }
+  function sendOfficeReply(customerId, threadId) {
+    if (!can("email.send")) {
+      toast("Only Administration, Operations, or Owner reply from the system.");
+      return;
+    }
+    const body = (val("mail-reply") || "").trim();
+    if (!body) {
+      toast("Type a reply first.");
+      return;
+    }
+    const thread = allEmailThreads(customerId).find((t) => t.threadId === threadId) || allEmailThreads(null).find((t) => t.threadId === threadId);
+    if (!thread) return;
+    const c = custBy(thread.customerId);
+    const msg = pushOfficeEmail({
+      customerId: thread.customerId,
+      locationId: thread.last.locationId,
+      threadId,
+      subject: String(thread.last.subject || thread.subject).startsWith("Re:") ? (thread.last.subject || thread.subject) : "Re: " + thread.subject,
+      body,
+      noReply: false,
+    });
+    state.data.comms.unshift({
+      id: nid("CM"), customerId: thread.customerId, who: role()?.name || "Office", channel: "Email", date: TODAY,
+      text: `Replied on “${thread.subject}” to ${c?.email || "the client"}.`,
+    });
+    state.mailThreadId = msg.threadId;
+    toast(`Reply sent to ${c?.email || "the client"}. They will see it in their inbox.`);
+    render();
+  }
+  function sendClientReply(customerId, threadId) {
+    const body = (val("mail-reply") || "").trim();
+    if (!body) {
+      toast("Type a reply first.");
+      return;
+    }
+    const msg = pushClientEmail({ customerId, threadId, body });
+    if (!msg) {
+      toast("This message is no-reply.");
+      return;
+    }
+    state.data.comms.unshift({
+      id: nid("CM"), customerId, who: custBy(customerId)?.name || "Client", channel: "Email", date: TODAY,
+      text: `Client replied on “${msg.subject}”.`,
+    });
+    state.clientMailThread = threadId;
+    toast("Reply sent. It is now on the account in the CRM.");
+    render();
+  }
+  function openClientMail(customerId) {
+    state.clientMail = true;
+    state.clientMailCustomer = customerId || null;
+    state.clientMailThread = null;
+    state.searchOpen = false;
+    state.modal = null;
+    render();
+  }
+  function closeClientMail() {
+    state.clientMail = false;
+    state.clientMailThread = null;
+    render();
+  }
+  function customerEmailHtml(c) {
+    const threads = allEmailThreads(c.id);
+    const selected = threads.find((t) => t.threadId === state.mailThreadId) || threads[0];
+    if (selected && selected.threadId !== state.mailThreadId) state.mailThreadId = selected.threadId;
+    if (selected) markThreadRead(selected.threadId, false);
+    const compose = state.mailCompose;
+    return `
+      <div class="actions" style="margin-bottom:12px">
+        ${can("email.send") ? `<button class="btn btn-primary" data-act="mail-compose" data-id="${esc(c.id)}">Compose</button>` : ""}
+        <button class="btn btn-ghost" data-act="open-client-mail" data-id="${esc(c.id)}">Open as this client</button>
+      </div>
+      <div class="mail-layout">
+        <div class="mail-list" data-keep-scroll="mail-list">${emailThreadListHtml(threads, compose ? null : selected?.threadId)}</div>
+        ${compose ? emailComposeForm(c.id) : selected ? emailThreadPane(selected, { asClient: false }) : `<div class="mail-pane"><p class="muted" style="padding:16px">No email on this account yet. Compose from a template to start a thread.</p></div>`}
+      </div>`;
+  }
+  function renderClientMailbox() {
+    const featured = ["C-1091", "C-1066", "C-1042", "C-1180"]
+      .map((id) => custBy(id))
+      .filter(Boolean);
+    const cid = state.clientMailCustomer;
+    const c = cid ? custBy(cid) : null;
+    if (!c) {
+      return `
+        <div class="mail-client">
+          <div class="mail-client-bar">
+            <div class="who">${brandMark()}<div><strong>Client inbox</strong><div class="tiny">What the client receives — this demo does not send real internet mail.</div></div></div>
+            <button class="btn btn-ghost" data-act="close-client-mail">Back to CRM</button>
+          </div>
+          <div class="mail-client-body">
+            <h2 style="font-family:var(--display);margin-bottom:8px">Whose inbox?</h2>
+            <p class="lede">Pick a Bill-To. Unread quotes, receipts, and office replies show here. The client can reply unless the message is no-reply.</p>
+            <div class="mail-pick-grid">${featured.map((x) => {
+              const n = allEmailThreads(x.id).filter((t) => t.unreadClient).length;
+              return `<button type="button" class="mail-pick-card" data-act="pick-client-mail" data-id="${esc(x.id)}">
+                <strong>${esc(x.billTo || x.name)}</strong>
+                <span class="tiny">${esc(x.email || "no email")}${n ? ` · ${n} unread` : ""}</span>
+              </button>`;
+            }).join("")}</div>
+            <div class="field section-gap"><label>Or any Bill-To</label>
+              <select id="client-mail-cust">${(state.data.customers || []).map((x) => `<option value="${x.id}">${esc(x.billTo || x.name)} · ${esc(x.email || "no email")}</option>`).join("")}</select>
+            </div>
+            <button class="btn btn-primary" data-act="pick-client-mail-select">Open inbox</button>
+          </div>
+        </div>`;
+    }
+    const threads = allEmailThreads(c.id);
+    const selected = threads.find((t) => t.threadId === state.clientMailThread);
+    if (selected) markThreadRead(selected.threadId, true);
+    return `
+      <div class="mail-client">
+        <div class="mail-client-bar">
+          <div class="who">${brandMark()}<div>
+            <strong>${esc(c.billTo || c.name)}</strong>
+            <div class="tiny">${esc(c.email || "no email")} · client view</div>
+          </div></div>
+          <div class="actions">
+            <button class="btn btn-ghost" data-act="pick-client-mail" data-id="">Switch client</button>
+            <button class="btn btn-ghost" data-act="close-client-mail">Back to CRM</button>
+          </div>
+        </div>
+        <div class="mail-client-body">
+          <p class="tiny" style="margin-bottom:12px">Inbox for ${esc(c.email || "this Bill-To")}. Replies go onto the CRM account. Visit reminders and AutoPay receipts are no-reply.</p>
+          <div class="mail-layout">
+            <div class="mail-list" data-keep-scroll="mail-list">${emailThreadListHtml(threads, selected?.threadId, { asClient: true })}</div>
+            ${selected ? emailThreadPane(selected, { asClient: true }) : `<div class="mail-pane"><p class="muted" style="padding:16px">Open a message. New mail from the office shows here when they send a quote, invoice, renewal, or reply.</p></div>`}
+          </div>
+        </div>
+      </div>`;
   }
 
   function pushNotify(n) {
@@ -2044,7 +2968,7 @@
     }) || null;
   }
 
-  /** AutoPay posts + allocates itself. Christy only intervenes on decline. */
+  /** Monthly AutoPay charges the card on file and emails a receipt. No invoice. */
   function runAutopayCharge(customerId, locationId, opts) {
     const succeed = !opts || opts.succeed !== false;
     const createIfMissing = !opts || opts.createIfMissing !== false;
@@ -2060,32 +2984,35 @@
       toast("AutoPay is off for this billing plan.");
       return;
     }
-    let inv = openAutopayInvoice(c, loc);
-    if (!inv && createIfMissing && bp.frequency === "monthly") {
-      inv = generateNextBillingPeriod(customerId, locationId, { silent: true });
+    let period = dueMonthlyPeriod(ct);
+    if (!period && createIfMissing && bp.frequency === "monthly") {
+      period = generateNextBillingPeriod(customerId, locationId, { silent: true });
     }
-    if (!inv || invoiceFinStatus(inv) === "PAID") {
-      toast("No open invoice for AutoPay to charge.");
+    if (!period || period.status === "PAID") {
+      toast("No monthly period due to charge.");
       render();
       return;
     }
 
+    const amount = Number(period.amount || bp.installmentAmount || 0);
     const last4 = opts?.last4 || "4242";
     if (!succeed) {
       const failCode = opts?.failureCode || "CARD_DECLINED";
       state.data.payments.push({
-        id: nid("P"), invoiceId: inv.id, customerId, locationId, amount: inv.amount,
+        id: nid("P"), invoiceId: null, billingPeriodId: period.id, customerId, locationId, amount,
         method: "Auto-pay", last4, source: "AUTOPAY", date: TODAY,
-        memo: `AutoPay declined · ${failCode} · ${loc.name}`,
+        memo: `AutoPay declined · ${failCode} · ${loc.name} · month ${period.sequence}`,
         invoiceMarked: false, failed: true, linkPay: true, status: "FAILED", posted: true,
       });
       state.data.autopayAuthorizations.push({
         id: nid("APA"), contractId: ct.id, customerId, locationId,
         status: "FAILED", method: "Credit Card", last4, failureCode: failCode, failedAt: `${TODAY}T12:00:00`,
       });
+      period.status = "DUE";
       loc.lifecycle = "past_due";
       c.failedPayment = true;
       c.status = "past_due";
+      ct.paymentStatus = "PAST DUE";
       state.data.stops.filter((s) =>
         s.customerId === customerId && s.locationId === locationId
         && s.status === "scheduled" && !s.pending
@@ -2094,8 +3021,8 @@
         type: "AUTOPAY_FAILED",
         severity: "alert",
         title: "AutoPay declined",
-        text: `${c.billTo || c.name} · ${loc.name} · ${failCode} ····${last4}. Monthly plan — service already exists. Contact the customer. Rick can stop service if they will not pay.`,
-        customerId, locationId, invoiceId: inv.id,
+        text: `${c.billTo || c.name} · ${loc.name} · ${failCode} ····${last4}. Monthly plan — no invoice. Card charge failed so no receipt. Contact the customer. Rick can stop service if they will not pay.`,
+        customerId, locationId,
       });
       const hasOpsTask = (state.data.tasks || []).some((t) =>
         t.status === "open" && t.assignee === "ops" && t.customerId === customerId && t.locationId === locationId
@@ -2104,50 +3031,45 @@
         state.data.tasks.push({
           id: nid("TSK"), customerId, locationId,
           title: `Hold / stop ${c.billTo || c.name} if unpaid`,
-          notes: `AutoPay failed on ${inv.id}. Service is live — do not recreate. Call them, then stop service if they cannot pay.`,
+          notes: `AutoPay failed on month ${period.sequence}. Service is live — do not recreate. Call them, then stop service if they cannot pay.`,
           createdBy: "admin", assignee: "ops", due: TODAY, priority: "high", status: "open", createdAt: TODAY,
         });
       }
       state.data.comms.push({
         id: nid("CM"), customerId, who: "AutoPay", channel: "System", date: TODAY,
-        text: `AutoPay FAILED on ${inv.id} (${failCode}). Route held. Rick may stop service if customer will not pay.`,
+        text: `AutoPay FAILED month ${period.sequence} (${failCode}). No receipt emailed. Route held. Rick may stop service if customer will not pay.`,
       });
-      toast(`AutoPay declined on ${inv.id}. Route blocked — Rick can stop service.`);
+      toast(`AutoPay declined on month ${period.sequence}. No invoice, no receipt. Route blocked — Rick can stop service.`);
       render();
       return;
     }
 
     const p = {
-      id: nid("P"), invoiceId: inv.id, customerId, locationId, amount: invoiceBalance(inv) || inv.amount,
+      id: nid("P"), invoiceId: null, billingPeriodId: period.id, customerId, locationId, amount,
       method: "Auto-pay", last4, source: "AUTOPAY", date: TODAY,
-      memo: `AutoPay charged · ${loc.name} · allocated automatically`,
+      memo: `AutoPay charged · ${loc.name} · month ${period.sequence} · receipt emailed`,
       invoiceMarked: true, failed: false, linkPay: true, status: "POSTED", posted: true, appliedAuto: true,
     };
     state.data.payments.push(p);
-    allocatePaymentToInvoice(p, inv, p.amount);
-    clearAutopayException(customerId, locationId, inv.id);
+    const receiptId = emailMonthlyReceipt(c, loc, p, period);
+    period.status = "PAID";
+    period.paymentId = p.id;
+    loc.paid = true;
+    loc.lifecycle = "active";
+    ct.status = "ACTIVE";
+    ct.paymentStatus = "CURRENT";
+    clearAutopayException(customerId, locationId, null);
     c.failedPayment = false;
     if (c.status === "past_due") syncCustomerLifecycle(c);
-
-    let nextInv = null;
-    if (bp.frequency === "monthly") {
-      nextInv = generateNextBillingPeriod(customerId, locationId, { silent: true });
-    }
 
     pushNotify({
       type: "AUTOPAY_PAID",
       severity: "ok",
       title: "AutoPay paid",
-      text: `${c.billTo || c.name} · ${loc.name} · ${inv.id} paid ${money(p.amount)} automatically.`
-        + (nextInv ? ` Next period invoice ${nextInv.id} created — no register mark needed.` : " No further periods to generate."),
-      customerId, locationId, invoiceId: inv.id,
+      text: `${c.billTo || c.name} · ${loc.name} · month ${period.sequence} charged ${money(p.amount)}. Receipt ${receiptId} emailed. No invoice.`,
+      customerId, locationId,
     });
-    state.data.comms.push({
-      id: nid("CM"), customerId, who: "AutoPay", channel: "System", date: TODAY,
-      text: `AutoPay SUCCESS on ${inv.id} (${money(p.amount)}). Allocated automatically.`
-        + (nextInv ? ` Generated ${nextInv.id} for the next period.` : ""),
-    });
-    toast(`AutoPay paid ${inv.id}${nextInv ? ` · next period ${nextInv.id}` : ""}. Christy does not mark the register.`);
+    toast(`Card charged ${money(p.amount)} · receipt ${receiptId} emailed. No invoice.`);
     render();
   }
 
@@ -2169,17 +3091,23 @@
         skipped += 1;
         return;
       }
-      const open = openAutopayInvoice(c, loc);
-      if (!open) {
+      let period = dueMonthlyPeriod(ct);
+      if (!period && bp.frequency === "monthly") {
+        const periods = periodsForContract(ct.id);
+        const last = periods[periods.length - 1];
+        if (last && last.status === "PAID" && last.periodEnd <= TODAY && periods.length < (bp.installments || 12)) {
+          period = generateNextBillingPeriod(ct.customerId, ct.locationId, { silent: true });
+        }
+      }
+      if (!period || period.status === "PAID") {
         skipped += 1;
         return;
       }
-      // Charge existing due invoice only (createIfMissing false). Success path auto-creates the next period.
       runAutopayCharge(ct.customerId, ct.locationId, { succeed: true, last4: "1001", createIfMissing: false });
       charged += 1;
     });
     if (!charged) toast(skipped ? `Overnight AutoPay: nothing due (${skipped} plan(s) skipped / waiting / exception).` : "No AutoPay plans due.");
-    else toast(`Overnight AutoPay finished · ${charged} automatic charge(s). See notifications.`);
+    else toast(`Overnight AutoPay finished · ${charged} card charge(s) · receipts emailed. No invoices.`);
   }
   function markLocationPeriodPaid(loc, inv) {
     if (!loc) return;
@@ -2273,10 +3201,12 @@
   }
   function locNeedsInvoice(c, l) {
     if (!c || !l || l.covered === false) return false;
+    if (locIsMonthlyPlan(c, l) || programIsMonthly(locPlan(c, l).programId)) return false;
     return !locInvoices(c.id, l.id).length;
   }
   function canInvoiceLocation(c, l) {
     if (!c || !l || l.covered === false || locPaid(c, l)) return false;
+    if (locIsMonthlyPlan(c, l) && contractForLoc(c.id, l.id)) return false;
     const invs = locInvoices(c.id, l.id);
     if (invs.some((i) => i.status === "paid" || i.status === "draft" || i.status === "sent" || i.status === "failed")) return false;
     return true;
@@ -2301,6 +3231,322 @@
     if (l.programId) return false;
     const q = locQuote(c.id, l.id);
     return !(q && q.sent);
+  }
+  function locCanQuote(c, l) {
+    if (!c || !l || l.covered === false) return false;
+    if (locPaid(c, l) || locInvoices(c.id, l.id).length) return false;
+    return !l.programId;
+  }
+  function programsForPackage(pkgId) {
+    if (!packageById(pkgId)) return [];
+    return allPrograms().filter((p) => !p.aliasOf && p.pkgId === pkgId);
+  }
+  function programsForLocation(c, l) {
+    const pkgId = locPackageId(c, l);
+    const q = c && l ? locQuote(c.id, l.id) : null;
+    if (pkgId) {
+      const all = programsForPackage(pkgId);
+      const keys = q && q.termKeysByPkg && q.termKeysByPkg[pkgId];
+      if (Array.isArray(keys) && keys.length) {
+        return all.filter((p) => keys.includes(programTermKey(p)));
+      }
+      return all;
+    }
+    if (q && Array.isArray(q.packageIds) && q.packageIds.length) {
+      return programsForQuote(c, l, q.packageIds, q.termKeysByPkg);
+    }
+    const pkgs = packagesForKind(locKind(c, l));
+    const out = [];
+    const seen = new Set();
+    pkgs.forEach((pkg) => {
+      programsForPackage(pkg.id).forEach((p) => {
+        if (!seen.has(p.id)) { seen.add(p.id); out.push(p); }
+      });
+    });
+    return out.length ? out : programsForPackage("res-half");
+  }
+  function defaultProgramIdForLoc(c, l) {
+    const list = programsForLocation(c, l);
+    const pre = list.find((p) => String(p.id).endsWith("-12pre")) || list.find((p) => !programIsMonthly(p) && p.months === 12);
+    return pre?.id || list[0]?.id || "res-half-12pre";
+  }
+  function programsForQuote(c, loc, selectedPkgIds, termKeysByPkg) {
+    const ids = Array.isArray(selectedPkgIds) ? selectedPkgIds.filter((id) => packageById(id)) : [];
+    if (ids.length) {
+      const out = [];
+      const seen = new Set();
+      ids.forEach((pkgId) => {
+        const allowed = termKeysByPkg && termKeysByPkg[pkgId];
+        programsForPackage(pkgId).forEach((p) => {
+          if (Array.isArray(allowed) && !allowed.includes(programTermKey(p))) return;
+          if (!seen.has(p.id)) { seen.add(p.id); out.push(p); }
+        });
+      });
+      return out;
+    }
+    if (loc) return programsForLocation(c, loc);
+    const locs = (c?.locations || []).filter((l) => l.covered !== false);
+    if (locs.length === 1) return programsForLocation(c, locs[0]);
+    const seen = new Set();
+    const out = [];
+    locs.forEach((l) => {
+      programsForLocation(c, l).forEach((p) => {
+        if (!seen.has(p.id)) { seen.add(p.id); out.push(p); }
+      });
+    });
+    return out.length ? out : programsForPackage("res-half");
+  }
+  function quotePolicyHtml(pkg, durationMin) {
+    const mins = Number(durationMin) > 0 ? Number(durationMin) : pkg?.durationMin;
+    const dur = mins ? `${mins} min visits` : "visits";
+    const hasLong = (pkg?.terms || []).some((t) => t.months >= 6);
+    const auto = hasLong
+      ? " 6- and 12-month: choose AutoPay (full term, card on file, receipt emailed, no invoice) or prepaid (last month / last two months free)."
+      : "";
+    return `<p class="tiny" style="margin-top:10px">Monitoring includes <strong>2 visits every week</strong> (${esc(dur)}).${auto} A 1-month can roll into a 3-month in the last week of service by applying what is already paid.</p>`;
+  }
+  function quotedProgramAmount(customerId, locationId, programId) {
+    const fallback = programAmount(progBy(programId));
+    if (!customerId || !programId) return fallback;
+    const q = locQuote(customerId, locationId);
+    const row = q && q.pricing && q.pricing[programId];
+    const quoted = row ? Number(row.quoted) : NaN;
+    return Number.isFinite(quoted) ? quoted : fallback;
+  }
+  function quoteLineQuoted(price, discount) {
+    return Math.max(0, Math.round((Number(price || 0) - Number(discount || 0)) * 100) / 100);
+  }
+  function quotePricingIsCustom(row, p) {
+    if (!row) return false;
+    const list = programAmount(p);
+    return Number(row.discount || 0) > 0 || Math.abs(Number(row.price) - list) > 0.009;
+  }
+  function collectQuotePricing(programs) {
+    const pricing = {};
+    (programs || []).forEach((p) => {
+      const list = programAmount(p);
+      const priceEl = document.getElementById("qp-price-" + p.id);
+      const discEl = document.getElementById("qp-disc-" + p.id);
+      const noteEl = document.getElementById("qp-note-" + p.id);
+      const priceRaw = priceEl && priceEl.value !== "" ? Number(priceEl.value) : list;
+      const discRaw = discEl && discEl.value !== "" ? Number(discEl.value) : 0;
+      const price = Number.isFinite(priceRaw) ? Math.max(0, priceRaw) : list;
+      const discount = Number.isFinite(discRaw) ? Math.max(0, discRaw) : 0;
+      pricing[p.id] = {
+        list,
+        price,
+        discount,
+        discountNote: (noteEl?.value || "").trim(),
+        quoted: quoteLineQuoted(price, discount),
+      };
+    });
+    return pricing;
+  }
+  function collectQuoteExtras() {
+    const rows = [];
+    document.querySelectorAll("[data-quote-extra]").forEach((block) => {
+      const id = block.dataset.quoteExtra;
+      const label = (document.getElementById("qx-label-" + id)?.value || "").trim();
+      const amountRaw = Number(document.getElementById("qx-amt-" + id)?.value);
+      const note = (document.getElementById("qx-note-" + id)?.value || "").trim();
+      if (!label && !(Number.isFinite(amountRaw) && amountRaw)) return;
+      rows.push({
+        id,
+        label: label || "Extra charge",
+        amount: Number.isFinite(amountRaw) ? Math.max(0, amountRaw) : 0,
+        note,
+      });
+    });
+    return rows;
+  }
+  function pkgIdsFromPricing(pricing) {
+    const ids = [];
+    Object.keys(pricing || {}).forEach((pid) => {
+      const p = progBy(pid);
+      if (p?.pkgId && packageById(p.pkgId) && !ids.includes(p.pkgId)) ids.push(p.pkgId);
+    });
+    return ids;
+  }
+  function quoteExtrasEditorHtml(extras) {
+    const list = extras || [];
+    return `
+      <div class="quote-extras">
+        <h4>Extra charges</h4>
+        <p class="tiny">Optional. Extra trap, extra visit, travel — these print on the quote.</p>
+        ${list.map((x) => `
+          <div class="quote-extra-row" data-quote-extra="${esc(x.id)}">
+            <div class="field"><label>Description</label><input id="qx-label-${esc(x.id)}" value="${esc(x.label || "")}" placeholder="Extra trap, extra visit…"></div>
+            <div class="field"><label>Amount $</label><input id="qx-amt-${esc(x.id)}" type="number" min="0" step="0.01" value="${esc(x.amount || "")}"></div>
+            <div class="field"><label>Note</label><input id="qx-note-${esc(x.id)}" value="${esc(x.note || "")}" placeholder="Optional"></div>
+            <button type="button" class="btn btn-ghost" data-act="remove-quote-extra" data-id="${esc(x.id)}">Remove</button>
+          </div>`).join("")}
+        <button type="button" class="btn btn-ghost" data-act="add-quote-extra">+ Extra charge</button>
+      </div>`;
+  }
+  function quoteExtrasLetterHtml(extras) {
+    const list = (extras || []).filter((x) => x && (x.label || x.amount));
+    if (!list.length) return "";
+    return `<p style="margin-top:12px"><strong>Extra charges</strong></p>
+      <ul style="margin:8px 0 0 18px;padding:0;font-size:13px">${list.map((x) =>
+        `<li>${esc(x.label || "Extra")} — ${money(x.amount || 0)}${x.note ? ` · ${esc(x.note)}` : ""}</li>`
+      ).join("")}</ul>`;
+  }
+  function quoteLetterItemInner(p, row) {
+    const list = programAmount(p);
+    const unit = programUnit(p);
+    const price = row && Number.isFinite(Number(row.price)) ? Number(row.price) : list;
+    const discount = row && Number.isFinite(Number(row.discount)) ? Number(row.discount) : 0;
+    const quoted = row && Number.isFinite(Number(row.quoted)) ? Number(row.quoted) : quoteLineQuoted(price, discount);
+    const note = (row && row.discountNote) || "";
+    if (!quotePricingIsCustom(row, p)) {
+      const label = p.shortName || p.name;
+      const promo = !programIsMonthly(p) && p.prepaid != null && p.list != null && p.prepaid !== p.list
+        ? ` prepaid (list ${money(p.list)})`
+        : "";
+      const auto = programIsMonthly(p) ? ` AutoPay · term ${money(p.list)}` : "";
+      return `${esc(label)} — ${money(list)}${unit}${promo}${auto} · ${esc(p.freq)}`;
+    }
+    let html = `${esc(p.shortName || p.name)} — ${money(price)}${unit} · ${esc(p.freq)}`;
+    if (discount > 0) html += `<br><span class="tiny">Discount${note ? " (" + esc(note) + ")" : ""} — −${money(discount)}${unit}</span>`;
+    html += `<br><strong>Your price ${money(quoted)}${unit}</strong>`;
+    return html;
+  }
+  function quotePriceEditor(p, prior) {
+    const list = programAmount(p);
+    const unit = programUnit(p);
+    const price = prior && Number.isFinite(Number(prior.price)) ? Number(prior.price) : list;
+    const discount = prior && Number(prior.discount) > 0 ? Number(prior.discount) : "";
+    const quoted = quoteLineQuoted(price, discount || 0);
+    return `
+      <div class="quote-price-row">
+        <div class="quote-price-head">
+          <strong>${esc(p.shortName || p.name)}</strong>
+          <span class="tiny">List ${money(list)}${unit} · ${esc(p.freq)}</span>
+        </div>
+        <div class="quote-price-grid">
+          <div class="field"><label>Price${unit ? " " + unit : ""}</label>
+            <input id="qp-price-${p.id}" type="number" min="0" step="0.01" value="${esc(price)}" data-act="quote-price-sync" data-prog="${p.id}">
+          </div>
+          <div class="field"><label>Discount</label>
+            <input id="qp-disc-${p.id}" type="number" min="0" step="0.01" value="${esc(discount)}" placeholder="0" data-act="quote-price-sync" data-prog="${p.id}">
+          </div>
+          <div class="field"><label>Quoted</label>
+            <div class="quote-net" id="qp-net-${p.id}">${money(quoted)}${unit}</div>
+          </div>
+        </div>
+        <div class="field"><label>Discount note (optional)</label>
+          <input id="qp-note-${p.id}" value="${esc(prior?.discountNote || "")}" placeholder="Neighbor referral, cash, etc." data-act="quote-price-sync" data-prog="${p.id}">
+        </div>
+      </div>`;
+  }
+  function syncQuotePricePreview(progId) {
+    const p = progBy(progId);
+    if (!p) return;
+    const list = programAmount(p);
+    const unit = programUnit(p);
+    const priceEl = document.getElementById("qp-price-" + progId);
+    const discEl = document.getElementById("qp-disc-" + progId);
+    const noteEl = document.getElementById("qp-note-" + progId);
+    const priceRaw = priceEl && priceEl.value !== "" ? Number(priceEl.value) : list;
+    const discRaw = discEl && discEl.value !== "" ? Number(discEl.value) : 0;
+    const price = Number.isFinite(priceRaw) ? Math.max(0, priceRaw) : list;
+    const discount = Number.isFinite(discRaw) ? Math.max(0, discRaw) : 0;
+    const quoted = quoteLineQuoted(price, discount);
+    const row = { list, price, discount, discountNote: (noteEl?.value || "").trim(), quoted };
+    const net = document.getElementById("qp-net-" + progId);
+    if (net) net.textContent = money(quoted) + unit;
+    const letter = document.getElementById("quote-letter-item-" + progId);
+    if (letter) letter.innerHTML = quoteLetterItemInner(p, row);
+  }
+  function invoicePriceDefaults(customerId, locationId, programId) {
+    const p = progBy(programId);
+    const list = programAmount(p);
+    const unit = programUnit(programId);
+    const q = locQuote(customerId, locationId);
+    const row = q && q.pricing && q.pricing[programId];
+    const price = row && Number.isFinite(Number(row.price)) ? Number(row.price) : list;
+    const discount = row && Number(row.discount) > 0 ? Number(row.discount) : 0;
+    return {
+      list,
+      unit,
+      price,
+      discount,
+      note: (row && row.discountNote) || "",
+      quoted: quoteLineQuoted(price, discount),
+    };
+  }
+  function invoiceAmountEditorHtml(ids, defaults) {
+    const discVal = defaults.discount > 0 ? defaults.discount : "";
+    const unit = defaults.unit || "";
+    const sync = `data-act="invoice-price-sync" data-price="${esc(ids.price)}" data-disc="${esc(ids.disc)}" data-net="${esc(ids.net)}" data-note="${esc(ids.note || "")}" data-preview="${esc(ids.preview || "")}" data-program="${esc(ids.program || "")}" data-id="${esc(ids.customerId || "")}" data-loc="${esc(ids.locationId || "")}"`;
+    return `
+      <div class="quote-price-row">
+        <div class="quote-price-head">
+          <strong>Invoice amount</strong>
+          <span class="tiny">Change the price or add a discount before this goes to the client.</span>
+        </div>
+        <div class="quote-price-grid">
+          <div class="field"><label>Price${unit ? " " + unit : ""}</label>
+            <input id="${esc(ids.price)}" type="number" min="0" step="0.01" value="${esc(defaults.price)}" ${sync}>
+          </div>
+          <div class="field"><label>Discount</label>
+            <input id="${esc(ids.disc)}" type="number" min="0" step="0.01" value="${esc(discVal)}" placeholder="0" ${sync}>
+          </div>
+          <div class="field"><label>Invoice</label>
+            <div class="quote-net" id="${esc(ids.net)}">${money(defaults.quoted)}${unit}</div>
+          </div>
+        </div>
+        ${ids.note ? `<div class="field"><label>Discount note (optional)</label>
+          <input id="${esc(ids.note)}" value="${esc(defaults.note || "")}" placeholder="Neighbor referral, cash, etc." ${sync}>
+        </div>` : ""}
+      </div>`;
+  }
+  function readInvoiceBilledAmount(priceId, discId, fallback) {
+    const priceEl = document.getElementById(priceId);
+    const discEl = document.getElementById(discId);
+    if (!priceEl && !discEl) return fallback;
+    const priceRaw = priceEl && priceEl.value !== "" ? Number(priceEl.value) : fallback;
+    const discRaw = discEl && discEl.value !== "" ? Number(discEl.value) : 0;
+    const price = Number.isFinite(priceRaw) ? Math.max(0, priceRaw) : fallback;
+    const discount = Number.isFinite(discRaw) ? Math.max(0, discRaw) : 0;
+    return quoteLineQuoted(price, discount);
+  }
+  function readInvoiceDiscountMeta(priceId, discId, noteId) {
+    const priceEl = document.getElementById(priceId);
+    const discEl = document.getElementById(discId);
+    const noteEl = noteId ? document.getElementById(noteId) : null;
+    const price = priceEl && priceEl.value !== "" ? Number(priceEl.value) : 0;
+    const discount = discEl && discEl.value !== "" ? Number(discEl.value) : 0;
+    return {
+      price: Number.isFinite(price) ? Math.max(0, price) : 0,
+      discount: Number.isFinite(discount) ? Math.max(0, discount) : 0,
+      note: (noteEl?.value || "").trim(),
+    };
+  }
+  function fillInvoiceAmountEditor(ids, customerId, locationId, programId) {
+    const d = invoicePriceDefaults(customerId, locationId, programId);
+    const priceEl = document.getElementById(ids.price);
+    const discEl = document.getElementById(ids.disc);
+    const noteEl = ids.note ? document.getElementById(ids.note) : null;
+    const netEl = document.getElementById(ids.net);
+    if (priceEl) priceEl.value = d.price;
+    if (discEl) discEl.value = d.discount > 0 ? d.discount : "";
+    if (noteEl) noteEl.value = d.note || "";
+    if (netEl) netEl.textContent = money(d.quoted) + (d.unit || "");
+    return d;
+  }
+  function syncInvoiceAmountPreview(el) {
+    if (!el) return;
+    const pid = (document.getElementById(el.dataset.program) || {}).value || "";
+    const p = progBy(pid);
+    const unit = p && programUnit(p);
+    const fallback = invoicePriceDefaults(el.dataset.id, el.dataset.loc, pid).quoted;
+    const billed = readInvoiceBilledAmount(el.dataset.price, el.dataset.disc, fallback);
+    const meta = readInvoiceDiscountMeta(el.dataset.price, el.dataset.disc, el.dataset.note);
+    const net = document.getElementById(el.dataset.net);
+    if (net) net.textContent = money(billed) + unit;
+    const box = el.dataset.preview ? document.getElementById(el.dataset.preview) : null;
+    if (box && pid) box.innerHTML = convertPreviewInner(pid, el.dataset.id, el.dataset.loc, billed, meta);
   }
   function payNeedsMark(p) {
     if (!p || p.failed) return false;
@@ -2445,13 +3691,15 @@
     return t ? `${t.code} · ${t.label}` : id || "Service";
   }
   function defaultServiceCode(c, l) {
+    const pkgId = locPackageId(c, l);
+    if (packageById(pkgId)) return pkgId;
     if (c.type === "hoa") return "hoa-2wk";
     if (c.type === "municipal") return "muni";
     if (c.type === "commercial") return "1mon-com";
     const pid = locPlan(c, l).programId;
-    if (pid === "12pre" || pid === "12mo") return "12mon-res";
-    if (pid === "6mo") return "6mon-res";
-    if (pid === "3mo") return "3mon-res";
+    if (pid === "12pre" || pid === "12mo" || String(pid || "").includes("12")) return "12mon-res";
+    if (pid === "6mo" || String(pid || "").includes("6")) return "6mon-res";
+    if (pid === "3mo" || String(pid || "").includes("3mo")) return "3mon-res";
     return "1mon-res";
   }
   function fmtDur(min) {
@@ -2529,7 +3777,7 @@
   function locIsMonthlyPlan(c, l) {
     if (!c || !l) return false;
     const plan = locPlan(c, l);
-    if (plan.programId === "12mo" || plan.autoPay) return true;
+    if (plan.programId === "12mo" || programIsMonthly(plan.programId) || plan.autoPay) return true;
     const ct = contractForLoc(c.id, l.id);
     const bp = ct && planForContract(ct.id);
     return bp?.frequency === "monthly";
@@ -2546,6 +3794,9 @@
   }
   function paymentIsMonthlyInstallment(p) {
     if (!p) return false;
+    if (p.receiptEmailed || p.billingPeriodId) return true;
+    const src = String(p.source || "").toLowerCase();
+    if (src === "autopay") return true;
     const inv = p.invoiceId ? (state.data.invoices || []).find((i) => i.id === p.invoiceId) : null;
     if (invoiceIsInstallment(inv)) return true;
     const c = p.customerId ? custBy(p.customerId) : null;
@@ -2619,13 +3870,14 @@
     const mtos = unreadMtosForRole().length;
     const tasks = myOpenTasks().length;
     const retrieve = (state.data.traps || []).filter((t) => t.status === "out" || t.status === "missing").length;
-    return { ready, assign, missed, failed, unapplied, renew, mtos, tasks, retrieve };
+    const emails = unreadOfficeEmailCount();
+    return { ready, assign, missed, failed, unapplied, renew, mtos, tasks, retrieve, emails };
   }
   function navGroupWorkCount(label) {
     const w = workCounts();
     if (label === "Operations") return w.ready + w.assign + w.missed + w.retrieve;
     if (label === "Billing") return w.failed + w.unapplied;
-    if (label === "Workspace") return w.mtos + w.tasks;
+    if (label === "Workspace") return w.mtos + w.tasks + w.emails;
     return 0;
   }
   function navItemWorkCount(id) {
@@ -2633,6 +3885,7 @@
     if (id === "ready-schedule") return w.ready;
     if (id === "noshows") return w.missed;
     if (id === "mtos") return w.mtos;
+    if (id === "comms") return w.emails;
     if (id === "tasks") return w.tasks;
     if (id === "payments") return w.unapplied + w.failed;
     if (id === "renewals") return w.renew;
@@ -2666,7 +3919,7 @@
         <div class="sec-kicker">Today’s operations</div>
         <p class="dash-today-line"><strong>${stops.length}</strong> scheduled · <strong>${done}</strong> completed · <strong>${active}</strong> in progress · <strong>${left}</strong> remaining</p>
         <div class="actions">
-          ${canPage("map") ? `<button class="btn btn-primary" data-act="nav" data-page="map">Open dispatch</button>` : ""}
+          ${canPage("map") ? `<button class="btn btn-primary" data-act="nav" data-page="map">Open map</button>` : ""}
           ${canPage("schedule") ? `<button class="btn btn-ghost" data-act="nav" data-page="schedule">Schedule</button>` : ""}
         </div>
       </div>`;
@@ -3909,7 +5162,7 @@
           severity: "ok",
           title: "External payment recovered AutoPay fail",
           text: `${c?.billTo || c?.name || ""} · ${loc?.name || ""} · ${inv.id} allocated.`
-            + (bp?.frequency === "monthly" ? " Generate the next billing period manually — AutoPay will not until the exception is clear." : ""),
+            + (bp?.frequency === "monthly" ? " Monthly AutoPay has no invoice; retry the card next month or record a replacement charge." : ""),
           customerId: inv.customerId, locationId: inv.locationId, invoiceId: inv.id,
         });
       }
@@ -4025,6 +5278,7 @@
 
   function renderPageKey() {
     if (state.payView) return "pay";
+    if (state.clientMail) return "client-mail:" + String(state.clientMailCustomer || "") + ":" + String(state.clientMailThread || "");
     if (!state.role) return "login";
     if (state.role === "tech" || state.role === "trapper") return "field:" + fieldTechId() + ":" + (state.mobileStop || state.mobileTab || "route");
     return String(state.page || "dashboard");
@@ -4041,7 +5295,9 @@
       try { document.activeElement.blur(); } catch (_) { /* ignore */ }
     }
     try {
-      if (state.payView) {
+      if (state.clientMail) {
+        $app.innerHTML = renderClientMailbox() + renderToast();
+      } else if (state.payView) {
         $app.innerHTML = renderPublicPay() + renderToast();
       } else if (!state.role) {
         $app.innerHTML = renderLogin();
@@ -4085,10 +5341,7 @@
       <div class="login">
         <aside class="login-brand">
           <div>
-            <div class="mark">
-              <div class="mark-badge">IC</div>
-              <span>Iguana Control</span>
-            </div>
+            ${brandMark()}
             <h1>Iguana Control</h1>
             <p class="login-brand-copy">Customers, routes, payments, renewals — the same book we use every day.</p>
           </div>
@@ -4102,6 +5355,7 @@
           <div class="role-grid">${cards}</div>
           <p class="login-roles-note">Owner can read and edit. Ops cannot post payments. Admin cannot schedule. Johnny is the field phone — no prices.</p>
           <p class="login-roles-note"><button class="btn btn-ghost" data-act="open-pay">Preview public payment page</button> (invoice link, website, or ACH — names stay on the register)</p>
+          <p class="login-roles-note"><button class="btn btn-ghost" data-act="open-client-mail">Preview client inbox</button> (receive office email, reply as the client — no real internet send)</p>
           <p class="login-roles-note"><button class="btn btn-ghost" data-act="reset-demo">Reset saved demo data</button></p>
         </main>
       </div>
@@ -4184,10 +5438,7 @@
     return `
       <div class="shell">
         <aside class="sidebar" data-keep-scroll="sidebar">
-          <div class="mark">
-            <div class="mark-badge">IC</div>
-            <span>Iguana Control</span>
-          </div>
+          ${brandMark()}
           <nav class="sidebar-nav">${nav}</nav>
           <div class="sidebar-foot">Work queues · office CRM</div>
         </aside>
@@ -4311,6 +5562,7 @@
       <div class="attn-grid">
         ${attnTile(w.ready, "Payment received", "Schedule service →", "ready-schedule", "tone-red")}
         ${attnTile(w.failed, "Failed payment", "Review →", "payments", "tone-red")}
+        ${attnTile(w.emails, "Client email replies", "Open inbox →", "comms")}
         ${attnTile(w.missed, "Missed visits", "Resolve →", "noshows")}
         ${attnTile(w.renew, "Renewal reviews", "Review renewals →", "renewals")}
       </div>
@@ -4325,7 +5577,7 @@
         <div class="card">
           <h3>Jump to work</h3>
           <div class="actions" style="flex-wrap:wrap">
-            <button class="btn btn-primary" data-act="nav" data-page="map">Dispatch</button>
+            <button class="btn btn-primary" data-act="nav" data-page="map">Map &amp; routing</button>
             <button class="btn btn-ghost" data-act="nav" data-page="payments">Payments</button>
             <button class="btn btn-ghost" data-act="nav" data-page="renewals">Renewals</button>
             <button class="btn btn-ghost" data-act="nav" data-page="mtos">Memos</button>
@@ -4499,6 +5751,7 @@
       <div class="attn-grid">
         ${attnTile(w.unapplied, "Unapplied payments", "Apply →", "payments", "tone-red")}
         ${attnTile(w.failed, "Failed payment", "Review →", "payments", "tone-red")}
+        ${attnTile(w.emails, "Client email replies", "Open inbox →", "comms")}
         ${attnTile(w.renew, "Renewal reviews", "Review renewals →", "renewals")}
         ${attnTile(waitingLocs.length, "Waiting for payment", "Open invoices →", "invoices")}
       </div>
@@ -4634,7 +5887,7 @@
       })()}
       <div class="card" style="margin-bottom:16px">
         <h3>Add a customer</h3>
-        <p class="tiny">After the call: add Bill-To and properties, quote, invoice, then payment.</p>
+        <p class="tiny">After the call: add Bill-To and properties, quote, then invoice (prepaid) or charge the card (monthly).</p>
         <div class="actions">${btn("customer.create", "Add customer", "new-customer")}</div>
       </div>
       <div class="split section-gap">
@@ -5051,7 +6304,7 @@
   }
 
   function locationDispatch(c, l) {
-    if (c.status === "lapsed" || l.covered === false) return `<span class="muted">Not dispatching</span>`;
+    if (c.status === "lapsed" || l.covered === false) return `<span class="muted">Not on a route</span>`;
     if (locNeedsService(c, l)) {
       return `<span class="badge badge-warn">Needs service setup</span>`;
     }
@@ -5066,7 +6319,7 @@
       return `<span class="badge badge-ok">On route</span><div class="tiny">${esc(techName(routeTechId))}${routeDays ? ` · ${esc(routeDays)}` : ""}</div>`;
     }
     if (isMunicipal(c)) return `<span class="badge badge-sea">PO · pay after service</span>`;
-    return `<span class="muted">No dispatch yet</span>`;
+    return `<span class="muted">No route yet</span>`;
   }
 
   function viewLocations() {
@@ -5311,6 +6564,7 @@
       ["locations", "Locations"],
       ["services", "Services"],
       ["billing", "Billing"],
+      ["email", "Email"],
       ["activity", "Activity"],
       ["documents", "Documents"],
     ];
@@ -5323,7 +6577,8 @@
         const loc = locBy(c.id, s.locationId);
         return [esc(loc?.name || "—"), esc(svcTypeLabel(s.type)), esc(s.techId ? techName(s.techId) : "Unassigned"), esc(s.days || "—"), svcStatusBadge(s)];
       })) : `<p class="muted">No services yet.</p>`}</div>`;
-    } else if (tab === "billing") body = `${billingCard(c)}${paymentHistoryCard(c)}`;
+    }     else if (tab === "billing") body = `${billingCard(c)}${paymentHistoryCard(c)}`;
+    else if (tab === "email") body = customerEmailHtml(c);
     else if (tab === "activity") body = `${customerActivityHtml(c)}${commCard(c)}`;
     else if (tab === "documents") {
       body = `<div class="card"><h3>Documents</h3>${locDocs.length ? locDocs.map((d) => docRowHtml(d, false)).join("") : `<p class="muted">No documents on this Bill-To.</p>`}${can("docs.upload") ? `<div class="actions" style="margin-top:8px">${btn("docs.upload", "Attach document", "upload-doc", `data-id="${c.id}"`, "btn-ghost")}</div>` : ""}</div>`;
@@ -5354,6 +6609,7 @@
           ${primary}
           ${canEditCust ? `<button type="button" class="btn btn-ghost" data-act="edit-billto" data-id="${c.id}">Edit</button>` : ""}
           ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Create task", "new-task", `data-id="${c.id}"`, "btn-text") : ""}
+          <button type="button" class="btn btn-ghost" data-act="open-client-mail" data-id="${c.id}">Open as this client</button>
         </div>
       </div>
       <dl class="cust-summary">
@@ -5398,8 +6654,9 @@
       .sort((a, b) => String(b.day || "").localeCompare(String(a.day || "")) || String(a.time || "").localeCompare(String(b.time || "")));
     const gps = l.lat != null && l.lng != null ? `${Number(l.lat).toFixed(4)}, ${Number(l.lng).toFixed(4)}` : (l.gps || approxGps(l));
     const needsQuote = locNeedsQuote(c, l);
+    const canQuote = locCanQuote(c, l);
     const readyToInvoice = !needsQuote && canInvoiceLocation(c, l);
-    const primary = needsQuote && can("quote.send")
+    const primary = canQuote && can("quote.send") && needsQuote
       ? btn("quote.send", "Send quote", "send-quote", `data-id="${c.id}" data-loc="${l.id}"`)
       : readyToInvoice && can("invoice.create")
         ? btn("invoice.create", "Send invoice", "invoice-one-loc", `data-id="${c.id}" data-loc="${l.id}"`)
@@ -5423,6 +6680,7 @@
         </div>
         <div class="actions">
           ${primary}
+          ${canQuote && can("quote.send") && !needsQuote ? btn("quote.send", "Revise quote", "send-quote", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost") : ""}
           ${can("location.add") || canEditField("address") || state.role === "owner" ? `<button class="btn btn-ghost" data-act="edit-one-loc" data-id="${c.id}" data-loc="${l.id}">Edit</button>` : ""}
           ${live && ["ops", "owner"].includes(state.role) ? btn("schedule.reassign", "Reassign", "open-assign", `data-id="${c.id}" data-loc="${l.id}" data-return="location"`, "btn-ghost") : ""}
           ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Task", "new-task", `data-id="${c.id}" data-loc="${l.id}"`, "btn-text") : ""}
@@ -5434,7 +6692,9 @@
             <h3>Location details</h3>
             <dl class="kv section-gap">
               <dt>Bill-To</dt><dd>${esc(c.billTo || c.name)}</dd>
-              <dt>Property type</dt><dd>${esc(locTypeLabel(locTypeOf(c, l)))}</dd>
+              <dt>Property type</dt><dd>${esc(locKindLabel(locKind(c, l)))}</dd>
+              <dt>Package</dt><dd>${esc(packageById(locPackageId(c, l))?.label || "Chosen when you send the quote")}</dd>
+              <dt>Visit</dt><dd>${(() => { const pkg = packageById(locPackageId(c, l)); const dur = l.quotedDurationMin || pkg?.durationMin; return pkg ? `${dur} min · 2 visits / week` : "Set on the quote"; })()}</dd>
               <dt>Address</dt><dd>${esc(l.address || "—")}</dd>
               <dt>GPS</dt><dd>${esc(gps)}</dd>
               <dt>Status</dt><dd>${locationStatus(c, l)}</dd>
@@ -5537,6 +6797,7 @@
     const showMoney = can("payment.viewAmount");
     const showProgramPrice = state.role !== "tech";
     const needsQuote = (c.locations || []).some((l) => locNeedsQuote(c, l));
+    const canQuote = (c.locations || []).some((l) => locCanQuote(c, l));
     const quotedReady = (c.locations || []).some((l) => locNeedsInvoice(c, l) && !locNeedsQuote(c, l));
     const canEditCust = canEditField("name");
     const canEditLoc = can("location.add") || canEditField("address") || state.role === "owner";
@@ -5549,7 +6810,7 @@
           <p class="muted">${esc(c.id)} · Bill-To ${esc(c.billTo || c.name)} · ${statusBadge(c.status)}</p>
         </div>
         <div class="actions">
-          ${needsQuote && can("quote.send") ? btn("quote.send", "Send quote", "send-quote", `data-id="${c.id}"`) : ""}
+          ${canQuote && can("quote.send") ? btn("quote.send", needsQuote ? "Send quote" : "Revise quote", "send-quote", `data-id="${c.id}"`) : ""}
           ${(can("invoice.create") || state.role === "owner") && (c.locations || []).some((l) => canInvoiceLocation(c, l)) ? btn("invoice.create", "Send invoice to all", "open-convert", `data-id="${c.id}"`, "btn-sun") : ""}
           ${(c.locations || []).some((l) => locNeedsService(c, l)) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}"`) : ""}
           ${(c.locations || []).some((l) => locNeedsTech(c, l)) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}"`) : ""}
@@ -5558,7 +6819,7 @@
         </div>
       </div>
       ${needsQuote ? `<div class="notice">One quote to the Bill-To lists the programs and every property.</div>` : ""}
-      ${quotedReady ? `<div class="notice">Quote is out. Send invoice to all, or send one property from its location card.</div>` : ""}
+      ${quotedReady ? `<div class="notice">Quote is out. Revise prices if needed. Prepaid: send an invoice. Monthly AutoPay: charge the card on file and email a receipt — no invoice.</div>` : ""}
       <div class="cust-panels">
         <div class="panel-box">
           ${canEditCust ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-billto" data-id="${c.id}">Edit Bill-To</button>` : ""}
@@ -5582,7 +6843,7 @@
           ${canEditLoc ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-locations" data-id="${c.id}">Edit locations</button>` : ""}
           <div class="panel-kicker">Locations</div>
           <h3>${(c.locations || []).length} propert${(c.locations || []).length === 1 ? "y" : "ies"}</h3>
-          <p class="tiny">Quote → invoice → pay → ready for service.</p>
+          <p class="tiny">Quote → invoice (prepaid) or card charge + receipt (monthly) → ready for service.</p>
           <div class="panel-locs" data-keep-scroll="panel-locs">
             ${(c.locations || []).map((l) => {
               const plan = locPlan(c, l);
@@ -5624,17 +6885,21 @@
                 <div class="tiny">${esc(l.address)}</div>
                 <div class="tiny">GPS ${esc(gps)}${l.subdivision ? ` · ${esc(l.subdivision)}` : ""}</div>
                 <div class="tiny"><strong>Contract</strong> ${ct ? `${esc(ct.id)} · ${esc(ct.program || "")} · ${esc(fmtUsRange(ct.startDate, ct.endDate))}` : "None yet"}</div>
-                <div class="tiny"><strong>Billing plan</strong> ${esc(billingPlanLabel(l))}${onAutopay ? " · AutoPay charges & allocates overnight — Christy does not mark those lines" : ""}</div>
-                ${apaFail ? `<div class="tiny" style="color:var(--bad,#b42318)">Declined: call them, take external pay, allocate, then generate the next period by hand. Rick can stop service if they won’t pay.</div>` : ""}
+                <div class="tiny"><strong>Billing plan</strong> ${esc(billingPlanLabel(l))}${onAutopay ? " · AutoPay charges the card each month and emails a receipt — no invoice" : ""}</div>
+                ${apaFail ? `<div class="tiny" style="color:var(--bad,#b42318)">Declined: call them. Monthly AutoPay has no invoice — take a replacement payment or retry the card. Rick can stop service if they won’t pay.</div>` : ""}
                 ${billingPeriodLabel(l) ? `<div class="tiny">${esc(billingPeriodLabel(l))}</div>` : ""}
                 ${periods.length ? `<div class="tiny" style="margin-top:6px"><strong>Periods</strong></div>
-                  <table class="mini-table"><thead><tr><th>#</th><th>Dates</th><th>Amt</th><th>Inv</th><th>Status</th></tr></thead><tbody>
-                  ${periods.map((p) => `<tr><td>${p.sequence}</td><td>${esc(fmtUsRange(p.periodStart, p.periodEnd))}</td><td>${money(p.amount)}</td><td>${esc(p.invoiceId || "—")}</td><td>${esc(p.status)}</td></tr>`).join("")}
+                  <table class="mini-table"><thead><tr><th>#</th><th>Dates</th><th>Amt</th><th>Receipt</th><th>Status</th></tr></thead><tbody>
+                  ${periods.map((p) => {
+                    const pay = p.paymentId ? (state.data.payments || []).find((x) => x.id === p.paymentId) : null;
+                    const receipt = pay?.receiptId || (p.status === "PAID" ? "Emailed" : "—");
+                    return `<tr><td>${p.sequence}</td><td>${esc(fmtUsRange(p.periodStart, p.periodEnd))}</td><td>${money(p.amount)}</td><td>${esc(receipt)}</td><td>${esc(p.status)}</td></tr>`;
+                  }).join("")}
                   </tbody></table>` : ""}
-                <div class="tiny" style="margin-top:6px"><strong>Invoices</strong> ${invs.length ? invs.map((i) => {
+                ${onAutopay || locIsMonthlyPlan(c, l) ? "" : `<div class="tiny" style="margin-top:6px"><strong>Invoices</strong> ${invs.length ? invs.map((i) => {
                   const st = invoiceFinStatus(i);
                   return `${invoiceBtn(i.id)} ${st} · paid ${money(allocated(i.id))} · bal ${money(invoiceBalance(i))}${i.kind === "renewal" ? " · renewal" : ""}`;
-                }).join("; ") : "None"}</div>
+                }).join("; ") : "None"}</div>`}
                 ${(() => {
                   const locPays = (state.data.payments || []).filter((p) => p.customerId === c.id && p.locationId === l.id)
                     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
@@ -5677,7 +6942,7 @@
                     if (!canInvoiceLocation(c, l)) return "";
                     return btn("invoice.create", "Accept / send invoice", "invoice-one-loc", `data-id="${c.id}" data-loc="${l.id}"`, "btn-sun");
                   })()}
-                  ${canGenNext ? `<button class="btn btn-ghost" data-act="generate-next-period" data-id="${c.id}" data-loc="${l.id}">Generate next period${apaFail || !onAutopay ? "" : " (manual)"}</button>` : ""}
+                  ${canGenNext && (!onAutopay || apaFail) ? `<button class="btn btn-ghost" data-act="generate-next-period" data-id="${c.id}" data-loc="${l.id}">Queue next month</button>` : ""}
                   ${onAutopay && (can("payment.post") || state.role === "owner") ? `
                     <button class="btn btn-sun" data-act="run-autopay" data-id="${c.id}" data-loc="${l.id}">Simulate AutoPay success</button>
                     <button class="btn btn-ghost" data-act="run-autopay-fail" data-id="${c.id}" data-loc="${l.id}">Simulate decline</button>
@@ -5894,7 +7159,7 @@
       const st = invoiceFinStatus(i);
       return { when: i.sent || i.paidOn || "—", kind: st === "FAILED" ? "bad" : st === "PAID" ? "ok" : "warn", text: `Invoice ${i.id} · ${invProperty(i)} · ${money(i.amount)} · paid ${money(allocated(i.id))} · bal ${money(invoiceBalance(i))} · ${st}` };
     }),
-    ...pays.map((p) => ({ when: p.date, kind: p.failed ? "bad" : payNeedsMark(p) ? "warn" : "ok", text: `Payment ${money(p.amount)} · alloc ${money(paymentAllocatedAmount(p.id))} · ${p.method} · ${p.memo}` }))]
+    ...pays.map((p) => ({ when: p.date, kind: p.failed ? "bad" : payNeedsMark(p) ? "warn" : "ok", text: `${p.receiptEmailed ? "Receipt " + (p.receiptId || "") + " · " : "Payment "}${money(p.amount)} · ${p.method} · ${p.memo}` }))]
       .sort((a, b) => String(b.when).localeCompare(String(a.when)));
     return `
       <div class="card billing-timeline-card">
@@ -5937,14 +7202,17 @@
   function viewQuotes() {
     const rows = state.data.quotes.map((q) => {
       const c = custBy(q.customerId);
+      const custom = q.pricing && Object.keys(q.pricing).some((pid) => quotePricingIsCustom(q.pricing[pid], progBy(pid)));
       const programCell = !q.sent && can("quote.send")
         ? `<span class="tiny">Not sent</span>`
-        : (q.programId ? (progBy(q.programId)?.name || "—") : (q.sent ? "Programs listed — awaiting choice" : "—"));
-      return [q.id, custBtn(q.customerId, c?.billTo || c?.name || "—"), esc(quotePropertyLabel(q)), programCell, q.sent ? statusBadge("sent") : statusBadge("draft"), fmtUsDate(q.date),
-        q.sent ? (q.programId ? "Client chose" : "Waiting on client") : btn("quote.send", "Preview & send", "send-quote", `data-id="${q.customerId}"`)];
+        : (q.programId ? (progBy(q.programId)?.name || "—") : (q.sent ? (custom ? "Custom prices — awaiting choice" : "Programs listed — awaiting choice") : "—"));
+      const actCell = !q.sent
+        ? btn("quote.send", "Preview & send", "send-quote", `data-id="${q.customerId}"`)
+        : (q.programId ? "Client chose" : (can("quote.send") ? btn("quote.send", "Revise prices", "send-quote", `data-id="${q.customerId}"`, "btn-ghost") : "Waiting on client"));
+      return [q.id, custBtn(q.customerId, c?.billTo || c?.name || "—"), esc(quotePropertyLabel(q)), programCell, q.sent ? statusBadge("sent") : statusBadge("draft"), fmtUsDate(q.date), actCell];
     });
     return `
-      ${head("Quotes", "One quote per Bill-To. List the programs and properties. After they pick, invoice each property.")}
+      ${head("Quotes", "Build the quote by property type: pick the package(s), add extra charges if needed, preview, then send. After they pick: invoice for prepaid, or charge the card and email a receipt for monthly AutoPay.")}
       ${table(["Quote", "Bill-To", "Properties", "Program", "Status", "Date", ""], rows)}
     `;
   }
@@ -6246,7 +7514,7 @@
           <li>Run it. You get a proposed stop order and estimated drive time.</li>
           <li>If it looks right, commit. That is what updates the live schedule and trapper phones.</li>
         </ol>
-        <p class="tiny">This does not assign new customers. Best Fit on Dispatch still does that. Shared properties stay with the trapper who already has them.</p>
+        <p class="tiny">This does not assign new customers. Best Fit on Map &amp; routing still does that. Shared properties stay with the trapper who already has them.</p>
       </div>
       <div class="card opt-section">
         <h3>Dates and trappers</h3>
@@ -7693,7 +8961,7 @@
 
   /* ---------- Admin ---------- */
   function viewInvoices() {
-    const rows = state.data.invoices.map((i) => {
+    const rows = state.data.invoices.filter((i) => i.kind !== "autopay").map((i) => {
       const c = custBy(i.customerId);
       const st = invoiceFinStatus(i);
       const paid = allocated(i.id);
@@ -7718,7 +8986,7 @@
       ];
     });
     return `
-      ${head("Invoices", "One invoice per property / period. OPEN, PARTIAL, or PAID from what’s allocated. Renewal invoices show the contract, service, and trapper bonus once paid.")}
+      ${head("Invoices", "Prepaid, renewal, and municipal invoices only. Monthly AutoPay does not create an invoice — the card on file is charged and a receipt is emailed.")}
       ${writeBar("invoice.send", "Send invoice")}
       <div class="actions" style="margin-bottom:10px">${btn("invoice.create", "Manual municipal invoice", "manual-invoice", "", "btn-ghost")}</div>
       ${table(["Invoice", "Bill-To", "Property", "Amount", "Paid", "Balance", "Status", "Kind", "Sent", ""], rows)}
@@ -7790,7 +9058,7 @@
         : "All client payments appear here. Post each received payment to its invoice; a full payment marks the invoice paid.")}
       ${isOps
         ? `<div class="notice">You don’t allocate invoices. When balance is zero: open Bill-To → create service → assign on the map.</div>`
-        : `<div class="notice">Online, AutoPay, checks, ACH, Zelle, and other client payments land here. Click <strong>Post payment</strong> to apply it to the linked invoice.</div>`}
+        : `<div class="notice">Online, AutoPay, checks, ACH, Zelle, and other client payments land here. Monthly AutoPay charges the card and emails a receipt — those lines do not need posting to an invoice.</div>`}
       <div class="seg" style="margin-bottom:8px">
         ${filters.map(([id, lab]) => `<button class="${filter === id ? "on" : ""}" data-act="pay-filter" data-filter="${id}">${lab}</button>`).join("")}
       </div>
@@ -8180,21 +9448,25 @@
   function daysUntil(date) {
     return Math.round((new Date(date) - new Date(TODAY)) / 86400000);
   }
-  const KNOWN_RENEWAL_AMOUNTS = [2000, 2100, 2400, 1400, 1200, 800, 300, 180];
+  const KNOWN_RENEWAL_AMOUNTS = [...new Set(
+    PROPERTY_PACKAGES.flatMap((pkg) => (pkg.terms || []).map((t) => (
+      t.prepaid != null ? t.prepaid : (t.monthly != null ? t.monthly : t.list)
+    ))).concat([2000, 2100, 2400, 1400, 1200, 800, 300, 180, 200, 1576, 1500])
+  )];
   function renewalMeta(row) {
     if (!row) return { window: "—", flag: "—", batchable: false, noticeOnly: false };
     const days = daysUntil(row.expires);
     const window = days <= 30 ? "30 days" : "60 days";
     const already = (state.data.invoices || []).some((i) => i.customerId === (row.customerId || row.id) && i.locationId === row.locationId && i.kind === "renewal" && (i.status === "sent" || i.status === "failed"));
     const odd = !KNOWN_RENEWAL_AMOUNTS.includes(Number(row.amount));
-    const rollover = row.programId === "1mo";
+    const rollover = row.programId === "1mo" || String(row.programId || "").endsWith("-1mo");
     const noticeOnly = !!row.autoPay;
     let flag = "Standard — same terms";
     if (already) flag = "Invoice already out — follow up unpaid, don’t send again";
     else if (odd) flag = "Odd amount — review with Tom";
     else if (rollover) flag = "1-month — offer 6/12 rollover, don’t re-send 1-month";
     else if (noticeOnly) flag = "Auto-pay — send notice only, do not charge";
-    else if (row.programId === "12mo") flag = "Monthly installment — renewal is the term, not one $200 hit";
+    else if (programIsMonthly(row.programId)) flag = "Monthly AutoPay — renewal is the term, not one charge";
     const batchable = !odd && !rollover && !already;
     return { window, days, flag, odd, rollover, noticeOnly, batchable };
   }
@@ -8251,8 +9523,8 @@
     const pid = programId || row.programId;
     const p = progBy(pid);
     const amt = p ? programBillAmount(p) : Number(row.amount || 0);
-    if (p?.id === "12mo") {
-      return `${money(amt)}/month × ${p.months} — ${p.name}`;
+    if (p && programIsMonthly(p)) {
+      return `${money(amt)}/month × ${p.months} — ${p.name}. AutoPay: card on file, receipt emailed, no invoice.`;
     }
     if (p) {
       return `${money(amt)} upfront — ${p.name}`;
@@ -8265,10 +9537,12 @@
     return `${money(row.amount)} upfront — same terms`;
   }
 
-  function programOptionsHtml(selectedId) {
-    return allPrograms().map((p) => {
+  function programOptionsHtml(selectedId, c, loc) {
+    const list = loc ? programsForLocation(c, loc) : allPrograms().filter((p) => !p.aliasOf);
+    const extra = selectedId && !list.some((p) => p.id === selectedId) ? [progBy(selectedId)].filter(Boolean) : [];
+    return list.concat(extra).map((p) => {
       const amt = programBillAmount(p);
-      const price = p.id === "12mo" ? `${money(amt)}/mo` : money(amt);
+      const price = programIsMonthly(p) ? `${money(amt)}/mo` : money(amt);
       return `<option value="${p.id}" ${p.id === selectedId ? "selected" : ""}>${esc(p.name)} · ${price} · ${esc(p.freq)}</option>`;
     }).join("");
   }
@@ -8537,7 +9811,7 @@
         <div class="invoice-sheet">
           <p>Bill-To ${esc(c?.billTo || c?.name || "—")}</p>
           <p>Property ${esc(loc?.name || "—")} · ${esc(loc?.address || "")}</p>
-          <p>${esc(prog?.name || "Program")} · ${money(inv.amount)}</p>
+          <p>${esc(prog?.name || "Program")} · ${money(inv.amount)}${inv.discount ? ` · discount ${money(inv.discount)}${inv.discountNote ? " (" + esc(inv.discountNote) + ")" : ""}` : ""}</p>
           ${renewal ? `<p class="tiny"><strong>Renewal invoice</strong> · ${esc(renewalLabelForInvoice(inv))}. This property already has service; payment funds the next term and opens a trapper bonus.</p>` : `<p class="tiny">This invoice is only for this property. Other properties on the same Bill-To have their own invoices.</p>`}
         </div>
         <dl class="kv bonus-kv">
@@ -8546,7 +9820,9 @@
             ? `<button class="btn btn-ghost linkish" data-act="open-location" data-id="${esc(inv.customerId)}" data-loc="${esc(inv.locationId)}">${esc(loc.name)}</button><div class="tiny">${esc(loc.address || "")}</div>`
             : "—"}</dd>
           <dt>Invoice type</dt><dd>${esc(invKindLabel(inv.kind))}${renewal ? " · trapper bonus eligible" : ""}</dd>
-          <dt>Amount</dt><dd>${money2(inv.amount)} · paid ${money2(allocated(inv.id))} · balance ${money2(invoiceBalance(inv))}</dd>
+          <dt>Amount</dt><dd>${inv.status === "draft" && can("invoice.create")
+            ? `<input id="inv-send-amt" type="number" min="0" step="0.01" value="${esc(inv.amount)}" style="max-width:140px">`
+            : `${money2(inv.amount)} · paid ${money2(allocated(inv.id))} · balance ${money2(invoiceBalance(inv))}`}</dd>
           <dt>Contract</dt><dd>${ct ? `${esc(ct.id)} · ${esc(ct.program || "")}<div class="tiny">${esc(fmtUsRange(ct.startDate, ct.endDate))} · ${esc(ct.status || "")}</div>` : "None linked"}</dd>
           <dt>Service</dt><dd>${svcs.length
             ? svcs.map((s) => `${esc(svcTypeLabel(s.type))} · ${esc(s.techId ? techName(s.techId) : "Unassigned")}<div class="tiny">${esc(s.days || "—")} · ${esc(fmtUsRange(s.start, s.expires))}</div>`).join("")
@@ -8634,21 +9910,39 @@
   }
 
   function viewComms() {
-    const items = state.role === "sales" ? [] : state.data.comms;
+    const filter = state.mailFilter || "all";
+    const threads = allEmailThreads(null);
+    const unread = threads.filter((t) => t.unreadOffice);
+    const list = filter === "unread" ? unread : threads;
+    const selected = !state.mailCompose && threads.find((t) => t.threadId === state.mailThreadId);
+    const notes = state.role === "sales" ? [] : state.data.comms;
     return `
-      ${head("Communication log", "Calls, emails, and texts on the account — the office can all see them.")}
-      ${items.map((x) => {
-        const c = custBy(x.customerId);
-        return `<div class="comm-item">${custBtn(x.customerId, c?.name)} · ${esc(x.who)} · ${esc(x.channel)} · ${esc(fmtUsDate(x.date))}<div>${esc(x.text)}</div></div>`;
-      }).join("")}
+      ${head("Email", "Send templated email from the office. Client replies land on the account. Open the client mailbox to see what they receive and to reply as the client. This demo does not send real internet mail.")}
+      <div class="actions" style="margin-bottom:12px">
+        ${can("email.send") ? `<button class="btn btn-primary" data-act="mail-compose">Compose</button>` : ""}
+        <button class="btn btn-ghost" data-act="open-client-mail">Open client mailbox</button>
+      </div>
+      <div class="seg" style="margin-bottom:12px">
+        <button class="${filter === "unread" ? "on" : ""}" data-act="mail-filter" data-filter="unread">Unread${unread.length ? ` (${unread.length})` : ""}</button>
+        <button class="${filter === "all" ? "on" : ""}" data-act="mail-filter" data-filter="all">All threads</button>
+      </div>
+      <div class="mail-layout">
+        <div class="mail-list" data-keep-scroll="mail-list">${emailThreadListHtml(list, state.mailCompose ? null : selected?.threadId)}</div>
+        ${state.mailCompose ? emailComposeForm(null) : selected ? emailThreadPane(selected, { asClient: false }) : `<div class="mail-pane"><p class="muted" style="padding:16px">Pick a thread, or compose a new email from a template.</p></div>`}
+      </div>
       ${state.role !== "sales" ? `
         <div class="card section-gap">
-          <h3>Add a note</h3>
+          <h3>Call / office notes</h3>
+          <p class="tiny">Phone and walk-in notes stay on the shared log. Email history is the threads above.</p>
+          ${notes.slice(0, 12).map((x) => {
+            const c = custBy(x.customerId);
+            return `<div class="comm-item">${custBtn(x.customerId, c?.name)} · ${esc(x.who)} · ${esc(x.channel)} · ${esc(fmtUsDate(x.date))}<div>${esc(x.text)}</div></div>`;
+          }).join("") || `<p class="muted">No notes yet.</p>`}
           <div class="field"><label>Customer</label>
             <select id="comm-cust">${state.data.customers.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select>
           </div>
           <div class="field"><label>Channel</label>
-            <select id="comm-channel"><option>Office</option><option>Phone</option><option>Email</option><option>Text</option></select>
+            <select id="comm-channel"><option>Office</option><option>Phone</option><option>Text</option></select>
           </div>
           <div class="field"><label>Note</label><textarea id="comm-text" rows="3" placeholder="Stays on the shared log"></textarea></div>
           <button class="btn btn-primary" data-act="add-comm">Save to log</button>
@@ -8954,11 +10248,31 @@
   }
 
   function viewLists() {
-    const programs = allPrograms();
+    const extra = extraProgramsSafe();
     const types = allServiceTypes();
+    const pkgCards = PROPERTY_PACKAGES.map((pkg) => {
+      const terms = (pkg.terms || []).map((t) => {
+        const monthly = t.billing === "monthly";
+        const amt = monthly ? t.monthly : (t.prepaid != null ? t.prepaid : t.list);
+        const extraNote = monthly
+          ? `/mo AutoPay (term ${money(t.list)})`
+          : (t.freeMonths ? ` · last ${t.freeMonths} month${t.freeMonths === 1 ? "" : "s"} free` : "");
+        return `<li><span>${esc(TERM_LABELS[t.key] || t.key)}</span><span class="muted">${money(amt)}${extraNote}</span></li>`;
+      }).join("");
+      return `<div class="quote-pkg-block">
+        <h4>${esc(pkg.label)}</h4>
+        <p class="tiny">${pkg.durationMin} min · ${esc(pkg.freq || "2 visits / week")} · ${esc(pkg.group)}</p>
+        <ul class="settings-list">${terms}</ul>
+      </div>`;
+    }).join("");
     return `
-      ${head("Configurable lists", "No-show reasons, programs, and service types — add what the office uses.")}
+      ${head("Configurable lists", "Property packages drive the quote. Add custom programs only when the office needs something extra.")}
       ${writeBar("lists.edit", "Edit lists")}
+      <div class="card" style="margin-bottom:16px">
+        <h3>Property packages</h3>
+        <p class="tiny">Quotes list the terms for that property type. 6- and 12-month monthly require AutoPay (card on file, receipt emailed, no invoice). Prepaid 6-month: last month free. Prepaid 12-month: last two months free. Special discount is AutoPay-only on 6/12. A 1-month can roll into a 3-month in the last week of service.</p>
+        ${pkgCards}
+      </div>
       <div class="split">
         <div class="card">
           <h3>No-show reasons</h3>
@@ -8973,8 +10287,8 @@
           ${btn("lists.edit", "Add reason", "add-reason")}
         </div>
         <div class="card">
-          <h3>Programs we use</h3>
-          <ul class="settings-list">${programs.map((p) => `<li><span>${esc(p.name)}</span><span class="muted">${money(p.list)}${p._custom ? " · custom" : ""}</span></li>`).join("")}</ul>
+          <h3>Extra programs</h3>
+          <ul class="settings-list">${extra.length ? extra.map((p) => `<li><span>${esc(p.name)}</span><span class="muted">${money(p.list)}${p._custom ? " · custom" : ""}</span></li>`).join("") : `<li><span class="muted">None — packages above cover the price sheet</span></li>`}</ul>
           <div class="field"><label>Program name</label><input id="new-prog-name" placeholder="e.g. 9-month prepaid"></div>
           <div class="field"><label>List price $</label><input id="new-prog-price" type="number" value="1000"></div>
           <div class="field"><label>Months</label><input id="new-prog-months" type="number" step="0.5" value="6"></div>
@@ -8994,7 +10308,7 @@
     const tpls = state.data.templates || {};
     const cards = allTemplates();
     return `
-      ${head("Templates", "Edit the body, preview, or add a new template. Saves on this browser.")}
+      ${head("Templates", "Bodies used when the office sends email from the CRM. Visit reminders and AutoPay receipts are no-reply. Quote, invoice, renewal, and general messages accept client replies into the account.")}
       ${writeBar("template.edit", "Edit templates")}
       <div class="actions" style="margin-bottom:12px">
         ${btn("template.edit", "Add template", "add-template", "", "btn-sun")}
@@ -9638,7 +10952,7 @@
     return `
       <div class="pay-public">
         <div class="pay-box">
-          <div class="mark" style="margin-bottom:16px"><div class="mark-badge">IC</div><span>Iguana Control</span></div>
+          <div style="margin-bottom:16px">${brandMark()}</div>
           <h2 style="font-family:var(--display);font-size:28px;margin-bottom:8px">Pay an invoice</h2>
           <p class="muted">No login. Pay by invoice link, website, or ACH — it shows up on the register.</p>
           <div class="field"><label>Invoice number</label>
@@ -9678,7 +10992,7 @@
   }
   function renderModal() {
     if (!state.modal) return "";
-    return `<div class="overlay"><div class="modal ${state.modal.wide ? "wide" : ""} ${state.modal.applyPay ? "apply-pay" : ""} ${state.modal.postPay ? "post-pay" : ""} ${state.modal.sched ? "sched-day" : ""} ${state.modal.setup ? "setup" : ""} ${state.modal.previewMap ? "map-preview" : ""}">${state.modal.html}</div></div>`;
+    return `<div class="overlay"><div class="modal ${state.modal.wide ? "wide" : ""} ${state.modal.quoteXl ? "quote-xl" : ""} ${state.modal.applyPay ? "apply-pay" : ""} ${state.modal.postPay ? "post-pay" : ""} ${state.modal.sched ? "sched-day" : ""} ${state.modal.setup ? "setup" : ""} ${state.modal.previewMap ? "map-preview" : ""}">${state.modal.html}</div></div>`;
   }
   function searchHits(q) {
     const needle = String(q || "").trim().toLowerCase();
@@ -9701,6 +11015,13 @@
         if (String(i.id).toLowerCase().includes(needle)) {
           const c = custBy(i.customerId);
           push({ kind: "Invoice", title: i.id, sub: `${c?.billTo || c?.name || ""} · ${money(i.amount)} · ${invoiceFinStatus(i)}`, act: "open-invoice", id: i.id });
+        }
+      });
+      (state.data.emails || []).forEach((m) => {
+        const blob = [m.subject, m.body, m.fromEmail, m.toEmail].join(" ").toLowerCase();
+        if (blob.includes(needle)) {
+          const c = custBy(m.customerId);
+          push({ kind: "Email", title: m.subject || "Email", sub: `${c?.billTo || c?.name || ""} · ${m.direction === "in" ? "from client" : "to client"}`, act: "open-customer", id: m.customerId, tab: "email" });
         }
       });
       (state.data.payments || []).forEach((p) => {
@@ -9727,7 +11048,8 @@
   function cmdkHitHtml(h) {
     const loc = h.loc ? ` data-loc="${esc(h.loc)}"` : "";
     const page = h.page ? ` data-page="${esc(h.page)}"` : "";
-    return `<button type="button" class="cmdk-hit" data-act="${esc(h.act)}" data-id="${esc(h.id || "")}"${loc}${page}>
+    const tab = h.tab ? ` data-tab="${esc(h.tab)}"` : "";
+    return `<button type="button" class="cmdk-hit" data-act="${esc(h.act)}" data-id="${esc(h.id || "")}"${loc}${page}${tab}>
       <span class="cmdk-kind">${esc(h.kind)}</span>
       <span><strong>${esc(h.title)}</strong><span>${esc(h.sub || "")}</span></span>
     </button>`;
@@ -9792,6 +11114,7 @@
         captureCreateServiceDraft();
         captureOneoffDraft();
         state.modal = null;
+        state.quoteDraft = null;
         state.applyPay = null;
         state.schedOpen = null;
         state.bonusDraft = null;
@@ -9854,6 +11177,14 @@
         syncCompanyField();
         return;
       }
+      if (e.target.dataset.act === "mail-tpl-fill" || e.target.id === "mail-tpl") {
+        fillMailComposeFromTpl();
+        return;
+      }
+      if (e.target.dataset.act === "quote-pkg-select") {
+        changeQuotePkg();
+        return;
+      }
       if (e.target.dataset.edit) {
         applyInlineEdit(e.target);
         if (e.target.tagName === "SELECT" || e.target.type === "checkbox") render();
@@ -9861,6 +11192,14 @@
       }
       const el = e.target.closest("[data-act]");
       if (!el) return;
+      if (el.dataset.act === "quote-price-sync") {
+        syncQuotePricePreview(el.dataset.prog);
+        return;
+      }
+      if (el.dataset.act === "invoice-price-sync") {
+        syncInvoiceAmountPreview(el);
+        return;
+      }
       if (el.dataset.act === "switch-role") {
         enterAs(el.value);
       }
@@ -9893,12 +11232,27 @@
         if (box) box.innerHTML = convertPreviewInner(el.value);
       }
       if (el.dataset.act === "preview-loc-program") {
-        const box = document.getElementById("cv-preview-" + el.dataset.loc);
-        if (box) box.innerHTML = convertPreviewInner(el.value);
+        const loc = el.dataset.loc;
+        fillInvoiceAmountEditor(
+          { price: `cv-price-${loc}`, disc: `cv-disc-${loc}`, net: `cv-net-${loc}`, note: `cv-note-${loc}` },
+          el.dataset.id, loc, el.value
+        );
+        const d = invoicePriceDefaults(el.dataset.id, loc, el.value);
+        const billed = readInvoiceBilledAmount(`cv-price-${loc}`, `cv-disc-${loc}`, d.quoted);
+        const meta = readInvoiceDiscountMeta(`cv-price-${loc}`, `cv-disc-${loc}`, `cv-note-${loc}`);
+        const box = document.getElementById("cv-preview-" + loc);
+        if (box) box.innerHTML = convertPreviewInner(el.value, el.dataset.id, loc, billed, meta);
       }
       if (el.dataset.act === "preview-io-program") {
+        fillInvoiceAmountEditor(
+          { price: "io-price", disc: "io-disc", net: "io-net", note: "io-note" },
+          el.dataset.id, el.dataset.loc, el.value
+        );
+        const d = invoicePriceDefaults(el.dataset.id, el.dataset.loc, el.value);
+        const billed = readInvoiceBilledAmount("io-price", "io-disc", d.quoted);
+        const meta = readInvoiceDiscountMeta("io-price", "io-disc", "io-note");
         const box = document.getElementById("io-preview");
-        if (box) box.innerHTML = convertPreviewInner(el.value);
+        if (box) box.innerHTML = convertPreviewInner(el.value, el.dataset.id, el.dataset.loc, billed, meta);
       }
       if (el.dataset.act === "task-cust-change") refreshTaskLocOptions();
       if (el.dataset.act === "sv-code") {
@@ -9938,6 +11292,14 @@
       }
     };
     $app.oninput = (e) => {
+      if (e.target.closest("[data-act=quote-price-sync]")) {
+        syncQuotePricePreview(e.target.closest("[data-act=quote-price-sync]").dataset.prog);
+        return;
+      }
+      if (e.target.closest("[data-act=invoice-price-sync]")) {
+        syncInvoiceAmountPreview(e.target.closest("[data-act=invoice-price-sync]"));
+        return;
+      }
       if (e.target.dataset.listFilter) {
         applyListFilters(e.target.dataset.listFilter);
         return;
@@ -10294,7 +11656,7 @@
     const actions = {
       login: () => enterAs(ds.who || ds.role),
       enter: () => enterAs(ds.who || ds.role),
-      logout: () => { state.role = null; state.page = "dashboard"; persistSession(); render(); },
+      logout: () => { state.role = null; state.page = "dashboard"; state.clientMail = false; persistSession(); render(); },
       "reset-demo": () => resetDemo(),
       nav: () => {
         state.page = ds.page;
@@ -10322,8 +11684,8 @@
       "switch-role-btn": () => switchRole(ds.role),
       "search-open": () => { state.searchOpen = true; render(); },
       "search-close": () => { state.searchOpen = false; render(); },
-      "customer-tab": () => { state.customerTab = ds.tab || "overview"; render(); },
-      "open-customer": () => { state.modal = null; state.searchOpen = false; state.bonusDraft = null; state.selectedCustomer = ds.id; state.selectedLocation = ds.loc || null; state.customerTab = ds.tab || "overview"; state.page = "customer"; state.payFocusId = null; render(); },
+      "customer-tab": () => { state.customerTab = ds.tab || "overview"; if (ds.tab !== "email") state.mailCompose = false; render(); },
+      "open-customer": () => { state.modal = null; state.searchOpen = false; state.bonusDraft = null; state.selectedCustomer = ds.id; state.selectedLocation = ds.loc || null; state.customerTab = ds.tab || "overview"; state.page = "customer"; state.payFocusId = null; state.mailCompose = false; if (ds.tab === "email") state.mailThreadId = null; render(); },
       "select-customer-location": () => {
         state.selectedCustomer = ds.id;
         state.selectedLocation = ds.loc;
@@ -10366,6 +11728,13 @@
       },
       "intake-type": () => syncCompanyField(),
       "send-quote": () => openQuote(ds.id, ds.loc),
+      "preview-quote": () => previewQuote(),
+      "back-quote-edit": () => backQuoteEdit(),
+      "toggle-quote-pkg": () => toggleQuoteTerm(),
+      "toggle-quote-term": () => toggleQuoteTerm(),
+      "quote-pkg-select": () => changeQuotePkg(),
+      "add-quote-extra": () => addQuoteExtra(),
+      "remove-quote-extra": () => removeQuoteExtra(ds.id),
       "confirm-quote": () => confirmQuote(ds.id, ds.loc),
       "convert-invoice": () => convertInvoice(ds.id),
       "open-convert": () => openConvertInvoice(ds.id),
@@ -10399,7 +11768,7 @@
         const loc = ds.loc ? locBy(ds.id, ds.loc) : c.locations?.[0];
         state.data.comms.unshift({
           id: nid("CM"), customerId: c.id, who: role()?.name || "Christy Brown", channel: "Phone", date: TODAY,
-          text: `Called about AutoPay decline${loc ? ` at ${loc.name}` : ""}. Asked them to pay by check / Zelle / portal. Will allocate when funds hit the register, then generate next billing period manually.`,
+          text: `Called about AutoPay decline${loc ? ` at ${loc.name}` : ""}. Asked them to pay by check / Zelle / portal. Monthly AutoPay has no invoice — retry the card or take a replacement payment.`,
         });
         pushNotify({
           type: "AUTOPAY_CONTACT",
@@ -10636,6 +12005,45 @@
       "edit-memo": () => openMemo(ds.id),
       "save-memo": () => saveMemo(ds.id),
       "add-comm": () => addComm(ds.id),
+      "mail-filter": () => { state.mailFilter = ds.filter || "all"; render(); },
+      "mail-compose": () => {
+        state.mailCompose = true;
+        state.mailThreadId = null;
+        if (ds.id) {
+          state.selectedCustomer = ds.id;
+          state.customerTab = "email";
+        }
+        render();
+      },
+      "open-mail-thread": () => {
+        state.mailCompose = false;
+        state.mailThreadId = ds.thread;
+        markThreadRead(ds.thread, false);
+        render();
+      },
+      "office-mail-send": () => sendOfficeCompose(ds.id),
+      "office-mail-reply": () => sendOfficeReply(ds.id, ds.thread),
+      "open-client-mail": () => openClientMail(ds.id || null),
+      "close-client-mail": () => closeClientMail(),
+      "pick-client-mail": () => {
+        state.clientMail = true;
+        state.clientMailCustomer = ds.id || null;
+        state.clientMailThread = null;
+        render();
+      },
+      "pick-client-mail-select": () => {
+        state.clientMail = true;
+        state.clientMailCustomer = val("client-mail-cust") || null;
+        state.clientMailThread = null;
+        render();
+      },
+      "client-open-thread": () => {
+        state.clientMailCustomer = ds.id || state.clientMailCustomer;
+        state.clientMailThread = ds.thread;
+        markThreadRead(ds.thread, true);
+        render();
+      },
+      "client-mail-reply": () => sendClientReply(ds.id, ds.thread),
       "upload-doc": () => uploadDoc(ds.id),
       "save-upload-doc": () => saveUploadDoc(),
       "view-doc": () => viewDoc(ds.id),
@@ -10650,7 +12058,7 @@
       "add-program": () => addProgram(),
       "add-service-type": () => addServiceType(),
       "preview-tpl": () => previewTpl(ds.name, ds.key),
-      "close-modal": () => { captureCreateServiceDraft(); captureOneoffDraft(); state.modal = null; state.applyPay = null; state.schedOpen = null; state.bonusDraft = null; state.bonusFocusId = null; render(); },
+      "close-modal": () => { captureCreateServiceDraft(); captureOneoffDraft(); state.modal = null; state.quoteDraft = null; state.applyPay = null; state.schedOpen = null; state.bonusDraft = null; state.bonusFocusId = null; render(); },
       "open-stop": () => {
         state.mobileStop = ds.id;
         state.mobileFocusId = ds.id;
@@ -10939,10 +12347,13 @@
       lat = Number(coords.lat);
       lng = Number(coords.lng);
     }
+    const kind = normalizeKind(raw.locationType || "residential");
     const loc = {
       id: nid("L"),
       name: (raw.name || "").trim() || fallbackName || "Residence",
-      locationType: raw.locationType || "residential",
+      locationType: kind,
+      packageId: packageById(raw.packageId) ? raw.packageId : null,
+      durationMin: packageById(raw.packageId)?.durationMin || (kind === "hoa" ? 45 : kind === "commercial" ? 30 : kind === "municipal" ? 180 : 10),
       address,
       street, city, state: st, zip,
       subdivision: (raw.subdivision || "").trim(),
@@ -11065,7 +12476,7 @@
       techId: null,
       backupId: null,
       days: null,
-      durationMin: type === "hoa" ? 45 : 20,
+      durationMin: packageById(locations[0]?.packageId)?.durationMin || (type === "hoa" ? 45 : type === "commercial" ? 30 : type === "municipal" ? 180 : 10),
       handedToOps: false,
       handedAt: 0,
       createdBy: state.role,
@@ -11093,57 +12504,322 @@
     render();
   }
 
-  function openQuote(customerId, locationId) {
-    const c = custBy(customerId);
-    const target = locationId ? locBy(customerId, locationId) : null;
+  function quoteUseLocs(c, locationId) {
+    const target = locationId ? locBy(c.id, locationId) : null;
     const locs = target
       ? [target].filter((l) => l.covered !== false)
-      : (c.locations || []).filter((l) => l.covered !== false && locNeedsQuote(c, l));
-    const use = locs.length ? locs : (c.locations || []).filter((l) => l.covered !== false);
+      : (c.locations || []).filter((l) => l.covered !== false && locCanQuote(c, l));
+    return locs.length ? locs : (c.locations || []).filter((l) => l.covered !== false);
+  }
+  function captureQuoteDraftForm() {
+    const d = state.quoteDraft;
+    if (!d) return;
+    d.pkgByKind = d.pkgByKind || {};
+    d.termKeysByPkg = d.termKeysByPkg || {};
+    d.durationByPkg = d.durationByPkg || {};
+    document.querySelectorAll("[data-quote-pkg-select]").forEach((sel) => {
+      d.pkgByKind[sel.dataset.kind] = sel.value;
+    });
+    d.selectedPkgIds = Object.values(d.pkgByKind).filter((id) => packageById(id));
+    d.selectedPkgIds.forEach((pkgId) => {
+      const boxes = [...document.querySelectorAll(`[data-quote-term][data-pkg="${pkgId}"]`)];
+      if (boxes.length) d.termKeysByPkg[pkgId] = boxes.filter((el) => el.checked).map((el) => el.value);
+    });
+    document.querySelectorAll("[data-quote-duration]").forEach((el) => {
+      const n = Number(el.value);
+      if (Number.isFinite(n) && n > 0) d.durationByPkg[el.dataset.quoteDuration] = n;
+    });
+    const programs = programsForQuote(custBy(d.customerId), d.locationId ? locBy(d.customerId, d.locationId) : null, d.selectedPkgIds, d.termKeysByPkg);
+    d.pricing = { ...(d.pricing || {}), ...collectQuotePricing(programs) };
+    if (document.querySelector("[data-quote-extra], [data-act=add-quote-extra]")) d.extras = collectQuoteExtras();
+  }
+  function quoteDraftHasTerms(d) {
+    return (d?.selectedPkgIds || []).some((pkgId) => (d.termKeysByPkg?.[pkgId] || []).length);
+  }
+  function quoteLetterHtml(c, use, selectedPkgIds, pricing, extras, durationByPkg, termKeysByPkg) {
+    const groups = [];
+    (selectedPkgIds || []).forEach((pkgId) => {
+      const pkg = packageById(pkgId);
+      if (!pkg) return;
+      const locs = use.filter((l) => locKind(c, l) === pkg.billToType || (pkg.billToType === "commercial" && locKind(c, l) === "commercial"));
+      const keys = termKeysByPkg && termKeysByPkg[pkgId];
+      const programs = programsForPackage(pkgId).filter((p) => !Array.isArray(keys) || keys.includes(programTermKey(p)));
+      groups.push({ pkg, locs: locs.length ? locs : use, programs, durationMin: quoteDurationForPkg(pkg, durationByPkg) });
+    });
+    const letterHtml = groups.map((g) => `
+      <p style="margin-top:12px"><strong>${esc(packageSelectLabel(g.pkg))}</strong>${g.locs.length ? ` for ${g.locs.map((l) => esc(l.name)).join(", ")}` : ""}</p>
+      <p>Duration: <strong>${g.durationMin} minutes</strong> · 2 visits / week</p>
+      <ul style="margin:8px 0 0 18px;padding:0;font-size:13px">${g.programs.map((x) => `<li id="quote-letter-item-${x.id}">${quoteLetterItemInner(x, pricing[x.id])}</li>`).join("")}</ul>
+      ${quotePolicyHtml(g.pkg, g.durationMin)}
+    `).join("");
+    const propList = use.map((l) => `<li><strong>${esc(l.name)}</strong> — ${esc(l.address)} · ${esc(locKindLabel(locKind(c, l)))}</li>`).join("");
     const n = use.length;
-    const options = allPrograms().filter((x) => c.type === "hoa" ? true : x.id !== "hoa2")
-      .map((x) => `<li>${esc(x.name)} — ${money(programAmount(x))}${x.prepaid != null ? ` prepaid (list ${money(x.list)})` : ""} · ${esc(x.freq)}</li>`)
-      .join("");
-    const propList = use.map((l, i) => `<li><strong>${esc(l.name)}</strong> — ${esc(l.address)}</li>`).join("");
     const multiAsk = n > 1
-      ? `<p>You have <strong>${n} properties</strong> on this account. Please tell us:</p>
-          <ul style="margin:8px 0 0 18px;padding:0;font-size:13px">
-            <li>the <strong>same program on all ${n} properties</strong>, or</li>
-            <li><strong>a different program per property</strong> — reply with the program name next to each address below.</li>
-          </ul>`
+      ? `<p>You have <strong>${n} properties</strong> on this account. Reply with the program next to each address.</p>`
       : `<p>Please reply with which program you want for this property.</p>`;
+    return `
+      <div class="invoice-sheet quote-letter">
+        <div class="demo-flag">Iguana Control</div>
+        <h3>Hello ${esc(c.billTo || c.name)},</h3>
+        <p>Account ${esc(c.id)}. Programs below match the package we quoted for your property type.</p>
+        ${letterHtml || `<p class="muted">No package selected yet.</p>`}
+        ${quoteExtrasLetterHtml(extras)}
+        ${multiAsk}
+        <p style="margin-top:12px"><strong>Propert${n === 1 ? "y" : "ies"} on your account:</strong></p>
+        <ul style="margin:8px 0 0 18px;padding:0;font-size:13px">${propList}</ul>
+        <p class="tiny" style="margin-top:12px">This is a proposal only — no balance until we invoice each property after you choose. AutoPay months charge the card on file and email a receipt (no invoice).</p>
+      </div>`;
+  }
+  function quoteTermPicksHtml(pkg, selectedKeys) {
+    const keys = selectedKeys || [];
+    return `<div class="quote-term-picks">${packageTermGroups(pkg).map((g) => `
+      <div class="quote-term-group">
+        ${g.terms.length > 1 ? `<div class="quote-term-group-label">${esc(g.label)}</div>` : ""}
+        ${g.terms.map((t) => {
+          const on = keys.includes(t.key);
+          return `<label class="chk quote-term-pick"><input type="checkbox" data-act="toggle-quote-term" data-quote-term data-pkg="${pkg.id}" value="${t.key}" ${on ? "checked" : ""}> <span><strong>${esc(termCheckTitle(t))}</strong><span class="tiny">${esc(termCheckBlurb(t))}</span></span></label>`;
+        }).join("")}
+      </div>`).join("")}</div>`;
+  }
+  function renderQuoteModal() {
+    const d = state.quoteDraft;
+    if (!d) return;
+    const c = custBy(d.customerId);
+    if (!c) return;
+    const target = d.locationId ? locBy(d.customerId, d.locationId) : null;
+    const use = quoteUseLocs(c, d.locationId);
+    const revising = use.some((l) => !locNeedsQuote(c, l));
+    const selected = d.selectedPkgIds || [];
+    const pricing = d.pricing || {};
+    const extras = d.extras || [];
+    const pkgByKind = d.pkgByKind || {};
+    const termKeysByPkg = d.termKeysByPkg || {};
+    const durationByPkg = d.durationByPkg || {};
+    if (d.step === "preview") {
+      state.modal = {
+        wide: true,
+        quoteXl: true,
+        html: `
+          <h3>Preview quote</h3>
+          <p>Read-only. This is what ${esc(c.billTo || c.name)} will get. Go back to change packages, prices, or extras — then send.</p>
+          ${quoteLetterHtml(c, use, selected, pricing, extras, durationByPkg, termKeysByPkg)}
+          <div class="actions" style="margin-top:16px">
+            <button class="btn btn-ghost" data-act="back-quote-edit">Back to edit</button>
+            <button class="btn btn-primary" data-act="confirm-quote" data-id="${c.id}" ${target ? `data-loc="${target.id}"` : ""}>${revising ? "Send revised quote" : "Send quote"}</button>
+          </div>
+        `,
+      };
+      render();
+      return;
+    }
+    const kindGroups = [];
+    use.forEach((l) => {
+      const kind = locKind(c, l);
+      let g = kindGroups.find((x) => x.kind === kind);
+      if (!g) {
+        g = { kind, label: locKindLabel(kind), locs: [], packages: packagesForKind(kind) };
+        kindGroups.push(g);
+      }
+      g.locs.push(l);
+    });
+    const editorHtml = kindGroups.map((g) => {
+      const pkgId = pkgByKind[g.kind] || "";
+      const pkg = packageById(pkgId);
+      const dur = pkg ? quoteDurationForPkg(pkg, durationByPkg) : "";
+      const keys = pkg ? (termKeysByPkg[pkg.id] || []) : [];
+      const placeholder = g.kind === "commercial" ? "Select level…" : "Select package…";
+      return `
+      <div class="quote-pkg-block">
+        <h4>${esc(g.label)}</h4>
+        <p class="tiny">${g.locs.map((l) => esc(l.name)).join(" · ")} — pick the package, duration, and which terms to send.</p>
+        <div class="quote-pkg-select-row">
+          <div class="field"><label>Package</label>
+            <select data-act="quote-pkg-select" data-quote-pkg-select data-kind="${g.kind}">
+              <option value="">${esc(placeholder)}</option>
+              ${g.packages.map((p) => `<option value="${p.id}" ${p.id === pkgId ? "selected" : ""}>${esc(packageSelectLabel(p))}</option>`).join("")}
+            </select>
+          </div>
+          ${pkg ? `<div class="field"><label>Duration (minutes)</label>
+            <input type="number" min="1" step="1" data-quote-duration="${pkg.id}" value="${esc(dur)}">
+          </div>` : ""}
+        </div>
+        ${pkg ? `
+          <p class="tiny">Check the terms to include. 6- and 12-month can send AutoPay, prepaid, or both.</p>
+          ${quoteTermPicksHtml(pkg, keys)}
+          <div class="quote-pkg-terms">
+            ${programsForPackage(pkg.id).filter((p) => keys.includes(programTermKey(p))).map((p) => quotePriceEditor(p, pricing[p.id])).join("")}
+          </div>` : `<p class="muted">Choose a package to see 1 / 3 / 6 / 12 month options.</p>`}
+      </div>`;
+    }).join("");
     state.modal = {
       wide: true,
+      quoteXl: true,
       html: `
-        <h3>Send quote</h3>
-        <p>${target ? `Quote for <strong>${esc(target.name)}</strong>, sent to Bill-To ${esc(c.billTo || c.name)}.` : `One letter to Bill-To ${esc(c.billTo || c.name)}. Lists the programs once. ${n > 1 ? `Mentions all ${n} properties and asks same vs different.` : "Asks which program they want."}`} No plan is locked yet.</p>
-        <div class="invoice-sheet">
-          <div class="demo-flag">Iguana Control</div>
-          <h3>Hello ${esc(c.billTo || c.name)},</h3>
-          <p>Account ${esc(c.id)}. Here are the iguana removal programs you can choose from:</p>
-          <ul style="margin:8px 0 0 18px;padding:0;font-size:13px">${options}</ul>
-          ${multiAsk}
-          <p style="margin-top:12px"><strong>Propert${n === 1 ? "y" : "ies"} on your account:</strong></p>
-          <ul style="margin:8px 0 0 18px;padding:0;font-size:13px">${propList}</ul>
-          <p class="tiny" style="margin-top:12px">This is a proposal only — no balance until we invoice each property after you choose.</p>
-        </div>
-        <div class="actions" style="margin-top:14px">
+        <h3>${revising ? "Revise quote" : "Build quote"}</h3>
+        <p>${target ? `Quote for <strong>${esc(target.name)}</strong> (${esc(locKindLabel(locKind(c, target)))}), sent to Bill-To ${esc(c.billTo || c.name)}.` : `One letter to Bill-To ${esc(c.billTo || c.name)}. Choose the package for each property type.`} No plan is locked yet.</p>
+        <p class="tiny">Pick the package from the dropdown, edit duration if needed, check which month options to send, then preview. Quoted amount is what the customer sees.</p>
+        <div class="quote-price-list">${editorHtml || `<p class="muted">No properties on this account yet.</p>`}</div>
+        ${quoteExtrasEditorHtml(extras)}
+        <div class="actions" style="margin-top:16px">
           <button class="btn btn-ghost" data-act="close-modal">Back</button>
-          <button class="btn btn-primary" data-act="confirm-quote" data-id="${c.id}" ${target ? `data-loc="${target.id}"` : ""}>Send quote</button>
+          <button class="btn btn-primary" data-act="preview-quote" data-id="${c.id}" ${target ? `data-loc="${target.id}"` : ""}>Preview quote</button>
         </div>
       `,
     };
     render();
   }
 
+  function openQuote(customerId, locationId) {
+    const c = custBy(customerId);
+    const target = locationId ? locBy(customerId, locationId) : null;
+    const use = quoteUseLocs(c, locationId);
+    const priorQuote = (target ? locQuote(c.id, target.id) : null)
+      || quotesForCustomer(c.id).find((q) => !q.programId)
+      || quotesForCustomer(c.id)[0];
+    const inferred = (priorQuote?.packageIds && priorQuote.packageIds.length)
+      ? priorQuote.packageIds.filter((id) => packageById(id))
+      : pkgIdsFromPricing(priorQuote?.pricing);
+    const pkgByKind = { ...(priorQuote?.pkgByKind || {}) };
+    const termKeysByPkg = { ...(priorQuote?.termKeysByPkg || {}) };
+    const durationByPkg = { ...(priorQuote?.durationByPkg || {}) };
+    use.forEach((l) => {
+      const kind = locKind(c, l);
+      if (pkgByKind[kind]) return;
+      const pkgs = packagesForKind(kind);
+      const fromQuote = inferred.find((id) => packageById(id)?.billToType === kind);
+      const fromLoc = locPackageId(c, l);
+      const pkgId = fromQuote || fromLoc || (pkgs.length === 1 ? pkgs[0].id : "");
+      pkgByKind[kind] = pkgId;
+    });
+    Object.values(pkgByKind).forEach((pkgId) => {
+      const pkg = packageById(pkgId);
+      if (!pkg) return;
+      if (!Array.isArray(termKeysByPkg[pkgId]) || !termKeysByPkg[pkgId].length) {
+        const fromPrice = termKeysFromPricing(pkgId, priorQuote?.pricing);
+        termKeysByPkg[pkgId] = fromPrice.length ? fromPrice : allTermKeys(pkg);
+      }
+      if (durationByPkg[pkgId] == null) durationByPkg[pkgId] = pkg.durationMin;
+    });
+    state.quoteDraft = {
+      customerId,
+      locationId: locationId || null,
+      step: "compose",
+      pkgByKind,
+      selectedPkgIds: Object.values(pkgByKind).filter((id) => packageById(id)),
+      termKeysByPkg,
+      durationByPkg,
+      extras: Array.isArray(priorQuote?.extras) ? priorQuote.extras.map((x) => ({ ...x })) : [],
+      pricing: { ...(priorQuote?.pricing || {}) },
+    };
+    renderQuoteModal();
+  }
+
+  function previewQuote() {
+    captureQuoteDraftForm();
+    const d = state.quoteDraft;
+    if (!d || !(d.selectedPkgIds || []).length) {
+      toast("Pick a package from the dropdown.");
+      return;
+    }
+    if (!quoteDraftHasTerms(d)) {
+      toast("Check at least one term to send (1 month, 3 month, 6 month, 12 month).");
+      return;
+    }
+    d.step = "preview";
+    renderQuoteModal();
+  }
+
+  function backQuoteEdit() {
+    if (state.quoteDraft) state.quoteDraft.step = "compose";
+    renderQuoteModal();
+  }
+
+  function addQuoteExtra() {
+    captureQuoteDraftForm();
+    if (!state.quoteDraft) return;
+    if (!Array.isArray(state.quoteDraft.extras)) state.quoteDraft.extras = [];
+    state.quoteDraft.extras.push({ id: nid("QX"), label: "", amount: "", note: "" });
+    renderQuoteModal();
+  }
+
+  function removeQuoteExtra(id) {
+    captureQuoteDraftForm();
+    if (!state.quoteDraft) return;
+    state.quoteDraft.extras = (state.quoteDraft.extras || []).filter((x) => x.id !== id);
+    renderQuoteModal();
+  }
+
+  function toggleQuoteTerm() {
+    captureQuoteDraftForm();
+    renderQuoteModal();
+  }
+
+  function changeQuotePkg() {
+    const d = state.quoteDraft;
+    if (!d) return;
+    const prevByKind = { ...(d.pkgByKind || {}) };
+    if (document.querySelector("[data-quote-extra], [data-act=add-quote-extra]")) d.extras = collectQuoteExtras();
+    const programs = programsForQuote(custBy(d.customerId), d.locationId ? locBy(d.customerId, d.locationId) : null, d.selectedPkgIds, d.termKeysByPkg);
+    d.pricing = { ...(d.pricing || {}), ...collectQuotePricing(programs) };
+    d.pkgByKind = d.pkgByKind || {};
+    d.termKeysByPkg = d.termKeysByPkg || {};
+    d.durationByPkg = d.durationByPkg || {};
+    document.querySelectorAll("[data-quote-duration]").forEach((el) => {
+      const n = Number(el.value);
+      if (Number.isFinite(n) && n > 0) d.durationByPkg[el.dataset.quoteDuration] = n;
+    });
+    const visible = {};
+    document.querySelectorAll("[data-quote-term]").forEach((el) => {
+      const pkgId = el.dataset.pkg;
+      if (!pkgId) return;
+      if (!visible[pkgId]) visible[pkgId] = [];
+      if (el.checked) visible[pkgId].push(el.value);
+    });
+    Object.keys(visible).forEach((pkgId) => { d.termKeysByPkg[pkgId] = visible[pkgId]; });
+    document.querySelectorAll("[data-quote-pkg-select]").forEach((sel) => {
+      const pkgId = sel.value || "";
+      const kind = sel.getAttribute("data-kind") || sel.dataset.kind;
+      const changed = prevByKind[kind] !== pkgId;
+      if (kind) d.pkgByKind[kind] = pkgId;
+      const pkg = packageById(pkgId);
+      if (pkg && (changed || !(d.termKeysByPkg[pkgId] || []).length)) {
+        d.termKeysByPkg[pkgId] = allTermKeys(pkg);
+        if (d.durationByPkg[pkgId] == null) d.durationByPkg[pkgId] = pkg.durationMin;
+      }
+    });
+    d.selectedPkgIds = Object.values(d.pkgByKind).filter((id) => packageById(id));
+    renderQuoteModal();
+  }
+
   function confirmQuote(id, locationId) {
     const c = custBy(id);
+    const d = state.quoteDraft;
+    if (d && d.step !== "preview") {
+      captureQuoteDraftForm();
+    }
+    const selected = (d && d.selectedPkgIds) || [];
+    if (!selected.length || !quoteDraftHasTerms(d)) {
+      toast("Pick a package, check at least one term, then preview, then send.");
+      if (d) { d.step = "compose"; renderQuoteModal(); }
+      return;
+    }
     const target = locationId ? locBy(id, locationId) : null;
-    const locs = target
-      ? [target].filter((l) => l.covered !== false)
-      : (c.locations || []).filter((l) => l.covered !== false && locNeedsQuote(c, l));
-    const use = locs.length ? locs : (c.locations || []).filter((l) => l.covered !== false);
+    const programs = programsForQuote(c, target, selected, d && d.termKeysByPkg);
+    const pricing = (d && d.pricing) || collectQuotePricing(programs);
+    const extras = (d && d.extras) || [];
+    const use = quoteUseLocs(c, locationId);
     const locationIds = use.map((l) => l.id);
+    use.forEach((l) => {
+      const kindPkgs = selected.filter((pkgId) => {
+        const pkg = packageById(pkgId);
+        return pkg && pkg.billToType === locKind(c, l);
+      });
+      if (kindPkgs.length === 1) {
+        l.packageId = kindPkgs[0];
+        const dur = d && d.durationByPkg && Number(d.durationByPkg[kindPkgs[0]]);
+        if (Number.isFinite(dur) && dur > 0) l.quotedDurationMin = dur;
+      }
+    });
     const existing = state.data.quotes.find((x) =>
       x.customerId === id
       && x.sent
@@ -11157,6 +12833,12 @@
       existing.programId = null;
       existing.locationIds = [...new Set([...(existing.locationIds || []), ...locationIds])];
       existing.locationId = existing.locationIds[0] || null;
+      existing.pricing = pricing;
+      existing.packageIds = [...selected];
+      existing.pkgByKind = { ...((d && d.pkgByKind) || {}) };
+      existing.termKeysByPkg = { ...((d && d.termKeysByPkg) || {}) };
+      existing.durationByPkg = { ...((d && d.durationByPkg) || {}) };
+      existing.extras = extras;
     } else {
       state.data.quotes.push({
         id: nid("Q"),
@@ -11168,21 +12850,41 @@
         sent: true,
         previewed: true,
         date: TODAY,
+        pricing,
+        packageIds: [...selected],
+        pkgByKind: { ...((d && d.pkgByKind) || {}) },
+        termKeysByPkg: { ...((d && d.termKeysByPkg) || {}) },
+        durationByPkg: { ...((d && d.durationByPkg) || {}) },
+        extras,
       });
     }
     use.forEach((l) => {
       if (l.lifecycle !== "active" && l.lifecycle !== "waiting_payment") l.lifecycle = "quoted";
     });
     const n = locationIds.length;
+    const custom = programs.some((p) => quotePricingIsCustom(pricing[p.id], p));
+    const extraNote = extras.length ? ` Extra charges: ${extras.map((x) => x.label).join(", ")}.` : "";
+    const priceNote = custom ? " Custom prices / discount on the quote." : "";
     state.data.comms.push({
       id: nid("CM"), customerId: id, who: role().name, channel: "Email", date: TODAY,
-      text: target
+      text: (target
         ? `Sent quote to ${c.billTo || c.name} for ${target.name} — waiting on their program choice.`
         : n > 1
         ? `Sent one quote to ${c.billTo || c.name} with program options for ${n} properties — asked same plan on all vs different per property.`
-        : `Sent one quote to ${c.billTo || c.name} with program options — waiting on their choice.`,
+        : `Sent one quote to ${c.billTo || c.name} with program options — waiting on their choice.`) + priceNote + extraNote,
     });
+    const pkgNote = selected.map((pkgId) => packageById(pkgId)?.label || pkgId).join("; ");
+    const extraLines = extras.length ? extras.map((x) => `${x.label}: ${money(x.amount)}`).join("; ") : "";
+    pushOfficeEmail({
+      customerId: id,
+      locationId: target?.id || locationIds[0] || null,
+      subject: "Your iguana removal quote is ready",
+      body: `${fillMailTemplate("proposal", c)}\n\nPackage on this quote: ${pkgNote}${d?.durationByPkg ? `\nDuration: ${Object.values(d.durationByPkg).filter(Boolean).join(", ")} min` : ""}${extraLines ? `\nExtra charges: ${extraLines}` : ""}\nMonitoring includes 2 visits every week. 6- and 12-month: AutoPay monthly or prepaid (last month / last two months free).`,
+      templateKey: "proposal",
+    });
+    state.quoteDraft = null;
     state.modal = null;
+    persist();
     toast(target
       ? `Quote sent for ${target.name}. Wait for their plan choice, then send the invoice here.`
       : n > 1
@@ -11191,22 +12893,41 @@
     render();
   }
 
-  function convertPreviewInner(programId) {
+  function convertPreviewInner(programId, customerId, locationId, billedOverride, extra) {
     const p = progBy(programId) || PROGRAMS[0];
-    const commitment = buildCommitment(programId, TODAY);
+    const quoted = customerId ? quotedProgramAmount(customerId, locationId, programId) : programAmount(p);
+    const billed = billedOverride != null && Number.isFinite(Number(billedOverride)) ? Number(billedOverride) : quoted;
+    const commitment = buildCommitment(programId, TODAY, billed);
     const amount = commitment.installmentAmount;
     const expires = addMonths(TODAY, p.months);
+    const q = customerId ? locQuote(customerId, locationId) : null;
+    const row = q && q.pricing && q.pricing[programId];
+    const disc = extra && Number(extra.discount) > 0 ? Number(extra.discount) : 0;
+    const note = (extra && extra.note) || "";
+    const list = programAmount(p);
+    const unit = programUnit(p);
+    let discountLine = "";
+    if (disc > 0) {
+      discountLine = `<div class="tiny">Invoice discount${note ? " · " + esc(note) : ""}: −${money(disc)}${unit} (price ${money(extra?.price || list)} → ${money(amount)}${unit})</div>`;
+    } else if (Math.abs(amount - quoted) > 0.009) {
+      discountLine = `<div class="tiny">Invoice amount ${money(amount)}${unit} (quote ${money(quoted)}${unit})</div>`;
+    } else if (row && Number(row.discount) > 0) {
+      discountLine = `<div class="tiny">Quote discount${row.discountNote ? " · " + esc(row.discountNote) : ""}: −${money(row.discount)}${unit} (list ${money(row.list || list)} → ${money(amount)}${unit})</div>`;
+    } else if (row && quotePricingIsCustom(row, p)) {
+      discountLine = `<div class="tiny">Quoted ${money(amount)}${unit} (list ${money(list)})</div>`;
+    }
     const billing = commitment.billingFrequency === "monthly"
-      ? `Monthly billing plan: ${money(amount)} × ${commitment.periods} (term value ${money(commitment.totalValue)}). Period 1 invoices now. With AutoPay ON, later periods charge + allocate overnight and the next invoice is created automatically — Christy only handles declines.`
+      ? `Monthly AutoPay: ${money(amount)} × ${commitment.periods} (term ${money(commitment.totalValue)}). Each month the card on file is charged and a receipt is emailed. No invoice is generated.`
       : (p.prepaid != null
-        ? `Upfront commitment: ${money(amount)} now (list ${money(p.list)}${p.freeMonths ? `, ${p.freeMonths} promotional months` : ""}). One billing period for the term.`
+        ? `Upfront commitment: ${money(amount)} now${Math.abs(amount - list) > 0.009 ? "" : ` (list ${money(p.list)}${p.freeMonths ? `, ${p.freeMonths} promotional months` : ""})`}. One billing period for the term.`
         : `Upfront / term invoice ${money(amount)}.`);
     return `
       <div class="preview">
         <strong>${esc(p.name)}</strong>
-        <div>Billing: ${commitment.billingFrequency === "monthly" ? "Monthly" : "Upfront"} · Invoice amount: ${money(amount)}${commitment.autoPay ? " · AutoPay recommended" : ""}</div>
+        <div>Billing: ${commitment.billingFrequency === "monthly" ? "Monthly · charge card + email receipt (no invoice)" : "Upfront"} · Amount: ${money(amount)}${commitment.autoPay ? " · AutoPay" : ""}</div>
         <div>Visit pattern: ${esc(p.freq)}</div>
         <div>Start ${fmtUsDate(TODAY)} → expires ${fmtUsDate(expires)} <span class="tiny">(calculated from the program)</span></div>
+        ${discountLine}
         <div class="tiny" style="margin-top:6px">${esc(billing)}</div>
       </div>
     `;
@@ -11228,29 +12949,38 @@
       return;
     }
     const plan = locPlan(c, loc);
-    const selectedProg = plan.programId || "12pre";
-    const options = allPrograms().map((p) =>
+    const selectedProg = plan.programId && programsForLocation(c, loc).some((p) => p.id === plan.programId)
+      ? plan.programId
+      : (plan.programId || defaultProgramIdForLoc(c, loc));
+    const options = programsForLocation(c, loc).concat(
+      plan.programId && !programsForLocation(c, loc).some((p) => p.id === plan.programId) ? [progBy(plan.programId)].filter(Boolean) : []
+    ).map((p) =>
       `<option value="${p.id}" ${p.id === selectedProg ? "selected" : ""}>${esc(programOptionLabel(p))}</option>`
     ).join("");
+    const defaults = invoicePriceDefaults(c.id, loc.id, selectedProg);
+    const editorIds = {
+      price: "io-price", disc: "io-disc", net: "io-net", note: "io-note",
+      preview: "io-preview", program: "io-program", customerId: c.id, locationId: loc.id,
+    };
     state.modal = {
       wide: true,
       html: `
         <h3>Send invoice</h3>
-        <p>Accepts the proposal for <strong>${esc(loc.name)}</strong>: creates contract <em>PENDING PAYMENT</em>, billing plan, period 1, and sends the invoice. Ops stays blocked until allocated balance is zero.</p>
+        <p>Accepts the proposal for <strong>${esc(loc.name)}</strong> (${esc(locKindLabel(locKind(c, loc)))}${packageById(locPackageId(c, loc)) ? ` · ${esc(packageById(locPackageId(c, loc)).label)}` : ""}). Prepaid: contract + invoice, Ops after payment. Monthly AutoPay: charge the card on file and email a receipt — no invoice.</p>
         <div class="invoice-sheet">
           <h3>${esc(loc.name)}</h3>
           <p class="tiny">${esc(loc.address)}</p>
-       
         </div>
         <div class="field" style="margin-top:12px">
           <label>Program</label>
-          <select id="io-program" data-act="preview-io-program">${options}</select>
+          <select id="io-program" data-act="preview-io-program" data-id="${c.id}" data-loc="${loc.id}">${options}</select>
         </div>
-        <div class="field chk-field"><label class="chk"><input type="checkbox" id="io-autopay" ${selectedProg === "12mo" ? "checked" : ""}> AutoPay — charge &amp; allocate overnight; generate next monthly period automatically</label></div>
-        <div id="io-preview">${convertPreviewInner(selectedProg)}</div>
+        ${invoiceAmountEditorHtml(editorIds, defaults)}
+        <div class="field chk-field"><label class="chk"><input type="checkbox" id="io-autopay" ${programIsMonthly(selectedProg) ? "checked" : ""}> Monthly AutoPay — required on 6- and 12-month monthly. Charge the card on file each month and email a receipt (no invoice)</label></div>
+        <div id="io-preview">${convertPreviewInner(selectedProg, c.id, loc.id, defaults.quoted, defaults)}</div>
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
-          <button class="btn btn-primary" data-act="confirm-invoice-one" data-id="${c.id}" data-loc="${loc.id}">Send invoice</button>
+          <button class="btn btn-primary" data-act="confirm-invoice-one" data-id="${c.id}" data-loc="${loc.id}">${programIsMonthly(selectedProg) ? "Charge card &amp; email receipt" : "Send invoice"}</button>
         </div>
       `,
     };
@@ -11278,14 +13008,40 @@
       openInvoice(existing.id);
       return;
     }
-    const pid = val("io-program") || locPlan(c, loc).programId || "12pre";
+    const pid = val("io-program") || locPlan(c, loc).programId || defaultProgramIdForLoc(c, loc);
+    const fallback = quotedProgramAmount(c.id, loc.id, pid);
+    const billed = readInvoiceBilledAmount("io-price", "io-disc", fallback);
+    const meta = readInvoiceDiscountMeta("io-price", "io-disc", "io-note");
+    if (programIsMonthly(pid)) {
+      if (existing) {
+        state.data.invoices = (state.data.invoices || []).filter((i) => i.id !== existing.id);
+      }
+      commitLocationPlan(loc, pid, TODAY, null, c.id, billed);
+      const bp = planForContract(loc.contractId);
+      if (bp) {
+        bp.autopay = true;
+        loc.autoPay = true;
+        c.autoPay = true;
+      }
+      const p1 = periodsForContract(loc.contractId).find((x) => x.sequence === 1);
+      if (p1) p1.status = "DUE";
+      const q = locQuote(c.id, loc.id);
+      if (q) q.programId = pid;
+      syncCustomerFromLocations(c);
+      state.modal = null;
+      state.page = "location";
+      state.selectedCustomer = c.id;
+      state.selectedLocation = loc.id;
+      runAutopayCharge(c.id, loc.id, { succeed: true, last4: "4242", createIfMissing: true });
+      return;
+    }
     let inv = existing;
     if (!inv) {
       inv = { id: nid("INV"), customerId: c.id, locationId: loc.id, amount: 0, status: "draft", sent: null, paidOn: null, kind: "initial", periodN: 1 };
       state.data.invoices.push(inv);
     }
-    commitLocationPlan(loc, pid, TODAY, inv.id, c.id);
-    const wantAutopay = !!document.getElementById("io-autopay")?.checked || pid === "12mo";
+    commitLocationPlan(loc, pid, TODAY, inv.id, c.id, billed);
+    const wantAutopay = !!document.getElementById("io-autopay")?.checked || programIsMonthly(pid);
     const bp = planForContract(loc.contractId);
     if (bp) {
       bp.autopay = wantAutopay;
@@ -11293,6 +13049,10 @@
       if (wantAutopay) c.autoPay = true;
     }
     inv.amount = loc.amount;
+    if (meta.discount > 0) {
+      inv.discount = meta.discount;
+      inv.discountNote = meta.note;
+    }
     inv.status = "sent";
     inv.sent = TODAY;
     inv.periodN = 1;
@@ -11302,15 +13062,25 @@
     syncCustomerFromLocations(c);
     syncCustomerLifecycle(c);
     const cmt = loc.commitment;
+    const priceNote = meta.discount > 0
+      ? ` · ${money(inv.amount)} after ${money(meta.discount)} discount${meta.note ? " (" + meta.note + ")" : ""}`
+      : ` · ${money(inv.amount)}`;
     state.data.comms.push({
       id: nid("CM"), customerId: c.id, who: role().name, channel: "Email", date: TODAY,
-      text: `Contract + invoice ${inv.id} for ${loc.name} (${billingPlanLabel(loc)})${wantAutopay ? " · AutoPay ON — overnight charge posts without Christy marking the register" : " · AutoPay OFF — Christy allocates from the register"}. Waiting on payment — Ops sets up service when the balance is zero.`,
+      text: `Contract + invoice ${inv.id} for ${loc.name} (${billingPlanLabel(loc)})${priceNote}${wantAutopay ? " · AutoPay ON — overnight charge posts without Christy marking the register" : " · AutoPay OFF — Christy allocates from the register"}. Waiting on payment — Ops sets up service when the balance is zero.`,
+    });
+    pushOfficeEmail({
+      customerId: c.id,
+      locationId: loc.id,
+      subject: `Invoice ${inv.id} is ready`,
+      body: fillMailTemplate("invoice", c, { invoice: inv.id }),
+      templateKey: "invoice",
     });
     state.modal = null;
     state.page = "location";
     state.selectedCustomer = c.id;
     state.selectedLocation = loc.id;
-    toast(`Invoice ${inv.id} sent · ${cmt?.billingFrequency === "monthly" ? "period 1 of " + cmt.periods : "upfront"}${wantAutopay ? " · AutoPay ON" : ""}.`);
+    toast(`Invoice ${inv.id} sent · ${money(inv.amount)} · ${cmt?.billingFrequency === "monthly" ? "period 1 of " + cmt.periods : "upfront"}${wantAutopay ? " · AutoPay ON" : ""}.`);
     render();
   }
 
@@ -11326,15 +13096,23 @@
       return;
     }
     const blocks = use.map((l) => {
-      const selected = locPlan(c, l).programId || "12pre";
-      const options = allPrograms().map((p) =>
+      const selected = locPlan(c, l).programId || defaultProgramIdForLoc(c, l);
+      const locProgs = programsForLocation(c, l);
+      const extra = selected && !locProgs.some((p) => p.id === selected) ? [progBy(selected)].filter(Boolean) : [];
+      const options = locProgs.concat(extra).map((p) =>
         `<option value="${p.id}" ${p.id === selected ? "selected" : ""}>${esc(programOptionLabel(p))}</option>`
       ).join("");
+      const defaults = invoicePriceDefaults(c.id, l.id, selected);
+      const editorIds = {
+        price: `cv-price-${l.id}`, disc: `cv-disc-${l.id}`, net: `cv-net-${l.id}`, note: `cv-note-${l.id}`,
+        preview: `cv-preview-${l.id}`, program: `cv-program-${l.id}`, customerId: c.id, locationId: l.id,
+      };
       return `<div class="field inv-prop-block" style="margin-top:14px;padding:12px;border:1px dashed var(--line-strong);border-radius:12px">
         <label>${esc(l.name)} · ${esc(l.address)}</label>
-        <p class="tiny">Property fixed on its own invoice — pick the program only</p>
-        <select id="cv-program-${l.id}" data-act="preview-loc-program" data-loc="${l.id}">${options}</select>
-        <div id="cv-preview-${l.id}">${convertPreviewInner(selected)}</div>
+        <p class="tiny">${esc(locKindLabel(locKind(c, l)))}${packageById(locPackageId(c, l)) ? ` · ${esc(packageById(locPackageId(c, l)).label)}` : ""}. Each property gets its own invoice. Change the price or add a discount here.</p>
+        <select id="cv-program-${l.id}" data-act="preview-loc-program" data-id="${c.id}" data-loc="${l.id}">${options}</select>
+        ${invoiceAmountEditorHtml(editorIds, defaults)}
+        <div id="cv-preview-${l.id}">${convertPreviewInner(selected, c.id, l.id, defaults.quoted, defaults)}</div>
       </div>`;
     }).join("");
     state.modal = {
@@ -11360,12 +13138,36 @@
     const c = custBy(id);
     const targets = (c.locations || []).filter((l) => canInvoiceLocation(c, l) && document.getElementById(`cv-program-${l.id}`));
     const created = [];
+    let monthlyCharges = 0;
     targets.forEach((l) => {
-      const pid = val(`cv-program-${l.id}`) || "12pre";
+      const pid = val(`cv-program-${l.id}`) || defaultProgramIdForLoc(c, l);
+      const fallback = quotedProgramAmount(id, l.id, pid);
+      const billed = readInvoiceBilledAmount(`cv-price-${l.id}`, `cv-disc-${l.id}`, fallback);
+      const meta = readInvoiceDiscountMeta(`cv-price-${l.id}`, `cv-disc-${l.id}`, `cv-note-${l.id}`);
+      if (programIsMonthly(pid)) {
+        commitLocationPlan(l, pid, TODAY, null, id, billed);
+        const bp = planForContract(l.contractId);
+        if (bp) {
+          bp.autopay = true;
+          l.autoPay = true;
+          c.autoPay = true;
+        }
+        const p1 = periodsForContract(l.contractId).find((x) => x.sequence === 1);
+        if (p1) p1.status = "DUE";
+        const q = locQuote(id, l.id);
+        if (q) q.programId = pid;
+        runAutopayCharge(id, l.id, { succeed: true, last4: "4242", createIfMissing: true });
+        monthlyCharges += 1;
+        return;
+      }
       const inv = { id: nid("INV"), customerId: id, locationId: l.id, amount: 0, status: "sent", sent: TODAY, paidOn: null, kind: "initial", periodN: 1 };
       state.data.invoices.push(inv);
-      commitLocationPlan(l, pid, TODAY, inv.id, id);
+      commitLocationPlan(l, pid, TODAY, inv.id, id, billed);
       inv.amount = l.amount;
+      if (meta.discount > 0) {
+        inv.discount = meta.discount;
+        inv.discountNote = meta.note;
+      }
       created.push(inv);
       const q = locQuote(id, l.id);
       if (q) q.programId = pid;
@@ -11377,11 +13179,27 @@
         id: nid("CM"), customerId: c.id, who: role().name, channel: "Email", date: TODAY,
         text: `Sent ${created.length} contract invoice${created.length === 1 ? "" : "s"} (${created.map((i) => i.id).join(", ")}). Pending payment — Ops after allocation.`,
       });
+      created.forEach((inv) => {
+        pushOfficeEmail({
+          customerId: c.id,
+          locationId: inv.locationId,
+          subject: `Invoice ${inv.id} is ready`,
+          body: fillMailTemplate("invoice", c, { invoice: inv.id }),
+          templateKey: "invoice",
+        });
+      });
     }
     state.modal = null;
     const n = created.length;
-    if (!n) {
+    if (!n && !monthlyCharges) {
       toast("Nothing to invoice.");
+      render();
+      return;
+    }
+    if (!n && monthlyCharges) {
+      toast(`${monthlyCharges} monthly AutoPay charge${monthlyCharges === 1 ? "" : "s"} · receipt emailed · no invoice.`);
+      state.page = "customer";
+      state.selectedCustomer = c.id;
       render();
       return;
     }
@@ -11395,6 +13213,11 @@
 
   function confirmInvoice(id) {
     const inv = state.data.invoices.find((i) => i.id === id);
+    const amtEl = document.getElementById("inv-send-amt");
+    if (amtEl && amtEl.value !== "") {
+      const n = Number(amtEl.value);
+      if (Number.isFinite(n) && n >= 0) inv.amount = n;
+    }
     inv.status = "sent";
     inv.sent = TODAY;
     const c = custBy(inv.customerId);
@@ -11405,6 +13228,15 @@
       state.selectedCustomer = c.id;
     }
     toast(`Invoice ${inv.id} sent for ${loc?.name || "property"} · Bill-To ${c?.billTo || c?.name || ""}. They can pay this one on its own.`);
+    if (c) {
+      pushOfficeEmail({
+        customerId: c.id,
+        locationId: loc?.id,
+        subject: `Invoice ${inv.id} is ready`,
+        body: fillMailTemplate("invoice", c, { invoice: inv.id }),
+        templateKey: "invoice",
+      });
+    }
     render();
   }
 
@@ -11504,7 +13336,7 @@
     const ct = contractForLoc(row.customerId, row.locationId);
     if (!Array.isArray(state.data.renewals)) state.data.renewals = [];
     let r = state.data.renewals.find((x) => x.rowId === row.id || (ct && x.contractId === ct.id));
-    const pickProgram = r?.programId || row.programId || "12pre";
+    const pickProgram = r?.programId || row.programId || defaultProgramIdForLoc(custBy(row.customerId), locBy(row.customerId, row.locationId));
     const defaultText = r?.proposedText || renewalProposedText(row, pickProgram);
     const defaultAmt = r?.amount != null ? r.amount : (progBy(pickProgram) ? programBillAmount(progBy(pickProgram)) : row.amount);
     if (!r) {
@@ -11525,7 +13357,7 @@
           <div class="tiny">Current program: ${esc(currentName)} · ${esc(m.flag)}</div>
         </div>
         <div class="field req"><label>Renewal program</label>
-          <select id="ren-program" data-act="ren-program">${programOptionsHtml(pickProgram)}</select>
+          <select id="ren-program" data-act="ren-program">${programOptionsHtml(pickProgram, custBy(row.customerId), locBy(row.customerId, row.locationId))}</select>
           <div class="tiny">For 1-month ending, pick a 6- or 12-month plan instead of repeating 1-month.</div>
         </div>
         <div class="field"><label>Proposed renewal terms</label><input id="ren-text" value="${esc(defaultText)}"></div>
@@ -11548,8 +13380,8 @@
     setInput("ren-amt", amt);
     const textEl = document.getElementById("ren-text");
     if (textEl) {
-      textEl.value = p.id === "12mo"
-        ? `${money(amt)}/month × ${p.months} — ${p.name}`
+      textEl.value = programIsMonthly(p)
+        ? `${money(amt)}/month × ${p.months} — ${p.name}. AutoPay: card on file, receipt emailed, no invoice.`
         : `${money(amt)} upfront — ${p.name}`;
     }
   }
@@ -11611,7 +13443,7 @@
     r.sentAt = TODAY;
 
     const termStart = row.expires || TODAY;
-    const stayAutopayNotice = (m.noticeOnly || row.autoPay) && (!programId || programId === row.programId) && programId === "12mo";
+    const stayAutopayNotice = (m.noticeOnly || row.autoPay) && (!programId || programId === row.programId) && programIsMonthly(programId);
 
     if (l && programId) {
       // Apply chosen plan for the next term; invoice id attached below when created
@@ -11634,6 +13466,15 @@
         id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY,
         text: `Renewal notice for ${row.locName}: ${proposed} (${planLabel}). AutoPay not charged on send.`,
       });
+      if (c) {
+        pushOfficeEmail({
+          customerId: c.id,
+          locationId: row.locationId,
+          subject: "Your iguana removal program is in the renewal window",
+          body: fillMailTemplate("renewal", c) + (proposed ? "\n\n" + proposed : ""),
+          templateKey: "renewal",
+        });
+      }
       state.modal = null;
       toast(`Notice sent to ${row.name} · ${planLabel}. Saved card was not charged.`);
       render();
@@ -11657,6 +13498,15 @@
       id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY,
       text: `Renewal ${inv.id} emailed for ${row.locName}: ${proposed} (${planLabel}). No AutoPay charge on send.`,
     });
+    if (c) {
+      pushOfficeEmail({
+        customerId: c.id,
+        locationId: row.locationId,
+        subject: "Your iguana removal program is in the renewal window",
+        body: fillMailTemplate("renewal", c, { invoice: inv.id }) + (proposed ? "\n\n" + proposed : ""),
+        templateKey: "renewal",
+      });
+    }
     state.modal = null;
     toast(`Renewal ${inv.id} sent · ${planLabel} · ${row.name} · ${row.locName}.`);
     render();
@@ -11731,14 +13581,16 @@
       r.sentAt = TODAY;
       r.programId = programId;
       r.amount = amount;
-      const noticeOnly = (m.noticeOnly || row.autoPay) && programId === "12mo";
-      if (noticeOnly) {
+      const noticeOnly = (m.noticeOnly || row.autoPay) && programIsMonthly(programId);
+      if (stayAutopayNotice) {
         state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal notice for ${row.locName}: ${r.proposedText} (${p?.name || programId}). AutoPay not charged.` });
+        if (c) pushOfficeEmail({ customerId: c.id, locationId: row.locationId, subject: "Your iguana removal program is in the renewal window", body: fillMailTemplate("renewal", c) + (r.proposedText ? "\n\n" + r.proposedText : ""), templateKey: "renewal" });
       } else {
         const inv = { id: nid("INV"), customerId: row.customerId, locationId: row.locationId, contractId: l?.contractId || r.contractId, amount, status: "sent", sent: TODAY, paidOn: null, kind: "renewal", description: r.proposedText, programId };
         state.data.invoices.push(inv);
         if (l && programId) commitLocationPlan(l, programId, termStart, inv.id, row.customerId);
         state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal ${inv.id} to ${row.name} · ${row.locName} · ${p?.name || programId}. No AutoPay charge.` });
+        if (c) pushOfficeEmail({ customerId: c.id, locationId: row.locationId, subject: "Your iguana removal program is in the renewal window", body: fillMailTemplate("renewal", c, { invoice: inv.id }) + (r.proposedText ? "\n\n" + r.proposedText : ""), templateKey: "renewal" });
       }
     });
     const n = list.length;
@@ -12677,8 +14529,8 @@
           <div>
             <div class="field"><label>Property name</label><input id="el-name" value="${esc(loc.name)}"></div>
             <div class="field"><label>Location type</label>
-              <select id="el-type">${locTypeOptions(locTypeOf(c, loc))}</select>
-              <div class="tiny">Residential, commercial, HOA, or municipal for this property.</div>
+              <select id="el-type">${kindOptions(locKind(c, loc))}</select>
+              <div class="tiny">Residential, corporate, HOA, or municipal. The specific package is chosen on the quote.</div>
             </div>
             <div class="field"><label>Subdivision</label><input id="el-subdiv" value="${esc(loc.subdivision || "")}"></div>
             <div class="field"><label>Street</label><input id="el-street" value="${esc(street)}" data-preview-pin="mini-preview" data-preview-x="el-x" data-preview-y="el-y"></div>
@@ -12734,7 +14586,7 @@
       lng = Number(coords.lng);
     }
     loc.name = val("el-name") || loc.name;
-    loc.locationType = val("el-type") || loc.locationType || "residential";
+    loc.locationType = normalizeKind(val("el-type") || loc.locationType || "residential");
     loc.subdivision = val("el-subdiv") || "";
     loc.street = street;
     loc.city = city;
@@ -12772,8 +14624,8 @@
           <div>
             <div class="field"><label>Property name</label><input id="al-name" placeholder="Canal house, rental, dock lot"></div>
             <div class="field"><label>Location type</label>
-              <select id="al-type">${locTypeOptions(c.type || "residential")}</select>
-              <div class="tiny">What this property is. Christy can change it later.</div>
+              <select id="al-type">${kindOptions(locKind(c, c.locations?.[0]) || c.type || "residential")}</select>
+              <div class="tiny">Residential, corporate, HOA, or municipal. Christy picks the package when she sends the quote.</div>
             </div>
             <div class="field"><label>Street</label><input id="al-street" data-preview-pin="mini-preview" data-preview-x="al-x" data-preview-y="al-y" placeholder="Street address"></div>
             <div class="field"><label>City</label><input id="al-city" data-preview-pin="mini-preview" data-preview-x="al-x" data-preview-y="al-y" placeholder="Boca Raton"></div>
@@ -12829,10 +14681,12 @@
       lat = Number(coords.lat);
       lng = Number(coords.lng);
     }
+    const kind = normalizeKind(val("al-type") || c.type || "residential");
     const loc = {
       id: nid("L"),
       name: val("al-name") || "Second property",
-      locationType: val("al-type") || c.type || "residential",
+      locationType: kind,
+      packageId: null,
       address,
       street, city, state: "FL", zip,
       x: `${x}%`,
@@ -14517,8 +16371,27 @@
   }
 
   function sendNotices() {
-    state.data.stops.filter((s) => s.day === "Fri" && !s.pending && s.status !== "blocked_off").forEach((s) => { s.noticed = true; });
-    toast("Friday visit notices queued — templated, two days ahead, no-reply.");
+    let n = 0;
+    state.data.stops.filter((s) => s.day === "Fri" && !s.pending && s.status !== "blocked_off").forEach((s) => {
+      if (!s.noticed && s.customerId) {
+        const c = custBy(s.customerId);
+        if (c) {
+          pushOfficeEmail({
+            customerId: c.id,
+            locationId: s.locationId,
+            subject: "Visit reminder — technician in two days",
+            body: fillMailTemplate("visit", c),
+            templateKey: "visit",
+            noReply: true,
+          });
+          n += 1;
+        }
+      }
+      s.noticed = true;
+    });
+    toast(n
+      ? `Friday visit notices emailed — no-reply (${n}). Open the client mailbox to see them.`
+      : "Friday visit notices queued — templated, two days ahead, no-reply.");
     render();
   }
 
