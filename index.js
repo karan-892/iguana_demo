@@ -2678,12 +2678,11 @@
     if (selected) markThreadRead(selected.threadId, false);
     const compose = state.mailCompose;
     return `
-      <div class="actions" style="margin-bottom:12px">
-        ${can("email.send") ? `<button class="btn btn-primary" data-act="mail-compose" data-id="${esc(c.id)}">Compose</button>` : ""}
-      </div>
-      <p class="tiny" style="margin:-4px 0 10px">Quotes and invoices sent to this account show up here with the other mail.</p>
-      <div class="mail-layout">
-        <div class="mail-list" data-keep-scroll="mail-list">${emailThreadListHtml(threads, compose ? null : selected?.threadId)}</div>
+      <div class="mail-layout mail-layout-tall">
+        <div class="mail-list" data-keep-scroll="mail-list">
+          ${can("email.send") ? `<div class="mail-list-bar"><button class="btn btn-primary" data-act="mail-compose" data-id="${esc(c.id)}">Compose</button></div>` : ""}
+          ${emailThreadListHtml(threads, compose ? null : selected?.threadId)}
+        </div>
         ${compose ? emailComposeForm(c.id) : selected ? emailThreadPane(selected) : `<div class="mail-pane"><p class="muted" style="padding:16px">No mail on this account yet. Compose to send To / Cc / Bcc like a normal email.</p></div>`}
       </div>`;
   }
@@ -6704,6 +6703,7 @@
         </div>`;
     }
     return `
+      <div class="${tab === "email" ? "cust-email-screen" : ""}">
       <nav class="crumbs">
         <button type="button" data-act="nav" data-page="customers">Customers</button>
         <span>/</span>
@@ -6720,7 +6720,7 @@
           ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Create task", "new-task", `data-id="${c.id}"`, "btn-text") : ""}
         </div>
       </div>
-      <dl class="cust-summary">
+      ${tab === "email" ? "" : `<dl class="cust-summary">
         <div><dt>Phone</dt><dd>${esc(c.phone || "—")}</dd></div>
         <div><dt>Email</dt><dd>${esc(c.email || "—")}</dd></div>
         <div><dt>Bill-To</dt><dd>${esc(c.billTo || c.name)}</dd></div>
@@ -6729,11 +6729,12 @@
         <div><dt>Active services</dt><dd>${customerActiveServices(c)}</dd></div>
         <div><dt>Balance</dt><dd>${can("payment.viewAmount") ? money(bal) : "—"}</dd></div>
         <div><dt>Next visit</dt><dd>${esc((c.locations || []).map((l) => locNextVisitLabel(c, l)).find((x) => x !== "—") || "—")}</dd></div>
-      </dl>
+      </dl>`}
       <div class="cust-tabs">
         ${tabs.map(([id, lab]) => `<button type="button" class="${tab === id ? "on" : ""}" data-act="customer-tab" data-tab="${id}">${lab}</button>`).join("")}
       </div>
       ${body}
+      </div>
     `;
   }
 
