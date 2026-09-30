@@ -326,9 +326,20 @@
     ] },
     { id: "hoa", short: "HOA", label: "HOA / community", group: "Community", billToType: "hoa", durationMin: 45, visitsPerWeek: 2, freq: "Every 2 weeks", terms: [
       { key: "2wk", months: 0.5, billing: "upfront", list: 180 },
+      { key: "1mo", months: 1, billing: "upfront", list: 400 },
+      { key: "3mo", months: 3, billing: "upfront", list: 1050 },
+      { key: "6mo", months: 6, billing: "monthly", list: 1920, monthly: 320 },
+      { key: "6pre", months: 6, billing: "upfront", list: 1920, prepaid: 1600, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 3360, monthly: 280 },
+      { key: "12pre", months: 12, billing: "upfront", list: 3360, prepaid: 2800, freeMonths: 2 },
     ] },
     { id: "muni", short: "Municipal", label: "Municipal / park", group: "Community", billToType: "municipal", durationMin: 180, visitsPerWeek: 2, terms: [
-      { key: "po", months: 12, billing: "upfront", list: 0 },
+      { key: "1mo", months: 1, billing: "upfront", list: 1500 },
+      { key: "3mo", months: 3, billing: "upfront", list: 3600 },
+      { key: "6mo", months: 6, billing: "monthly", list: 6000, monthly: 1000 },
+      { key: "6pre", months: 6, billing: "upfront", list: 6000, prepaid: 5000, freeMonths: 1 },
+      { key: "12mo", months: 12, billing: "monthly", list: 10200, monthly: 850 },
+      { key: "12pre", months: 12, billing: "upfront", list: 10200, prepaid: 8500, freeMonths: 2 },
     ] },
   ];
   function packageById(id) {
@@ -510,6 +521,29 @@
     ensureSeedApplyPayDemo();
     ensureSeedMonthlyReceipts();
     ensureSeedEmails();
+    ensureMunicipalReady();
+  }
+  function ensureMunicipalReady() {
+    const city = (state.data.customers || []).find((c) => c.id === "C-1020");
+    if (city && !(city.locations || []).some((l) => l.id === "L-1020b")) {
+      city.locations = city.locations || [];
+      city.locations.push({
+        id: "L-1020b",
+        name: "Bayfront Park",
+        address: "Bayfront Park (manual pin), Naples, FL",
+        x: "22%",
+        y: "70%",
+        gps: "26.1310, -81.8060",
+        manualPin: true,
+        covered: true,
+        ...seedLocPkg("muni"),
+        durationMin: 180,
+        requestService: true,
+        requestedAt: Date.now(),
+        lifecycle: "inquiry",
+      });
+    }
+    (state.data.customers || []).forEach((c) => releaseMunicipalToOps(c));
   }
   function ensureSeedApplyPayDemo() {
     const payments = state.data.payments || [];
@@ -1976,6 +2010,23 @@
   function isMunicipal(c) {
     return !!(c && (c.municipal || c.type === "municipal"));
   }
+  function locIsMunicipalWork(c, l) {
+    if (isMunicipal(c)) return true;
+    return normalizeKind(l?.locationType || l?.packageId) === "municipal";
+  }
+  function releaseMunicipalToOps(c) {
+    if (!c) return false;
+    let queued = false;
+    (c.locations || []).forEach((l) => {
+      if (!locIsMunicipalWork(c, l) || l.covered === false) return;
+      if (svcsFor(c.id, l.id).some(svcIsContinuing)) return;
+      l.requestService = true;
+      l.requestedAt = l.requestedAt || Date.now();
+      queued = true;
+    });
+    if (queued && !c.handedToOps) handOffToOps(c);
+    return queued;
+  }
   function muniPoCapHours(c) {
     return Number(c?.poCapHours) || 0;
   }
@@ -3267,7 +3318,9 @@
     return !locInvoices(c.id, l.id).length;
   }
   function canInvoiceLocation(c, l) {
-    if (!c || !l || l.covered === false || locPaid(c, l)) return false;
+    if (!c || !l || l.covered === false) return false;
+    if (l.paid) return false;
+    if (!locIsMunicipalWork(c, l) && locPaid(c, l)) return false;
     if (locIsMonthlyPlan(c, l) && contractForLoc(c.id, l.id)) return false;
     const invs = locInvoices(c.id, l.id);
     if (invs.some((i) => i.status === "paid" || i.status === "draft" || i.status === "sent" || i.status === "failed")) return false;
@@ -3287,8 +3340,9 @@
   }
   function locNeedsQuote(c, l) {
     if (!c || !l || l.covered === false) return false;
-    // Already paid, invoiced, or plan chosen — no quote
-    if (locPaid(c, l)) return false;
+    // Municipal is "paid" only so Rick can schedule first. It can still be quoted.
+    if (l.paid) return false;
+    if (!locIsMunicipalWork(c, l) && locPaid(c, l)) return false;
     if (locInvoices(c.id, l.id).length) return false;
     if (l.programId) return false;
     const q = locQuote(c.id, l.id);
@@ -3296,7 +3350,9 @@
   }
   function locCanQuote(c, l) {
     if (!c || !l || l.covered === false) return false;
-    if (locPaid(c, l) || locInvoices(c.id, l.id).length) return false;
+    if (l.paid) return false;
+    if (!locIsMunicipalWork(c, l) && locPaid(c, l)) return false;
+    if (locInvoices(c.id, l.id).length) return false;
     return !l.programId;
   }
   function programsForPackage(pkgId) {
@@ -3876,7 +3932,9 @@
     if (!c || !l || c.status === "lapsed" || l.covered === false) return false;
     // Monthly installments keep the same live service — never re-queue setup
     if (svcsFor(c.id, l.id).some(svcIsContinuing)) return false;
-    if (!(locPaid(c, l) || c.municipal)) return false;
+    // Municipal work starts before payment. The PO is billed after the period.
+    if (locIsMunicipalWork(c, l)) return true;
+    if (!locPaid(c, l)) return false;
     return !!(c.handedToOps || l.requestService);
   }
   function locNeedsTech(c, l) {
@@ -5318,7 +5376,7 @@
   }
   function eligibleToSchedule(c) {
     if (!c) return false;
-    if (c.municipal) return true;
+    if (isMunicipal(c) || (c.locations || []).some((l) => locIsMunicipalWork(c, l))) return true;
     if (c.status === "lapsed" || c.status === "inquiry") return false;
     return (c.locations || []).some((l) => locPaid(c, l));
   }
@@ -5666,7 +5724,7 @@
       ${dashHello("Exceptions first. Christy posts money; Rick runs the routes. Jump in only when something is stuck.")}
       <div class="sec-kicker">Needs attention</div>
       <div class="attn-grid">
-        ${attnTile(w.ready, "Payment received", "Schedule service →", "ready-schedule", "tone-red")}
+        ${attnTile(w.ready, "Ready to schedule", "Schedule service →", "ready-schedule", "tone-red")}
         ${attnTile(w.failed, "Failed payment", "Review →", "payments", "tone-red")}
         ${attnTile(w.emails, "Client email replies", "Open inbox →", "comms")}
         ${attnTile(w.missed, "Missed visits", "Resolve →", "noshows")}
@@ -5701,10 +5759,10 @@
     const failedMonthly = opsFailedMonthlyQueue();
     const retrieve = (state.data.traps || []).filter((t) => t.status === "out" || t.status === "missing");
     return `
-      ${dashHello("Work the red and amber tiles first. Payment received means schedule the service — the route does not start until that is done.")}
+      ${dashHello("Work the red and amber tiles first. Ready to schedule is paid work plus municipal parks — those start before anyone pays.")}
       <div class="sec-kicker">Needs attention</div>
       <div class="attn-grid">
-        ${attnTile(w.ready, "Payment received", "Schedule service →", "ready-schedule", "tone-red")}
+        ${attnTile(w.ready, "Ready to schedule", "Schedule service →", "ready-schedule", "tone-red")}
         ${attnTile(w.failed, "Failed payment", "Review →", "payments", "tone-red")}
         ${attnTile(w.missed, "Missed visits", "Resolve →", "noshows")}
         ${attnTile(w.assign, "Unassigned services", "Assign →", "map")}
@@ -5769,14 +5827,17 @@
     if (!ready.length) return "";
     const first = ready[0];
     const extra = ready.length - 1;
+    const muni = locIsMunicipalWork(first.c, first.l);
     const line = extra
-      ? `${esc(first.c.name)} and ${extra} other ${extra === 1 ? "customer" : "customers"} made a payment.`
-      : `${esc(first.c.name)} made a payment for ${esc(first.l.name)}.`;
+      ? `${esc(first.c.name)} and ${extra} other ${extra === 1 ? "location" : "locations"} need a service.`
+      : muni
+        ? `${esc(first.l.name)} is municipal — start service now. They pay on the PO later.`
+        : `${esc(first.c.name)} paid for ${esc(first.l.name)}.`;
     return `
       <button type="button" class="ops-pay-notice" data-act="nav" data-page="ready-schedule">
         <span class="ops-pay-notice-count">${ready.length}</span>
         <span class="ops-pay-notice-body">
-          <strong>Payment received</strong>
+          <strong>${muni && !extra ? "Municipal · start service" : "Ready to schedule"}</strong>
           <span>${line} Click to open Ready to schedule.</span>
         </span>
       </button>
@@ -5786,12 +5847,12 @@
   function viewReadySchedule() {
     const ready = opsServiceQueue();
     return `
-      ${head("Ready to schedule", `${ready.length} ${ready.length === 1 ? "location is" : "locations are"} paid and waiting for service setup.`)}
+      ${head("Ready to schedule", `${ready.length} ${ready.length === 1 ? "location is" : "locations are"} waiting for service setup.`)}
       <div class="card ready-schedule-card">
         <div class="customer-location-head">
           <div>
             <h3>Locations waiting for service</h3>
-            <p class="tiny">A location enters this list after its first invoice is fully paid. Monthly payments do not create another service.</p>
+            <p class="tiny">A house or HOA enters this list after its first invoice is fully paid. A municipal park enters as soon as the property exists — no payment. Christy invoices the PO after the period. Monthly payments do not create another service.</p>
           </div>
           <span class="badge ${ready.length ? "badge-warn" : "badge-ok"}">${ready.length} ready</span>
         </div>
@@ -5800,13 +5861,17 @@
             .filter((p) => p.customerId === c.id && p.locationId === l.id && p.posted && !p.failed)
             .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)))[0];
           const program = programById(locPlan(c, l).programId);
+          const muni = locIsMunicipalWork(c, l);
+          const left = muniHoursRemaining(c);
           return `
             <div class="fit-row queue-new ready-schedule-row">
               <div>
-                <span class="badge badge-warn">${isMunicipal(c) ? "Municipal · service first" : "Paid · ready"}</span>
+                <span class="badge ${muni ? "badge-sea" : "badge-warn"}">${muni ? "Municipal · service first" : "Paid · ready"}</span>
                 <strong>${esc(l.name)}</strong>
                 <div class="tiny">${esc(c.billTo || c.name)} · ${esc(l.address || "No address")}</div>
-                <div class="tiny">${esc(program?.name || "Program not selected")}${latestPayment ? ` · Paid ${esc(fmtUsDate(latestPayment.date))} · ${esc(latestPayment.method || "Payment")}` : ""}</div>
+                <div class="tiny">${muni
+                  ? `PO ${esc(c.po || "not set")} · ${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"} hrs used${left != null ? ` · ${left} left` : ""} · invoice after the period`
+                  : `${esc(program?.name || "Program not selected")}${latestPayment ? ` · Paid ${esc(fmtUsDate(latestPayment.date))} · ${esc(latestPayment.method || "Payment")}` : ""}`}</div>
               </div>
               <div class="ready-schedule-acts">
                 <button class="icon-btn" data-act="open-location" data-id="${c.id}" data-loc="${l.id}" title="View location" aria-label="View ${esc(l.name)}">${ICONS.eye}</button>
@@ -5818,7 +5883,7 @@
           <div class="ready-empty">
             <span class="badge badge-ok">Up to date</span>
             <h3>No locations are waiting</h3>
-            <p class="muted">Newly paid locations will appear here automatically.</p>
+            <p class="muted">Paid locations and new municipal parks show up here automatically.</p>
           </div>
         `}
       </div>
@@ -6190,16 +6255,18 @@
           </div>
 
           <div class="create-svc-section">
-            <div class="create-svc-kicker">Paid service plan</div>
+            <div class="create-svc-kicker">${isMunicipal(c) ? "Municipal service" : "Paid service plan"}</div>
             <input type="hidden" id="sv-type" value="${esc(code)}">
             <input type="hidden" id="sv-desc" value="${esc(st.desc || st.label)}">
             <div class="locked-plan">
               <div>
-                <span class="badge badge-ok">Paid · locked</span>
+                <span class="badge ${isMunicipal(c) ? "badge-sea" : "badge-ok"}">${isMunicipal(c) ? "PO · pay after" : "Paid · locked"}</span>
                 <strong>${esc(st.code)} · ${esc(st.label)}</strong>
                 <small>${esc(st.desc || "")}</small>
               </div>
-              <p class="tiny">The client chose this plan before payment. Rick can schedule it, but cannot change the plan.</p>
+              <p class="tiny">${isMunicipal(c)
+                ? `No payment yet. Schedule this park now. PO ${esc(c.po || "not set")} · ${muniHoursUsed(c)}/${muniPoCapHours(c) || "—"} hours used. Christy invoices after the period.`
+                : "The client chose this plan before payment. Rick can schedule it, but cannot change the plan."}</p>
             </div>
           </div>
 
@@ -6396,6 +6463,7 @@
 
   function locationStatus(c, l) {
     if (l.covered === false) return statusBadge("not_covered");
+    if (locNeedsService(c, l) && locIsMunicipalWork(c, l)) return `<span class="badge badge-sea">Service first</span>`;
     if (locNeedsService(c, l)) return statusBadge("paid");
     if (locNeedsTech(c, l)) return statusBadge("active");
     if (l.lifecycle) return statusBadge(l.lifecycle);
@@ -6417,14 +6485,14 @@
     if (locNeedsTech(c, l)) {
       return `<span class="badge badge-sea">Needs trapper</span>`;
     }
-    if (!locPaid(c, l) && !isMunicipal(c)) return statusBadge("waiting_payment");
+    if (!locPaid(c, l) && !locIsMunicipalWork(c, l)) return statusBadge("waiting_payment");
     const svc = svcFor(c.id, l.id);
     const routeTechId = svc?.techId || l.techId || c.techId;
     const routeDays = svc?.days || l.days || c.days;
     if (routeTechId) {
       return `<span class="badge badge-ok">On route</span><div class="tiny">${esc(techName(routeTechId))}${routeDays ? ` · ${esc(routeDays)}` : ""}</div>`;
     }
-    if (isMunicipal(c)) return `<span class="badge badge-sea">PO · pay after service</span>`;
+    if (locIsMunicipalWork(c, l)) return `<span class="badge badge-sea">PO · pay after service</span>`;
     return `<span class="muted">No route yet</span>`;
   }
 
@@ -12591,6 +12659,8 @@
       paid: false,
       autoPay: false,
       municipal: type === "municipal",
+      po: type === "municipal" ? "" : undefined,
+      billTiming: type === "municipal" ? "after" : undefined,
       techId: null,
       backupId: null,
       days: null,
@@ -12616,7 +12686,11 @@
     state.selectedCustomer = id;
     state.selectedLocation = locations[0]?.id || null;
     state.page = "customer";
-    toast(locations.length
+    const created = custBy(id);
+    if (created && created.municipal) releaseMunicipalToOps(created);
+    toast(created && created.municipal
+      ? `Municipal account saved. ${displayName} is on Ready to schedule — Rick starts service now. Invoice the PO after the period.`
+      : locations.length
       ? `Customer saved. ${displayName} · ${locations.length} propert${locations.length > 1 ? "ies" : "y"} · one Bill-To. Next: send a quote after they choose a plan.`
       : `Customer saved. ${displayName} · no property yet. Add the location when they give the address.`);
     render();
@@ -14100,14 +14174,14 @@
         return false;
       });
       svcsFor(c.id, loc.id).filter(svcIsContinuing).forEach((svc) => {
-        if (locPaid(c, loc) || isMunicipal(c)) pushLiveStops(svc, c, loc);
+        if (locPaid(c, loc) || locIsMunicipalWork(c, loc)) pushLiveStops(svc, c, loc);
       });
     } else {
       assignments.forEach((assignment, index) => {
         const svc = { id: nid("SVC") };
         fillService(svc, assignment, index, true);
         state.data.services.push(svc);
-        if (locPaid(c, loc) || isMunicipal(c)) pushLiveStops(svc, c, loc);
+        if (locPaid(c, loc) || locIsMunicipalWork(c, loc)) pushLiveStops(svc, c, loc);
       });
     }
     loc.requestService = false;
@@ -14584,11 +14658,11 @@
       c.backupId = backup;
       c.days = state.assignDays;
     }
-    if (c.status === "inquiry" && (c.paid || c.municipal)) c.status = "active";
+    if (c.status === "inquiry" && (c.paid || locIsMunicipalWork(c, loc))) c.status = "active";
     if (prevTech) {
       state.data.stops = state.data.stops.filter((s) => !(s.customerId === id && s.locationId === loc.id && s.techId === prevTech && (s.status === "scheduled" || s.status === "unassigned_done")));
     }
-    if (c.paid || c.municipal) {
+    if (c.paid || locIsMunicipalWork(c, loc)) {
       days.forEach((d) => {
         state.data.stops.push({
           id: nid("S"), customerId: c.id, locationId: loc.id,
@@ -14696,8 +14770,13 @@
       c.hoursUsed = Number(val("eb-hours") || 0);
       c.poCapHours = Number(val("eb-cap") || 0);
     }
+    if (c.municipal) {
+      c.autoPay = false;
+      c.billTiming = c.billTiming || "after";
+      releaseMunicipalToOps(c);
+    }
     state.modal = null;
-    toast("Bill-To updated.");
+    toast(c.municipal ? "Municipal Bill-To saved. Parks with no service are on Ready to schedule." : "Bill-To updated.");
     render();
   }
 
@@ -14922,11 +15001,17 @@
       lifecycle: "inquiry",
     };
     c.locations.unshift(loc);
-    state.data.comms.push({ id: nid("CM"), customerId: id, who: role().name, channel: "Phone", date: TODAY, text: `Added property ${loc.name} — ${loc.address} · ${loc.gps}. Quote next; invoice after they choose a plan.` });
+    const muniLoc = locIsMunicipalWork(c, loc);
+    if (muniLoc) releaseMunicipalToOps(c);
+    state.data.comms.push({ id: nid("CM"), customerId: id, who: role().name, channel: "Phone", date: TODAY, text: muniLoc
+      ? `Added municipal property ${loc.name} — ${loc.address}. On Ready to schedule. Invoice the PO after the work.`
+      : `Added property ${loc.name} — ${loc.address} · ${loc.gps}. Quote next; invoice after they choose a plan.` });
     state.modal = null;
     state.selectedLocation = loc.id;
     persist();
-    toast(`${loc.name} added · ${loc.gps}. Next: send a quote for this property.`);
+    toast(muniLoc
+      ? `${loc.name} added. Municipal — Rick can schedule it now. No payment first.`
+      : `${loc.name} added · ${loc.gps}. Next: send a quote for this property.`);
     render();
   }
 
