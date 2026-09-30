@@ -143,6 +143,7 @@
 
     { id: "documents", label: "Documents", group: "Workspace", icon: "file", roles: ["owner", "ops", "admin"] },
     { id: "comms", label: "Email", group: "Workspace", icon: "mail", roles: ["owner", "ops", "admin"] },
+    { id: "notes", label: "Office notes", group: "Workspace", icon: "memo", roles: ["owner", "ops", "admin"] },
     { id: "mtos", label: "Memo to Office", group: "Workspace", icon: "memo", roles: ["owner", "ops", "admin"] },
     { id: "tasks", label: "Tasks", group: "Workspace", icon: "list", roles: ["owner", "ops", "admin"] },
 
@@ -584,6 +585,8 @@
         id: "EM-4", threadId: "TH-2", customerId: "C-1066", locationId: "L-1066a",
         direction: "out", fromName: "Christy Brown", fromEmail: "billing@iguanacontrol.com",
         toName: "Harbor Oaks Management", toEmail: "mgr@harboroaks.com",
+        cc: "ap@harboroaks.com",
+        bcc: "",
         subject: "AutoPay declined — month 5",
         body: "Hello Harbor Oaks Management,\nThe card on file (····3301) declined for this month’s $200 charge. Monthly AutoPay does not send an invoice — please reply with another card or a Zelle/check so we can keep service on.\n— Christy, Iguana Control",
         templateKey: "general", date: "2026-08-26", time: "14:20",
@@ -633,7 +636,123 @@
     if (!tpls.receipt) tpls.receipt = "Hello {customer_name},\nReceipt {invoice_or_quote} — we charged the card on file. Monthly AutoPay does not send an invoice.\nThis is an automated receipt — you cannot reply.";
     if (!tpls.general) tpls.general = "Hello {customer_name},\n\n\n— Iguana Control";
     seedEmailRows().forEach((row) => {
-      if (!state.data.emails.some((e) => e.id === row.id)) state.data.emails.push(row);
+      const existing = state.data.emails.find((e) => e.id === row.id);
+      if (!existing) state.data.emails.push(row);
+      else {
+        if (existing.cc == null) existing.cc = row.cc || "";
+        if (existing.bcc == null) existing.bcc = row.bcc || "";
+      }
+    });
+    ensureQuoteInvoiceMail();
+  }
+  function sentQuoteMailBody(q) {
+    const c = custBy(q.customerId);
+    const ids = q.locationIds || (q.locationId ? [q.locationId] : []);
+    const use = ids.map((id) => locBy(q.customerId, id)).filter(Boolean);
+    if ((q.packageIds && q.packageIds.length) || q.letterIntro || q.letterOutro) {
+      const copy = quoteLetterCopyDefaults(c, use);
+      return quoteLetterPlainText(
+        c, use, q.packageIds || [], q.pricing || {}, q.extras || [],
+        q.durationByPkg || {}, q.termKeysByPkg || {},
+        q.letterIntro || copy.intro, q.letterOutro || copy.outro
+      );
+    }
+    const where = use.map((l) => `${l.name}${l.address ? " — " + l.address : ""}`).join("\n");
+    return `${fillMailTemplate("proposal", c) || "Your iguana removal quote is ready."}${where ? "\n\n" + where : ""}\n\nQuote ${q.id}`;
+  }
+  function sentInvoiceMailBody(inv) {
+    const c = custBy(inv.customerId);
+    const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
+    const plan = c && loc ? locPlan(c, loc) : {};
+    const p = progBy(plan.programId || loc?.programId);
+    const discount = Number(inv.discount) || 0;
+    const amount = Number(inv.amount) || 0;
+    const price = amount + discount;
+    const desc = p?.name || (inv.kind === "renewal" ? "Renewal" : inv.kind === "municipal" ? "Municipal service" : "Iguana removal service");
+    return [
+      `Invoice ${inv.id}`,
+      `Bill-To ${c?.billTo || c?.name || ""}`,
+      loc ? `Property ${loc.name}${loc.address ? " — " + loc.address : ""}` : "",
+      "",
+      `Item: ${desc}`,
+      "Qty: 1",
+      `Price: ${money(price)}`,
+      `Discount: ${discount ? money(discount) + (inv.discountNote ? " (" + inv.discountNote + ")" : "") : "—"}`,
+      `Amount: ${money(amount)}`,
+    ].filter((line, i, arr) => line !== "" || arr[i - 1] !== "").join("\n");
+  }
+  function recordAccountMail(row) {
+    if (!Array.isArray(state.data.emails)) state.data.emails = [];
+    if (state.data.emails.some((e) => e.id === row.id)) return;
+    if (row.quoteId && state.data.emails.some((e) => e.quoteId === row.quoteId)) return;
+    if (row.invoiceId && state.data.emails.some((e) => e.invoiceId === row.invoiceId)) return;
+    const c = custBy(row.customerId);
+    state.data.emails.push({
+      id: row.id,
+      threadId: row.threadId,
+      customerId: row.customerId,
+      locationId: row.locationId || null,
+      quoteId: row.quoteId || null,
+      invoiceId: row.invoiceId || null,
+      direction: "out",
+      fromName: "Christy Brown",
+      fromEmail: "billing@iguanacontrol.com",
+      toName: c?.billTo || c?.name || "",
+      toEmail: c?.email || "",
+      cc: "",
+      bcc: "",
+      subject: row.subject,
+      body: row.body || "",
+      templateKey: row.templateKey || null,
+      date: row.date || TODAY,
+      time: row.time || "09:00",
+      noReply: false,
+      readByOffice: true,
+      readByClient: true,
+    });
+  }
+  function ensureQuoteInvoiceMail() {
+    if (!Array.isArray(state.data.emails)) state.data.emails = [];
+    (state.data.quotes || []).filter((q) => q && q.sent).forEach((q) => {
+      if (state.data.emails.some((e) => e.quoteId === q.id)) return;
+      const loose = state.data.emails.find((e) =>
+        e.customerId === q.customerId && e.direction === "out" && !e.quoteId
+        && (e.templateKey === "proposal" || /quote is ready/i.test(e.subject || ""))
+      );
+      if (loose) { loose.quoteId = q.id; return; }
+      const locId = q.locationId || (q.locationIds && q.locationIds[0]) || null;
+      recordAccountMail({
+        id: "EM-Q-" + q.id,
+        threadId: "TH-Q-" + q.id,
+        customerId: q.customerId,
+        locationId: locId,
+        quoteId: q.id,
+        subject: "Your iguana removal quote is ready",
+        body: sentQuoteMailBody(q),
+        templateKey: "proposal",
+        date: q.date || TODAY,
+        time: "09:00",
+      });
+    });
+    (state.data.invoices || []).filter((inv) => inv && inv.status && inv.status !== "draft").forEach((inv) => {
+      if (state.data.emails.some((e) => e.invoiceId === inv.id)) return;
+      const loose = state.data.emails.find((e) =>
+        e.customerId === inv.customerId && e.direction === "out" && !e.invoiceId
+        && (String(e.subject || "").includes(inv.id) || (e.templateKey === "invoice" && String(e.subject || "").includes(inv.id)))
+      );
+      if (loose) { loose.invoiceId = inv.id; return; }
+      recordAccountMail({
+        id: "EM-INV-" + inv.id,
+        threadId: "TH-INV-" + inv.id,
+        customerId: inv.customerId,
+        locationId: inv.locationId || null,
+        invoiceId: inv.id,
+        subject: `Invoice ${inv.id} is ready`,
+        body: sentInvoiceMailBody(inv),
+        templateKey: "invoice",
+        date: inv.sent || TODAY,
+        time: "09:15",
+      });
     });
   }
   function programBillAmount(p) {
@@ -1300,7 +1419,7 @@
         { id: "M-3", from: "alejo", dept: "ops", customerId: "C-1020", locationId: "L-1020a", text: "Park pin is correct. Native maps launch from the coordinate now.", date: "2026-08-22 16:10", read: true, readAt: "2026-08-22 16:40" },
       ],
       comms: [
-        { id: "CM-1", customerId: "C-1091", who: "Christy Brown", channel: "Email", date: "2026-08-20", text: "Previewed renewal notice. Holding send until she confirms prepaid vs monthly." },
+        { id: "CM-1", customerId: "C-1091", who: "Christy Brown", channel: "Office", date: "2026-08-20", text: "Previewed renewal notice. Holding send until she confirms prepaid vs monthly." },
         { id: "CM-2", customerId: "C-1066", who: "Christy Brown", channel: "Call", date: "2026-08-26", text: "Left voicemail: auto-pay declined. Service paused until they pay." },
         { id: "CM-3", customerId: "C-1042", who: "Rick Torgerson", channel: "Call", date: "2026-08-18", text: "Diane asked to pause the Labor Day week. Noted on the account." },
         { id: "CM-4", customerId: "C-1180", who: "Rocco", channel: "Web form", date: "2026-08-26", text: "Inquiry: 12-month program for a Boca/Fort Lauderdale residence." },
@@ -1339,6 +1458,8 @@
           id: "EM-4", threadId: "TH-2", customerId: "C-1066", locationId: "L-1066a",
           direction: "out", fromName: "Christy Brown", fromEmail: "billing@iguanacontrol.com",
           toName: "Harbor Oaks Management", toEmail: "mgr@harboroaks.com",
+          cc: "ap@harboroaks.com",
+          bcc: "",
           subject: "AutoPay declined — month 5",
           body: "Hello Harbor Oaks Management,\nThe card on file (····3301) declined for this month’s $200 charge. Monthly AutoPay does not send an invoice — please reply with another card or a Zelle/check so we can keep service on.\n— Christy, Iguana Control",
           templateKey: "general", date: "2026-08-26", time: "14:20",
@@ -1508,9 +1629,7 @@
     mailFilter: "all",
     mailThreadId: null,
     mailCompose: false,
-    clientMail: false,
-    clientMailCustomer: null,
-    clientMailThread: null,
+    mailReplyThread: null,
   };
   normalizeDemoData();
   if (state.page === "location" && !locBy(state.selectedCustomer, state.selectedLocation)) {
@@ -1672,6 +1791,10 @@
     });
     (d.stops || []).forEach((s) => {
       if (!s.homeTechId) s.homeTechId = stopHomeTech(s) || s.techId;
+    });
+    (d.emails || []).forEach((e) => {
+      if (e.cc == null) e.cc = "";
+      if (e.bcc == null) e.bcc = "";
     });
     if (!Array.isArray(d.blackout)) d.blackout = [];
     if (!Array.isArray(state.renewPick)) state.renewPick = [];
@@ -2247,6 +2370,19 @@
     const d = new Date();
     return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   }
+  function parseMailList(s) {
+    return String(s || "").split(/[,;]+/).map((x) => x.trim()).filter(Boolean);
+  }
+  function mailListText(v) {
+    if (Array.isArray(v)) return v.filter(Boolean).join(", ");
+    return String(v || "").trim();
+  }
+  function officeNotesFor(customerId) {
+    return (state.data.comms || []).filter((x) => {
+      if (String(x.channel || "") === "Email") return false;
+      return !customerId || x.customerId === customerId;
+    });
+  }
   function officeMailbox(noReply) {
     if (noReply) return { name: "Iguana Control", email: "noreply@iguanacontrol.com" };
     const r = role();
@@ -2328,10 +2464,14 @@
       fromName: from.name,
       fromEmail: from.email,
       toName: c.billTo || c.name,
-      toEmail: c.email || "",
+      toEmail: mailListText(opts.toEmail || opts.to) || c.email || "",
+      cc: mailListText(opts.cc),
+      bcc: mailListText(opts.bcc),
       subject,
       body: opts.body || "",
       templateKey: opts.templateKey || null,
+      quoteId: opts.quoteId || null,
+      invoiceId: opts.invoiceId || null,
       date: TODAY,
       time: mailClock(),
       noReply,
@@ -2371,79 +2511,110 @@
     state.data.emails.push(msg);
     return msg;
   }
-  function emailBubbleHtml(m, asClient) {
-    const mine = asClient ? m.direction === "in" : m.direction === "out";
-    const tpl = m.templateKey ? ` · ${esc(m.templateKey)}` : "";
-    const nr = m.noReply ? " · no-reply" : "";
-    return `<div class="mail-bubble ${mine ? "mine" : "theirs"}">
-      <div class="mail-meta">${esc(m.fromName || "")} · ${esc(m.fromEmail || "")} · ${esc(fmtUsDate(m.date))} ${esc(m.time || "")}${nr}${tpl}</div>
-      <div class="mail-body">${esc(m.body || "").replace(/\n/g, "<br>")}</div>
-    </div>`;
+  function emailAddrLine(label, value, hideIfEmpty) {
+    const text = mailListText(value);
+    if (hideIfEmpty && !text) return "";
+    return `<div class="mail-hdr-row"><span>${esc(label)}</span><strong>${esc(text || "—")}</strong></div>`;
   }
-  function emailThreadPane(thread, opts) {
-    const asClient = !!(opts && opts.asClient);
+  function emailMessageCard(m) {
+    const inbound = m.direction === "in";
+    const kind = m.quoteId || m.templateKey === "proposal" ? "Quote" : (m.invoiceId || m.templateKey === "invoice" ? "Invoice" : "");
+    const tpl = kind ? `<span class="tiny"> · ${esc(kind)}</span>` : (m.templateKey ? `<span class="tiny"> · ${esc(m.templateKey)}</span>` : "");
+    const nr = m.noReply ? `<span class="tiny"> · no-reply</span>` : "";
+    return `<article class="mail-msg ${inbound ? "in" : "out"}">
+      <div class="mail-msg-head">
+        <div class="mail-msg-when">${esc(fmtUsDate(m.date))} ${esc(m.time || "")}${nr}${tpl}</div>
+        ${emailAddrLine("From", m.fromName ? `${m.fromName} <${m.fromEmail || ""}>` : (m.fromEmail || ""))}
+        ${emailAddrLine("To", m.toEmail || m.toName)}
+        ${emailAddrLine("Cc", m.cc, true)}
+        ${emailAddrLine("Bcc", m.bcc, true)}
+      </div>
+      <div class="mail-msg-body">${esc(m.body || "").replace(/\n/g, "<br>")}</div>
+    </article>`;
+  }
+  function emailThreadPane(thread) {
     const c = custBy(thread.customerId);
-    const canStaffReply = !asClient && can("email.send");
-    const canClientReply = asClient && threadAllowsClientReply(thread.msgs);
-    let footer = "";
-    if (canStaffReply || canClientReply) {
-      footer = `<div class="mail-reply">
-        <textarea id="mail-reply" rows="4" placeholder="${asClient ? "Reply to Iguana Control…" : "Reply to the client…"}"></textarea>
-        <button class="btn btn-primary" data-act="${asClient ? "client-mail-reply" : "office-mail-reply"}" data-thread="${esc(thread.threadId)}" data-id="${esc(thread.customerId)}">Send reply</button>
-      </div>`;
-    } else if (asClient) {
-      footer = `<p class="notice" style="margin:12px 16px">This is a no-reply message (visit reminder or receipt). The client cannot reply.</p>`;
-    } else {
-      footer = `<p class="muted" style="padding:12px 16px">You can read this thread. Sending is Administration, Operations, or Owner.</p>`;
-    }
+    const last = thread.msgs[thread.msgs.length - 1];
+    const canReply = can("email.send") && last && !last.noReply;
     return `
       <div class="mail-pane">
         <div class="mail-pane-head">
           <h3>${esc(thread.subject)}</h3>
-          <p class="tiny">${esc(c?.billTo || c?.name || "")} · ${esc(c?.email || "no email on file")}${!asClient ? ` · <button class="btn btn-ghost linkish" data-act="open-customer" data-id="${esc(thread.customerId)}" data-tab="email">Account</button>` : ""}</p>
+          <p class="tiny">${esc(c?.billTo || c?.name || "")} · ${esc(c?.email || "no email on file")} · <button class="btn btn-ghost linkish" data-act="open-customer" data-id="${esc(thread.customerId)}" data-tab="email">Account</button></p>
         </div>
-        <div class="mail-thread" data-keep-scroll="mail-thread">${thread.msgs.map((m) => emailBubbleHtml(m, asClient)).join("")}</div>
-        ${footer}
+        <div class="mail-thread" data-keep-scroll="mail-thread">${thread.msgs.map((m) => emailMessageCard(m)).join("")}</div>
+        ${canReply
+          ? `<div class="mail-reply-bar"><button class="btn btn-primary" data-act="mail-reply" data-thread="${esc(thread.threadId)}" data-id="${esc(thread.customerId)}">Reply</button></div>`
+          : last?.noReply
+            ? `<p class="notice" style="margin:12px 16px">No-reply message (visit reminder or AutoPay receipt). The client gets this in their inbox and cannot reply.</p>`
+            : `<p class="muted" style="padding:12px 16px">You can read this mail. Sending is Administration, Operations, or Owner.</p>`}
       </div>`;
   }
   function emailComposeForm(customerId) {
-    const cid = customerId || "";
+    const replyId = state.mailReplyThread || "";
+    const thread = replyId ? (allEmailThreads(customerId).find((t) => t.threadId === replyId) || allEmailThreads(null).find((t) => t.threadId === replyId)) : null;
+    const last = thread?.msgs[thread.msgs.length - 1];
+    const cid = customerId || thread?.customerId || "";
+    const c = cid ? custBy(cid) : (state.data.customers || [])[0];
     const tpls = allTemplates();
+    const reply = !!thread;
+    const toDefault = reply
+      ? (last.direction === "in" ? (last.fromEmail || c?.email || "") : (last.toEmail || c?.email || ""))
+      : (c?.email || "");
+    const ccDefault = reply ? mailListText(last.cc) : "";
+    const subjDefault = reply
+      ? (String(thread.subject || "").startsWith("Re:") ? thread.subject : "Re: " + thread.subject)
+      : "";
     return `
       <div class="mail-pane">
         <div class="mail-pane-head">
-          <h3>New email</h3>
-          <p class="tiny">Pick a template from System → Templates. The message lands in the client mailbox in this demo — it does not go out over the internet.</p>
+          <h3>${reply ? "Reply" : "New message"}</h3>
+          <p class="tiny">This demo records the send on the account. In production the client receives it in Gmail / Outlook.</p>
         </div>
-        <div class="mail-compose">
-          ${cid ? `<input type="hidden" id="mail-cust" value="${esc(cid)}">` : `
-            <div class="field"><label>Client</label>
-              <select id="mail-cust">${(state.data.customers || []).map((c) => `<option value="${c.id}">${esc(c.billTo || c.name)} · ${esc(c.email || "no email")}</option>`).join("")}</select>
+        <div class="mail-compose mail-letter">
+          ${reply ? `<input type="hidden" id="mail-thread" value="${esc(thread.threadId)}">` : ""}
+          ${cid && customerId ? `<input type="hidden" id="mail-cust" value="${esc(cid)}">` : `
+            <div class="field"><label>Account</label>
+              <select id="mail-cust" data-act="mail-cust-fill">${(state.data.customers || []).map((x) => `<option value="${x.id}" ${x.id === cid ? "selected" : ""}>${esc(x.billTo || x.name)} · ${esc(x.email || "no email")}</option>`).join("")}</select>
             </div>`}
-          <div class="field"><label>Template</label>
+          <div class="mail-addr-grid">
+            <div class="field"><label>To</label><input id="mail-to" value="${esc(toDefault)}" placeholder="client@email.com"></div>
+            <div class="field"><label>Cc</label><input id="mail-cc" value="${esc(ccDefault)}" placeholder="optional, comma-separated"></div>
+            <div class="field"><label>Bcc</label><input id="mail-bcc" placeholder="optional, comma-separated"></div>
+          </div>
+          ${reply ? "" : `<div class="field"><label>Template</label>
             <select id="mail-tpl" data-act="mail-tpl-fill">
               <option value="">Blank</option>
               ${tpls.map((t) => `<option value="${esc(t.key)}">${esc(t.label)}</option>`).join("")}
             </select>
+          </div>`}
+          <div class="field"><label>Subject</label><input id="mail-subject" value="${esc(subjDefault)}" placeholder="Subject"></div>
+          <div class="field"><label>Message</label><textarea id="mail-body" rows="10" placeholder="Write the email…"></textarea></div>
+          <div class="actions">
+            <button class="btn btn-ghost" data-act="mail-cancel">Cancel</button>
+            <button class="btn btn-primary" data-act="office-mail-send"${cid ? ` data-id="${esc(cid)}"` : ""}>${reply ? "Send reply" : "Send"}</button>
           </div>
-          <div class="field"><label>Subject</label><input id="mail-subject" placeholder="Subject"></div>
-          <div class="field"><label>Message</label><textarea id="mail-body" rows="8" placeholder="Body"></textarea></div>
-          <button class="btn btn-primary" data-act="office-mail-send"${cid ? ` data-id="${esc(cid)}"` : ""}>Send email</button>
         </div>
       </div>`;
   }
-  function emailThreadListHtml(threads, selectedId, opts) {
-    const asClient = !!(opts && opts.asClient);
+  function emailThreadListHtml(threads, selectedId) {
     return threads.map((t) => {
       const c = custBy(t.customerId);
-      const unread = asClient ? t.unreadClient : t.unreadOffice;
+      const unread = t.unreadOffice;
       const preview = String(t.last.body || "").replace(/\s+/g, " ").slice(0, 88);
-      return `<button type="button" class="mail-row ${t.threadId === selectedId ? "on" : ""} ${unread ? "unread" : ""}" data-act="${asClient ? "client-open-thread" : "open-mail-thread"}" data-thread="${esc(t.threadId)}" data-id="${esc(t.customerId)}">
-        <strong>${esc(c?.billTo || c?.name || "Client")}${unread ? " · unread" : ""}</strong>
+      const who = t.last.direction === "in" ? (t.last.fromName || c?.billTo || "Client") : (c?.billTo || c?.name || "Client");
+      const kind = t.msgs.some((m) => m.quoteId || m.templateKey === "proposal") ? "Quote" : (t.msgs.some((m) => m.invoiceId || m.templateKey === "invoice") ? "Invoice" : "");
+      return `<button type="button" class="mail-row ${t.threadId === selectedId ? "on" : ""} ${unread ? "unread" : ""}" data-act="open-mail-thread" data-thread="${esc(t.threadId)}" data-id="${esc(t.customerId)}">
+        <strong>${esc(who)}${unread ? " · unread" : ""}${kind ? " · " + esc(kind) : ""}</strong>
         <span>${esc(t.subject)}</span>
         <span class="tiny">${esc(fmtUsDate(t.last.date))} · ${esc(preview)}</span>
       </button>`;
-    }).join("") || `<p class="muted" style="padding:14px">No emails yet.</p>`;
+    }).join("") || `<p class="muted" style="padding:14px">No mail yet.</p>`;
+  }
+  function fillMailCustTo() {
+    const c = custBy(val("mail-cust"));
+    const to = document.getElementById("mail-to");
+    if (to && c) to.value = c.email || "";
   }
   function fillMailComposeFromTpl() {
     const key = val("mail-tpl");
@@ -2451,9 +2622,11 @@
     const c = custBy(cid);
     const subj = document.getElementById("mail-subject");
     const body = document.getElementById("mail-body");
+    const to = document.getElementById("mail-to");
     if (!key) return;
     if (subj) subj.value = mailSubjectForTemplate(key, c);
     if (body) body.value = fillMailTemplate(key, c);
+    if (to && c && !to.value) to.value = c.email || "";
   }
   function sendOfficeCompose(customerId) {
     if (!can("email.send")) {
@@ -2463,11 +2636,12 @@
     const cid = customerId || val("mail-cust");
     const c = custBy(cid);
     if (!c) {
-      toast("Pick a client.");
+      toast("Pick an account.");
       return;
     }
-    if (!c.email) {
-      toast("This Bill-To has no email on file.");
+    const to = mailListText(val("mail-to")) || c.email || "";
+    if (!to) {
+      toast("Add a To address.");
       return;
     }
     const subject = (val("mail-subject") || "").trim();
@@ -2477,81 +2651,24 @@
       return;
     }
     const key = val("mail-tpl") || null;
+    const threadId = val("mail-thread") || state.mailReplyThread || null;
+    const thread = threadId ? (allEmailThreads(cid).find((t) => t.threadId === threadId) || allEmailThreads(null).find((t) => t.threadId === threadId)) : null;
     const msg = pushOfficeEmail({
       customerId: cid,
+      locationId: thread?.last?.locationId || null,
+      threadId: thread?.threadId || null,
+      toEmail: to,
+      cc: val("mail-cc"),
+      bcc: val("mail-bcc"),
       subject,
       body,
       templateKey: key,
-      noReply: templateIsNoReply(key),
-    });
-    state.data.comms.unshift({
-      id: nid("CM"), customerId: cid, who: role()?.name || "Office", channel: "Email", date: TODAY,
-      text: `Emailed “${msg.subject}” to ${c.email}.`,
+      noReply: !thread && templateIsNoReply(key),
     });
     state.mailCompose = false;
+    state.mailReplyThread = null;
     state.mailThreadId = msg.threadId;
-    toast(`Sent to ${c.email}. Open the client mailbox to see it land.`);
-    render();
-  }
-  function sendOfficeReply(customerId, threadId) {
-    if (!can("email.send")) {
-      toast("Only Administration, Operations, or Owner reply from the system.");
-      return;
-    }
-    const body = (val("mail-reply") || "").trim();
-    if (!body) {
-      toast("Type a reply first.");
-      return;
-    }
-    const thread = allEmailThreads(customerId).find((t) => t.threadId === threadId) || allEmailThreads(null).find((t) => t.threadId === threadId);
-    if (!thread) return;
-    const c = custBy(thread.customerId);
-    const msg = pushOfficeEmail({
-      customerId: thread.customerId,
-      locationId: thread.last.locationId,
-      threadId,
-      subject: String(thread.last.subject || thread.subject).startsWith("Re:") ? (thread.last.subject || thread.subject) : "Re: " + thread.subject,
-      body,
-      noReply: false,
-    });
-    state.data.comms.unshift({
-      id: nid("CM"), customerId: thread.customerId, who: role()?.name || "Office", channel: "Email", date: TODAY,
-      text: `Replied on “${thread.subject}” to ${c?.email || "the client"}.`,
-    });
-    state.mailThreadId = msg.threadId;
-    toast(`Reply sent to ${c?.email || "the client"}. They will see it in their inbox.`);
-    render();
-  }
-  function sendClientReply(customerId, threadId) {
-    const body = (val("mail-reply") || "").trim();
-    if (!body) {
-      toast("Type a reply first.");
-      return;
-    }
-    const msg = pushClientEmail({ customerId, threadId, body });
-    if (!msg) {
-      toast("This message is no-reply.");
-      return;
-    }
-    state.data.comms.unshift({
-      id: nid("CM"), customerId, who: custBy(customerId)?.name || "Client", channel: "Email", date: TODAY,
-      text: `Client replied on “${msg.subject}”.`,
-    });
-    state.clientMailThread = threadId;
-    toast("Reply sent. It is now on the account in the CRM.");
-    render();
-  }
-  function openClientMail(customerId) {
-    state.clientMail = true;
-    state.clientMailCustomer = customerId || null;
-    state.clientMailThread = null;
-    state.searchOpen = false;
-    state.modal = null;
-    render();
-  }
-  function closeClientMail() {
-    state.clientMail = false;
-    state.clientMailThread = null;
+    toast(`Sent to ${to}.`);
     render();
   }
   function customerEmailHtml(c) {
@@ -2563,65 +2680,11 @@
     return `
       <div class="actions" style="margin-bottom:12px">
         ${can("email.send") ? `<button class="btn btn-primary" data-act="mail-compose" data-id="${esc(c.id)}">Compose</button>` : ""}
-        <button class="btn btn-ghost" data-act="open-client-mail" data-id="${esc(c.id)}">Open as this client</button>
       </div>
+      <p class="tiny" style="margin:-4px 0 10px">Quotes and invoices sent to this account show up here with the other mail.</p>
       <div class="mail-layout">
         <div class="mail-list" data-keep-scroll="mail-list">${emailThreadListHtml(threads, compose ? null : selected?.threadId)}</div>
-        ${compose ? emailComposeForm(c.id) : selected ? emailThreadPane(selected, { asClient: false }) : `<div class="mail-pane"><p class="muted" style="padding:16px">No email on this account yet. Compose from a template to start a thread.</p></div>`}
-      </div>`;
-  }
-  function renderClientMailbox() {
-    const featured = ["C-1091", "C-1066", "C-1042", "C-1180"]
-      .map((id) => custBy(id))
-      .filter(Boolean);
-    const cid = state.clientMailCustomer;
-    const c = cid ? custBy(cid) : null;
-    if (!c) {
-      return `
-        <div class="mail-client">
-          <div class="mail-client-bar">
-            <div class="who">${brandMark()}<div><strong>Client inbox</strong><div class="tiny">What the client receives — this demo does not send real internet mail.</div></div></div>
-            <button class="btn btn-ghost" data-act="close-client-mail">Back to CRM</button>
-          </div>
-          <div class="mail-client-body">
-            <h2 style="font-family:var(--display);margin-bottom:8px">Whose inbox?</h2>
-            <p class="lede">Pick a Bill-To. Unread quotes, receipts, and office replies show here. The client can reply unless the message is no-reply.</p>
-            <div class="mail-pick-grid">${featured.map((x) => {
-              const n = allEmailThreads(x.id).filter((t) => t.unreadClient).length;
-              return `<button type="button" class="mail-pick-card" data-act="pick-client-mail" data-id="${esc(x.id)}">
-                <strong>${esc(x.billTo || x.name)}</strong>
-                <span class="tiny">${esc(x.email || "no email")}${n ? ` · ${n} unread` : ""}</span>
-              </button>`;
-            }).join("")}</div>
-            <div class="field section-gap"><label>Or any Bill-To</label>
-              <select id="client-mail-cust">${(state.data.customers || []).map((x) => `<option value="${x.id}">${esc(x.billTo || x.name)} · ${esc(x.email || "no email")}</option>`).join("")}</select>
-            </div>
-            <button class="btn btn-primary" data-act="pick-client-mail-select">Open inbox</button>
-          </div>
-        </div>`;
-    }
-    const threads = allEmailThreads(c.id);
-    const selected = threads.find((t) => t.threadId === state.clientMailThread);
-    if (selected) markThreadRead(selected.threadId, true);
-    return `
-      <div class="mail-client">
-        <div class="mail-client-bar">
-          <div class="who">${brandMark()}<div>
-            <strong>${esc(c.billTo || c.name)}</strong>
-            <div class="tiny">${esc(c.email || "no email")} · client view</div>
-          </div></div>
-          <div class="actions">
-            <button class="btn btn-ghost" data-act="pick-client-mail" data-id="">Switch client</button>
-            <button class="btn btn-ghost" data-act="close-client-mail">Back to CRM</button>
-          </div>
-        </div>
-        <div class="mail-client-body">
-          <p class="tiny" style="margin-bottom:12px">Inbox for ${esc(c.email || "this Bill-To")}. Replies go onto the CRM account. Visit reminders and AutoPay receipts are no-reply.</p>
-          <div class="mail-layout">
-            <div class="mail-list" data-keep-scroll="mail-list">${emailThreadListHtml(threads, selected?.threadId, { asClient: true })}</div>
-            ${selected ? emailThreadPane(selected, { asClient: true }) : `<div class="mail-pane"><p class="muted" style="padding:16px">Open a message. New mail from the office shows here when they send a quote, invoice, renewal, or reply.</p></div>`}
-          </div>
-        </div>
+        ${compose ? emailComposeForm(c.id) : selected ? emailThreadPane(selected) : `<div class="mail-pane"><p class="muted" style="padding:16px">No mail on this account yet. Compose to send To / Cc / Bcc like a normal email.</p></div>`}
       </div>`;
   }
 
@@ -3372,7 +3435,6 @@
     return `
       <div class="quote-extras">
         <h4>Extra charges</h4>
-        <p class="tiny">Optional. Extra trap, extra visit, travel — these print on the quote.</p>
         ${list.map((x) => `
           <div class="quote-extra-row" data-quote-extra="${esc(x.id)}">
             <div class="field"><label>Description</label><input id="qx-label-${esc(x.id)}" value="${esc(x.label || "")}" placeholder="Extra trap, extra visit…"></div>
@@ -3412,31 +3474,27 @@
     return html;
   }
   function quotePriceEditor(p, prior) {
+    return quoteTermRowHtml(p, true, prior);
+  }
+  function quoteTermRowHtml(p, on, prior) {
     const list = programAmount(p);
     const unit = programUnit(p);
     const price = prior && Number.isFinite(Number(prior.price)) ? Number(prior.price) : list;
     const discount = prior && Number(prior.discount) > 0 ? Number(prior.discount) : "";
     const quoted = quoteLineQuoted(price, discount || 0);
+    const key = programTermKey(p);
+    const title = termCheckTitle({ key, months: p.months });
     return `
-      <div class="quote-price-row">
-        <div class="quote-price-head">
-          <strong>${esc(p.shortName || p.name)}</strong>
-          <span class="tiny">List ${money(list)}${unit} · ${esc(p.freq)}</span>
-        </div>
-        <div class="quote-price-grid">
-          <div class="field"><label>Price${unit ? " " + unit : ""}</label>
-            <input id="qp-price-${p.id}" type="number" min="0" step="0.01" value="${esc(price)}" data-act="quote-price-sync" data-prog="${p.id}">
-          </div>
-          <div class="field"><label>Discount</label>
-            <input id="qp-disc-${p.id}" type="number" min="0" step="0.01" value="${esc(discount)}" placeholder="0" data-act="quote-price-sync" data-prog="${p.id}">
-          </div>
-          <div class="field"><label>Quoted</label>
-            <div class="quote-net" id="qp-net-${p.id}">${money(quoted)}${unit}</div>
-          </div>
-        </div>
-        <div class="field"><label>Discount note (optional)</label>
-          <input id="qp-note-${p.id}" value="${esc(prior?.discountNote || "")}" placeholder="Neighbor referral, cash, etc." data-act="quote-price-sync" data-prog="${p.id}">
-        </div>
+      <div class="quote-term-row">
+        <label class="quote-term-check" for="qt-${p.id}">
+          <input id="qt-${p.id}" type="checkbox" data-quote-term data-pkg="${esc(p.pkgId)}" value="${esc(key)}" ${on ? "checked" : ""}>
+        </label>
+        <label class="quote-term-name" for="qt-${p.id}">${esc(title)}</label>
+        <span class="quote-term-list">${money(list)}${unit}</span>
+        <input id="qp-price-${p.id}" type="number" min="0" step="0.01" value="${esc(price)}" data-act="quote-price-sync" data-prog="${p.id}" title="Price">
+        <input id="qp-disc-${p.id}" type="number" min="0" step="0.01" value="${esc(discount)}" placeholder="0" data-act="quote-price-sync" data-prog="${p.id}" title="Discount">
+        <span class="quote-net" id="qp-net-${p.id}">${money(quoted)}${unit}</span>
+        <input id="qp-note-${p.id}" type="hidden" value="${esc(prior?.discountNote || "")}">
       </div>`;
   }
   function syncQuotePricePreview(progId) {
@@ -3522,6 +3580,58 @@
       discount: Number.isFinite(discount) ? Math.max(0, discount) : 0,
       note: (noteEl?.value || "").trim(),
     };
+  }
+  function invoiceLetterCopyDefaults(c, invoiceId) {
+    const name = (c && (c.billTo || c.name)) || "";
+    const invLine = invoiceId ? `Invoice ${invoiceId} is due.` : "Your invoice is ready.";
+    return {
+      intro: `Hello ${name},\n\n${invLine}`,
+      outro: `Pay by invoice link, website, ACH, or bank transfer.\n\nYou can reply to this email if you have a question.\n— Iguana Control`,
+    };
+  }
+  function invoiceLetterEditorHtml(prefix, copy, opts) {
+    const readOnly = !!(opts && opts.readOnly);
+    const intro = copy?.intro || "";
+    const outro = copy?.outro || "";
+    if (readOnly) {
+      return `
+        <div class="invoice-letter-edit">
+          <div class="tiny quote-letter-label">Opening message</div>
+          <div class="invoice-letter-read">${esc(intro).replace(/\n/g, "<br>")}</div>
+          <div class="tiny quote-letter-label">Closing message</div>
+          <div class="invoice-letter-read">${esc(outro).replace(/\n/g, "<br>")}</div>
+        </div>`;
+    }
+    return `
+      <div class="invoice-letter-edit">
+        <label class="tiny quote-letter-label" for="${esc(prefix)}-intro">Opening message</label>
+        <textarea id="${esc(prefix)}-intro" class="quote-letter-edit" rows="3">${esc(intro)}</textarea>
+        <label class="tiny quote-letter-label" for="${esc(prefix)}-outro">Closing message</label>
+        <textarea id="${esc(prefix)}-outro" class="quote-letter-edit" rows="5">${esc(outro)}</textarea>
+      </div>`;
+  }
+  function readInvoiceLetterCopy(prefix, c, invoiceId) {
+    const defaults = invoiceLetterCopyDefaults(c, invoiceId);
+    const intro = document.getElementById(prefix + "-intro");
+    const outro = document.getElementById(prefix + "-outro");
+    return {
+      intro: intro ? intro.value : defaults.intro,
+      outro: outro ? outro.value : defaults.outro,
+    };
+  }
+  function invoiceEmailBody(c, inv, loc, copy) {
+    const bits = [];
+    if (copy && copy.intro) bits.push(String(copy.intro).trim());
+    const locked = [];
+    if (inv) {
+      let line = `Invoice ${inv.id} · ${money(inv.amount)}`;
+      if (inv.discount) line += ` · discount ${money(inv.discount)}${inv.discountNote ? " (" + inv.discountNote + ")" : ""}`;
+      locked.push(line);
+    }
+    if (loc) locked.push(`Property: ${loc.name}${loc.address ? " — " + loc.address : ""}`);
+    if (locked.length) bits.push(locked.join("\n"));
+    if (copy && copy.outro) bits.push(String(copy.outro).trim());
+    return bits.join("\n\n");
   }
   function fillInvoiceAmountEditor(ids, customerId, locationId, programId) {
     const d = invoicePriceDefaults(customerId, locationId, programId);
@@ -5278,7 +5388,6 @@
 
   function renderPageKey() {
     if (state.payView) return "pay";
-    if (state.clientMail) return "client-mail:" + String(state.clientMailCustomer || "") + ":" + String(state.clientMailThread || "");
     if (!state.role) return "login";
     if (state.role === "tech" || state.role === "trapper") return "field:" + fieldTechId() + ":" + (state.mobileStop || state.mobileTab || "route");
     return String(state.page || "dashboard");
@@ -5295,9 +5404,7 @@
       try { document.activeElement.blur(); } catch (_) { /* ignore */ }
     }
     try {
-      if (state.clientMail) {
-        $app.innerHTML = renderClientMailbox() + renderToast();
-      } else if (state.payView) {
+      if (state.payView) {
         $app.innerHTML = renderPublicPay() + renderToast();
       } else if (!state.role) {
         $app.innerHTML = renderLogin();
@@ -5355,7 +5462,6 @@
           <div class="role-grid">${cards}</div>
           <p class="login-roles-note">Owner can read and edit. Ops cannot post payments. Admin cannot schedule. Johnny is the field phone — no prices.</p>
           <p class="login-roles-note"><button class="btn btn-ghost" data-act="open-pay">Preview public payment page</button> (invoice link, website, or ACH — names stay on the register)</p>
-          <p class="login-roles-note"><button class="btn btn-ghost" data-act="open-client-mail">Preview client inbox</button> (receive office email, reply as the client — no real internet send)</p>
           <p class="login-roles-note"><button class="btn btn-ghost" data-act="reset-demo">Reset saved demo data</button></p>
         </main>
       </div>
@@ -5512,6 +5618,7 @@
       commission: viewCommission,
       documents: viewDocuments,
       comms: viewComms,
+      notes: viewOfficeNotes,
       mtos: viewMtos,
       tasks: viewTasks,
       traps: viewTraps,
@@ -6522,8 +6629,8 @@
     (state.data.mtos || []).filter((m) => m.customerId === c.id).forEach((m) => {
       items.push({ date: String(m.date || "").slice(0, 10), kind: "internal", label: "Internal memo", text: m.text });
     });
-    (state.data.comms || []).filter((x) => x.customerId === c.id).forEach((x) => {
-      items.push({ date: x.date, kind: "customer", label: x.channel || "Email", text: x.text });
+    (state.data.comms || []).filter((x) => x.customerId === c.id && String(x.channel || "") !== "Email").forEach((x) => {
+      items.push({ date: x.date, kind: "customer", label: x.channel || "Office", text: x.text });
     });
     (state.data.invoices || []).filter((i) => i.customerId === c.id && i.sent).forEach((i) => {
       items.push({ date: i.sent, kind: "customer", label: "Invoice sent", text: `${i.id} · ${money(i.amount)}` });
@@ -6565,6 +6672,7 @@
       ["services", "Services"],
       ["billing", "Billing"],
       ["email", "Email"],
+      ["notes", "Notes"],
       ["activity", "Activity"],
       ["documents", "Documents"],
     ];
@@ -6579,7 +6687,8 @@
       })) : `<p class="muted">No services yet.</p>`}</div>`;
     }     else if (tab === "billing") body = `${billingCard(c)}${paymentHistoryCard(c)}`;
     else if (tab === "email") body = customerEmailHtml(c);
-    else if (tab === "activity") body = `${customerActivityHtml(c)}${commCard(c)}`;
+    else if (tab === "notes") body = commCard(c);
+    else if (tab === "activity") body = customerActivityHtml(c);
     else if (tab === "documents") {
       body = `<div class="card"><h3>Documents</h3>${locDocs.length ? locDocs.map((d) => docRowHtml(d, false)).join("") : `<p class="muted">No documents on this Bill-To.</p>`}${can("docs.upload") ? `<div class="actions" style="margin-top:8px">${btn("docs.upload", "Attach document", "upload-doc", `data-id="${c.id}"`, "btn-ghost")}</div>` : ""}</div>`;
     } else {
@@ -6609,7 +6718,6 @@
           ${primary}
           ${canEditCust ? `<button type="button" class="btn btn-ghost" data-act="edit-billto" data-id="${c.id}">Edit</button>` : ""}
           ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Create task", "new-task", `data-id="${c.id}"`, "btn-text") : ""}
-          <button type="button" class="btn btn-ghost" data-act="open-client-mail" data-id="${c.id}">Open as this client</button>
         </div>
       </div>
       <dl class="cust-summary">
@@ -7179,20 +7287,21 @@
   }
 
   function commCard(c) {
-    const items = state.data.comms.filter((x) => x.customerId === c.id);
+    const items = officeNotesFor(c.id);
     return `
       <div class="card comm-log-card">
-        <h3>Communication log</h3>
+        <h3>Office notes</h3>
+        <p class="tiny">Internal only. Email is on the Email tab — notes here are never sent to the client.</p>
         <div class="comm-log-list" data-keep-scroll="comm-log">
-          ${items.map((x) => `<div class="comm-item"><strong>${esc(x.who)}</strong> · ${esc(x.channel)} · ${esc(fmtUsDate(x.date))}<div>${esc(x.text)}</div></div>`).join("") || `<p class="muted">No correspondence yet.</p>`}
+          ${items.map((x) => `<div class="comm-item"><strong>${esc(x.who)}</strong> · ${esc(x.channel)} · ${esc(fmtUsDate(x.date))}<div>${esc(x.text)}</div></div>`).join("") || `<p class="muted">No office notes yet.</p>`}
         </div>
         ${state.role !== "tech" ? `
           <div class="comm-log-compose">
-            <div class="field section-gap"><label>Add a note</label>
-              <select id="comm-channel"><option>Office</option><option>Phone</option><option>Email</option><option>Text</option></select>
+            <div class="field section-gap"><label>Channel</label>
+              <select id="comm-channel"><option>Office</option><option>Phone</option><option>Text</option></select>
             </div>
-            <div class="field"><textarea id="comm-text" rows="2" placeholder="Call, email, or office note — stays on this account"></textarea></div>
-            <button class="btn btn-primary" data-act="add-comm" data-id="${c.id}">Save to log</button>
+            <div class="field"><textarea id="comm-text" rows="2" placeholder="Phone call, walk-in, desk note…"></textarea></div>
+            <button class="btn btn-primary" data-act="add-comm" data-id="${c.id}">Save note</button>
           </div>
         ` : ""}
       </div>
@@ -9803,16 +9912,25 @@
     const renewal = isRenewalInvoice(inv);
     const plan = loc ? locPlan(c, loc) : {};
     const prog = progBy(plan.programId);
+    const draft = inv.status === "draft";
+    const letterCopy = {
+      intro: inv.letterIntro || invoiceLetterCopyDefaults(c, inv.id).intro,
+      outro: inv.letterOutro || invoiceLetterCopyDefaults(c, inv.id).outro,
+    };
     state.modal = {
       wide: true,
       html: `
         <h3>${esc(inv.id)}</h3>
-        <p class="tiny">${esc(invKindLabel(inv.kind))} · ${statusBadge(st)} · sent ${esc(fmtUsDate(inv.sent))}${inv.paidOn ? ` · paid ${esc(fmtUsDate(inv.paidOn))}` : ""}</p>
-        <div class="invoice-sheet">
-          <p>Bill-To ${esc(c?.billTo || c?.name || "—")}</p>
-          <p>Property ${esc(loc?.name || "—")} · ${esc(loc?.address || "")}</p>
-          <p>${esc(prog?.name || "Program")} · ${money(inv.amount)}${inv.discount ? ` · discount ${money(inv.discount)}${inv.discountNote ? " (" + esc(inv.discountNote) + ")" : ""}` : ""}</p>
-          ${renewal ? `<p class="tiny"><strong>Renewal invoice</strong> · ${esc(renewalLabelForInvoice(inv))}. This property already has service; payment funds the next term and opens a trapper bonus.</p>` : `<p class="tiny">This invoice is only for this property. Other properties on the same Bill-To have their own invoices.</p>`}
+        <p class="tiny">${esc(invKindLabel(inv.kind))} · ${statusBadge(st)} · sent ${esc(fmtUsDate(inv.sent))}${inv.paidOn ? ` · paid ${esc(fmtUsDate(inv.paidOn))}` : ""}${draft ? " · Edit the message. Amount stays on the invoice below." : ""}</p>
+        <div class="invoice-sheet quote-letter">
+          ${invoiceLetterEditorHtml("inv-letter", letterCopy, { readOnly: !draft })}
+          <div class="quote-letter-locked">
+            <div class="quote-locked-tag">Invoice amount — locked in this letter</div>
+            <p>Bill-To ${esc(c?.billTo || c?.name || "—")}</p>
+            <p>Property ${esc(loc?.name || "—")} · ${esc(loc?.address || "")}</p>
+            <p>${esc(prog?.name || "Program")} · ${money(inv.amount)}${inv.discount ? ` · discount ${money(inv.discount)}${inv.discountNote ? " (" + esc(inv.discountNote) + ")" : ""}` : ""}</p>
+            ${renewal ? `<p class="tiny"><strong>Renewal invoice</strong> · ${esc(renewalLabelForInvoice(inv))}. This property already has service; payment funds the next term and opens a trapper bonus.</p>` : `<p class="tiny">This invoice is only for this property. Other properties on the same Bill-To have their own invoices.</p>`}
+          </div>
         </div>
         <dl class="kv bonus-kv">
           <dt>Customer</dt><dd>${custBtn(inv.customerId, c?.billTo || c?.name || "—")}</dd>
@@ -9915,39 +10033,43 @@
     const unread = threads.filter((t) => t.unreadOffice);
     const list = filter === "unread" ? unread : threads;
     const selected = !state.mailCompose && threads.find((t) => t.threadId === state.mailThreadId);
-    const notes = state.role === "sales" ? [] : state.data.comms;
     return `
-      ${head("Email", "Send templated email from the office. Client replies land on the account. Open the client mailbox to see what they receive and to reply as the client. This demo does not send real internet mail.")}
+      <div class="mail-screen">
+      ${head("Email", "Office inbox. Compose with To, Cc, Bcc, and Subject. The client receives mail in Gmail / Outlook — this screen is the office copy.")}
       <div class="actions" style="margin-bottom:12px">
         ${can("email.send") ? `<button class="btn btn-primary" data-act="mail-compose">Compose</button>` : ""}
-        <button class="btn btn-ghost" data-act="open-client-mail">Open client mailbox</button>
       </div>
       <div class="seg" style="margin-bottom:12px">
         <button class="${filter === "unread" ? "on" : ""}" data-act="mail-filter" data-filter="unread">Unread${unread.length ? ` (${unread.length})` : ""}</button>
-        <button class="${filter === "all" ? "on" : ""}" data-act="mail-filter" data-filter="all">All threads</button>
+        <button class="${filter === "all" ? "on" : ""}" data-act="mail-filter" data-filter="all">Inbox</button>
       </div>
       <div class="mail-layout">
         <div class="mail-list" data-keep-scroll="mail-list">${emailThreadListHtml(list, state.mailCompose ? null : selected?.threadId)}</div>
-        ${state.mailCompose ? emailComposeForm(null) : selected ? emailThreadPane(selected, { asClient: false }) : `<div class="mail-pane"><p class="muted" style="padding:16px">Pick a thread, or compose a new email from a template.</p></div>`}
+        ${state.mailCompose ? emailComposeForm(null) : selected ? emailThreadPane(selected) : `<div class="mail-pane"><p class="muted" style="padding:16px">Pick a message, or compose a new email.</p></div>`}
       </div>
-      ${state.role !== "sales" ? `
-        <div class="card section-gap">
-          <h3>Call / office notes</h3>
-          <p class="tiny">Phone and walk-in notes stay on the shared log. Email history is the threads above.</p>
-          ${notes.slice(0, 12).map((x) => {
-            const c = custBy(x.customerId);
-            return `<div class="comm-item">${custBtn(x.customerId, c?.name)} · ${esc(x.who)} · ${esc(x.channel)} · ${esc(fmtUsDate(x.date))}<div>${esc(x.text)}</div></div>`;
-          }).join("") || `<p class="muted">No notes yet.</p>`}
-          <div class="field"><label>Customer</label>
-            <select id="comm-cust">${state.data.customers.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select>
-          </div>
-          <div class="field"><label>Channel</label>
-            <select id="comm-channel"><option>Office</option><option>Phone</option><option>Text</option></select>
-          </div>
-          <div class="field"><label>Note</label><textarea id="comm-text" rows="3" placeholder="Stays on the shared log"></textarea></div>
-          <button class="btn btn-primary" data-act="add-comm">Save to log</button>
+      </div>
+    `;
+  }
+
+  function viewOfficeNotes() {
+    const notes = officeNotesFor(null);
+    return `
+      ${head("Office notes", "Internal only — phone, walk-in, and desk notes. These never appear on Email.")}
+      ${notes.map((x) => {
+        const c = custBy(x.customerId);
+        return `<div class="card comm-item" style="margin-bottom:8px">${custBtn(x.customerId, c?.billTo || c?.name)} · ${esc(x.who)} · ${esc(x.channel)} · ${esc(fmtUsDate(x.date))}<div>${esc(x.text)}</div></div>`;
+      }).join("") || `<p class="muted">No office notes yet.</p>`}
+      <div class="card section-gap">
+        <h3>Add a note</h3>
+        <div class="field"><label>Account</label>
+          <select id="comm-cust">${state.data.customers.map((c) => `<option value="${c.id}">${esc(c.billTo || c.name)}</option>`).join("")}</select>
         </div>
-      ` : ""}
+        <div class="field"><label>Channel</label>
+          <select id="comm-channel"><option>Office</option><option>Phone</option><option>Text</option></select>
+        </div>
+        <div class="field"><label>Note</label><textarea id="comm-text" rows="3" placeholder="Stays on the account — not sent as email"></textarea></div>
+        <button class="btn btn-primary" data-act="add-comm">Save note</button>
+      </div>
     `;
   }
 
@@ -11181,6 +11303,10 @@
         fillMailComposeFromTpl();
         return;
       }
+      if (e.target.dataset.act === "mail-cust-fill") {
+        fillMailCustTo();
+        return;
+      }
       if (e.target.dataset.act === "quote-pkg-select") {
         changeQuotePkg();
         return;
@@ -11656,7 +11782,7 @@
     const actions = {
       login: () => enterAs(ds.who || ds.role),
       enter: () => enterAs(ds.who || ds.role),
-      logout: () => { state.role = null; state.page = "dashboard"; state.clientMail = false; persistSession(); render(); },
+      logout: () => { state.role = null; state.page = "dashboard"; persistSession(); render(); },
       "reset-demo": () => resetDemo(),
       nav: () => {
         state.page = ds.page;
@@ -11684,7 +11810,7 @@
       "switch-role-btn": () => switchRole(ds.role),
       "search-open": () => { state.searchOpen = true; render(); },
       "search-close": () => { state.searchOpen = false; render(); },
-      "customer-tab": () => { state.customerTab = ds.tab || "overview"; if (ds.tab !== "email") state.mailCompose = false; render(); },
+      "customer-tab": () => { state.customerTab = ds.tab || "overview"; if (ds.tab !== "email") { state.mailCompose = false; state.mailReplyThread = null; } render(); },
       "open-customer": () => { state.modal = null; state.searchOpen = false; state.bonusDraft = null; state.selectedCustomer = ds.id; state.selectedLocation = ds.loc || null; state.customerTab = ds.tab || "overview"; state.page = "customer"; state.payFocusId = null; state.mailCompose = false; if (ds.tab === "email") state.mailThreadId = null; render(); },
       "select-customer-location": () => {
         state.selectedCustomer = ds.id;
@@ -12008,6 +12134,7 @@
       "mail-filter": () => { state.mailFilter = ds.filter || "all"; render(); },
       "mail-compose": () => {
         state.mailCompose = true;
+        state.mailReplyThread = null;
         state.mailThreadId = null;
         if (ds.id) {
           state.selectedCustomer = ds.id;
@@ -12015,35 +12142,25 @@
         }
         render();
       },
+      "mail-reply": () => {
+        state.mailCompose = true;
+        state.mailReplyThread = ds.thread || null;
+        if (ds.id) state.selectedCustomer = ds.id;
+        render();
+      },
+      "mail-cancel": () => {
+        state.mailCompose = false;
+        state.mailReplyThread = null;
+        render();
+      },
       "open-mail-thread": () => {
         state.mailCompose = false;
+        state.mailReplyThread = null;
         state.mailThreadId = ds.thread;
         markThreadRead(ds.thread, false);
         render();
       },
       "office-mail-send": () => sendOfficeCompose(ds.id),
-      "office-mail-reply": () => sendOfficeReply(ds.id, ds.thread),
-      "open-client-mail": () => openClientMail(ds.id || null),
-      "close-client-mail": () => closeClientMail(),
-      "pick-client-mail": () => {
-        state.clientMail = true;
-        state.clientMailCustomer = ds.id || null;
-        state.clientMailThread = null;
-        render();
-      },
-      "pick-client-mail-select": () => {
-        state.clientMail = true;
-        state.clientMailCustomer = val("client-mail-cust") || null;
-        state.clientMailThread = null;
-        render();
-      },
-      "client-open-thread": () => {
-        state.clientMailCustomer = ds.id || state.clientMailCustomer;
-        state.clientMailThread = ds.thread;
-        markThreadRead(ds.thread, true);
-        render();
-      },
-      "client-mail-reply": () => sendClientReply(ds.id, ds.thread),
       "upload-doc": () => uploadDoc(ds.id),
       "save-upload-doc": () => saveUploadDoc(),
       "view-doc": () => viewDoc(ds.id),
@@ -12134,7 +12251,7 @@
       id: nid("CM"), customerId: cid, who: role()?.name || "Office",
       channel: val("comm-channel") || "Office", date: TODAY, text,
     });
-    toast("Saved on the shared communication log.");
+    toast("Office note saved.");
     render();
   }
 
@@ -12529,14 +12646,14 @@
       const n = Number(el.value);
       if (Number.isFinite(n) && n > 0) d.durationByPkg[el.dataset.quoteDuration] = n;
     });
-    const programs = programsForQuote(custBy(d.customerId), d.locationId ? locBy(d.customerId, d.locationId) : null, d.selectedPkgIds, d.termKeysByPkg);
+    const programs = (d.selectedPkgIds || []).flatMap((id) => programsForPackage(id));
     d.pricing = { ...(d.pricing || {}), ...collectQuotePricing(programs) };
     if (document.querySelector("[data-quote-extra], [data-act=add-quote-extra]")) d.extras = collectQuoteExtras();
   }
   function quoteDraftHasTerms(d) {
     return (d?.selectedPkgIds || []).some((pkgId) => (d.termKeysByPkg?.[pkgId] || []).length);
   }
-  function quoteLetterHtml(c, use, selectedPkgIds, pricing, extras, durationByPkg, termKeysByPkg) {
+  function quoteLetterGroups(c, use, selectedPkgIds, termKeysByPkg, durationByPkg) {
     const groups = [];
     (selectedPkgIds || []).forEach((pkgId) => {
       const pkg = packageById(pkgId);
@@ -12546,40 +12663,108 @@
       const programs = programsForPackage(pkgId).filter((p) => !Array.isArray(keys) || keys.includes(programTermKey(p)));
       groups.push({ pkg, locs: locs.length ? locs : use, programs, durationMin: quoteDurationForPkg(pkg, durationByPkg) });
     });
+    return groups;
+  }
+  function quoteLetterCopyDefaults(c, use) {
+    const n = (use || []).length;
+    const name = (c && (c.billTo || c.name)) || "";
+    const ask = n > 1
+      ? `You have ${n} properties on this account. Reply with the program next to each address.`
+      : `Please reply with which program you want for this property.`;
+    return {
+      intro: `Hello ${name},\n\nAccount ${c?.id || ""}. Programs below match the package we quoted for your property type.`,
+      outro: `${ask}\n\nMonitoring includes 2 visits every week. 6- and 12-month: choose AutoPay (full term, card on file, receipt emailed, no invoice) or prepaid (last month / last two months free). A 1-month can roll into a 3-month in the last week of service by applying what is already paid.\n\nThis is a proposal only — no balance until we invoice each property after you choose. AutoPay months charge the card on file and email a receipt (no invoice).`,
+    };
+  }
+  function ensureQuoteLetterCopy(d, c, use) {
+    if (!d) return;
+    const defaults = quoteLetterCopyDefaults(c, use);
+    if (!(d.letterIntro || "").trim()) d.letterIntro = defaults.intro;
+    if (!(d.letterOutro || "").trim()) d.letterOutro = defaults.outro;
+  }
+  function captureQuoteLetterCopy() {
+    const d = state.quoteDraft;
+    if (!d) return;
+    const intro = document.getElementById("quote-letter-intro");
+    const outro = document.getElementById("quote-letter-outro");
+    if (intro) d.letterIntro = intro.value;
+    if (outro) d.letterOutro = outro.value;
+  }
+  function quoteLetterItemText(p, row) {
+    return String(quoteLetterItemInner(p, row) || "")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .trim();
+  }
+  function quoteLetterLockedHtml(c, use, selectedPkgIds, pricing, extras, durationByPkg, termKeysByPkg) {
+    const groups = quoteLetterGroups(c, use, selectedPkgIds, termKeysByPkg, durationByPkg);
     const letterHtml = groups.map((g) => `
-      <p style="margin-top:12px"><strong>${esc(packageSelectLabel(g.pkg))}</strong>${g.locs.length ? ` for ${g.locs.map((l) => esc(l.name)).join(", ")}` : ""}</p>
+      <p style="margin-top:8px"><strong>${esc(packageSelectLabel(g.pkg))}</strong>${g.locs.length ? ` for ${g.locs.map((l) => esc(l.name)).join(", ")}` : ""}</p>
       <p>Duration: <strong>${g.durationMin} minutes</strong> · 2 visits / week</p>
       <ul style="margin:8px 0 0 18px;padding:0;font-size:13px">${g.programs.map((x) => `<li id="quote-letter-item-${x.id}">${quoteLetterItemInner(x, pricing[x.id])}</li>`).join("")}</ul>
-      ${quotePolicyHtml(g.pkg, g.durationMin)}
     `).join("");
     const propList = use.map((l) => `<li><strong>${esc(l.name)}</strong> — ${esc(l.address)} · ${esc(locKindLabel(locKind(c, l)))}</li>`).join("");
     const n = use.length;
-    const multiAsk = n > 1
-      ? `<p>You have <strong>${n} properties</strong> on this account. Reply with the program next to each address.</p>`
-      : `<p>Please reply with which program you want for this property.</p>`;
+    return `
+      ${letterHtml || `<p class="muted">No package selected yet.</p>`}
+      ${quoteExtrasLetterHtml(extras)}
+      <p style="margin-top:12px"><strong>Propert${n === 1 ? "y" : "ies"} on your account:</strong></p>
+      <ul style="margin:8px 0 0 18px;padding:0;font-size:13px">${propList}</ul>`;
+  }
+  function quoteLetterPlainText(c, use, selectedPkgIds, pricing, extras, durationByPkg, termKeysByPkg, intro, outro) {
+    const groups = quoteLetterGroups(c, use, selectedPkgIds, termKeysByPkg, durationByPkg);
+    const parts = [(intro || "").trim()];
+    groups.forEach((g) => {
+      const head = `${packageSelectLabel(g.pkg)}${g.locs.length ? " for " + g.locs.map((l) => l.name).join(", ") : ""}`;
+      const lines = [
+        head,
+        `Duration: ${g.durationMin} minutes · 2 visits / week`,
+        ...g.programs.map((x) => "• " + quoteLetterItemText(x, pricing[x.id])),
+      ];
+      parts.push(lines.join("\n"));
+    });
+    const extraList = (extras || []).filter((x) => x && (x.label || x.amount));
+    if (extraList.length) {
+      parts.push(["Extra charges", ...extraList.map((x) => `• ${x.label || "Extra"} — ${money(x.amount || 0)}${x.note ? " · " + x.note : ""}`)].join("\n"));
+    }
+    const n = use.length;
+    parts.push([
+      `Propert${n === 1 ? "y" : "ies"} on your account:`,
+      ...use.map((l) => `• ${l.name} — ${l.address} · ${locKindLabel(locKind(c, l))}`),
+    ].join("\n"));
+    if ((outro || "").trim()) parts.push(outro.trim());
+    return parts.filter(Boolean).join("\n\n");
+  }
+  function quoteLetterHtml(c, use, selectedPkgIds, pricing, extras, durationByPkg, termKeysByPkg, copy) {
+    const intro = copy?.intro ?? "";
+    const outro = copy?.outro ?? "";
     return `
       <div class="invoice-sheet quote-letter">
         <div class="demo-flag">Iguana Control</div>
-        <h3>Hello ${esc(c.billTo || c.name)},</h3>
-        <p>Account ${esc(c.id)}. Programs below match the package we quoted for your property type.</p>
-        ${letterHtml || `<p class="muted">No package selected yet.</p>`}
-        ${quoteExtrasLetterHtml(extras)}
-        ${multiAsk}
-        <p style="margin-top:12px"><strong>Propert${n === 1 ? "y" : "ies"} on your account:</strong></p>
-        <ul style="margin:8px 0 0 18px;padding:0;font-size:13px">${propList}</ul>
-        <p class="tiny" style="margin-top:12px">This is a proposal only — no balance until we invoice each property after you choose. AutoPay months charge the card on file and email a receipt (no invoice).</p>
+        <label class="tiny quote-letter-label" for="quote-letter-intro">Opening message</label>
+        <textarea id="quote-letter-intro" class="quote-letter-edit" rows="4">${esc(intro)}</textarea>
+        <div class="quote-letter-locked">
+          <div class="quote-locked-tag">Quoted prices — locked</div>
+          ${quoteLetterLockedHtml(c, use, selectedPkgIds, pricing, extras, durationByPkg, termKeysByPkg)}
+        </div>
+        <label class="tiny quote-letter-label" for="quote-letter-outro">Closing message</label>
+        <textarea id="quote-letter-outro" class="quote-letter-edit" rows="7">${esc(outro)}</textarea>
       </div>`;
   }
-  function quoteTermPicksHtml(pkg, selectedKeys) {
+  function quoteTermPicksHtml(pkg, selectedKeys, pricing) {
     const keys = selectedKeys || [];
-    return `<div class="quote-term-picks">${packageTermGroups(pkg).map((g) => `
-      <div class="quote-term-group">
-        ${g.terms.length > 1 ? `<div class="quote-term-group-label">${esc(g.label)}</div>` : ""}
-        ${g.terms.map((t) => {
-          const on = keys.includes(t.key);
-          return `<label class="chk quote-term-pick"><input type="checkbox" data-act="toggle-quote-term" data-quote-term data-pkg="${pkg.id}" value="${t.key}" ${on ? "checked" : ""}> <span><strong>${esc(termCheckTitle(t))}</strong><span class="tiny">${esc(termCheckBlurb(t))}</span></span></label>`;
-        }).join("")}
-      </div>`).join("")}</div>`;
+    const rows = programsForPackage(pkg.id).map((p) => quoteTermRowHtml(p, keys.includes(programTermKey(p)), pricing && pricing[p.id]));
+    return `
+      <div class="quote-term-table">
+        <div class="quote-term-head">
+          <span></span><span>Term</span><span>List</span><span>Price</span><span>Off</span><span>Quoted</span>
+        </div>
+        ${rows.join("")}
+      </div>`;
   }
   function renderQuoteModal() {
     const d = state.quoteDraft;
@@ -12596,13 +12781,14 @@
     const termKeysByPkg = d.termKeysByPkg || {};
     const durationByPkg = d.durationByPkg || {};
     if (d.step === "preview") {
+      ensureQuoteLetterCopy(d, c, use);
       state.modal = {
         wide: true,
         quoteXl: true,
         html: `
           <h3>Preview quote</h3>
-          <p>Read-only. This is what ${esc(c.billTo || c.name)} will get. Go back to change packages, prices, or extras — then send.</p>
-          ${quoteLetterHtml(c, use, selected, pricing, extras, durationByPkg, termKeysByPkg)}
+          <p class="tiny">Edit the message if you want. Prices stay locked — go back to change packages, prices, or extras.</p>
+          ${quoteLetterHtml(c, use, selected, pricing, extras, durationByPkg, termKeysByPkg, { intro: d.letterIntro, outro: d.letterOutro })}
           <div class="actions" style="margin-top:16px">
             <button class="btn btn-ghost" data-act="back-quote-edit">Back to edit</button>
             <button class="btn btn-primary" data-act="confirm-quote" data-id="${c.id}" ${target ? `data-loc="${target.id}"` : ""}>${revising ? "Send revised quote" : "Send quote"}</button>
@@ -12631,7 +12817,7 @@
       return `
       <div class="quote-pkg-block">
         <h4>${esc(g.label)}</h4>
-        <p class="tiny">${g.locs.map((l) => esc(l.name)).join(" · ")} — pick the package, duration, and which terms to send.</p>
+        <p class="tiny">${g.locs.map((l) => esc(l.name)).join(" · ")}</p>
         <div class="quote-pkg-select-row">
           <div class="field"><label>Package</label>
             <select data-act="quote-pkg-select" data-quote-pkg-select data-kind="${g.kind}">
@@ -12639,16 +12825,11 @@
               ${g.packages.map((p) => `<option value="${p.id}" ${p.id === pkgId ? "selected" : ""}>${esc(packageSelectLabel(p))}</option>`).join("")}
             </select>
           </div>
-          ${pkg ? `<div class="field"><label>Duration (minutes)</label>
+          ${pkg ? `<div class="field"><label>Minutes</label>
             <input type="number" min="1" step="1" data-quote-duration="${pkg.id}" value="${esc(dur)}">
           </div>` : ""}
         </div>
-        ${pkg ? `
-          <p class="tiny">Check the terms to include. 6- and 12-month can send AutoPay, prepaid, or both.</p>
-          ${quoteTermPicksHtml(pkg, keys)}
-          <div class="quote-pkg-terms">
-            ${programsForPackage(pkg.id).filter((p) => keys.includes(programTermKey(p))).map((p) => quotePriceEditor(p, pricing[p.id])).join("")}
-          </div>` : `<p class="muted">Choose a package to see 1 / 3 / 6 / 12 month options.</p>`}
+        ${pkg ? quoteTermPicksHtml(pkg, keys, pricing) : `<p class="muted">Choose a package.</p>`}
       </div>`;
     }).join("");
     state.modal = {
@@ -12656,8 +12837,7 @@
       quoteXl: true,
       html: `
         <h3>${revising ? "Revise quote" : "Build quote"}</h3>
-        <p>${target ? `Quote for <strong>${esc(target.name)}</strong> (${esc(locKindLabel(locKind(c, target)))}), sent to Bill-To ${esc(c.billTo || c.name)}.` : `One letter to Bill-To ${esc(c.billTo || c.name)}. Choose the package for each property type.`} No plan is locked yet.</p>
-        <p class="tiny">Pick the package from the dropdown, edit duration if needed, check which month options to send, then preview. Quoted amount is what the customer sees.</p>
+        <p class="tiny">${target ? `${esc(target.name)} · ${esc(locKindLabel(locKind(c, target)))} · ${esc(c.billTo || c.name)}` : esc(c.billTo || c.name)}. Check the terms to send, edit price if needed, then preview.</p>
         <div class="quote-price-list">${editorHtml || `<p class="muted">No properties on this account yet.</p>`}</div>
         ${quoteExtrasEditorHtml(extras)}
         <div class="actions" style="margin-top:16px">
@@ -12710,6 +12890,8 @@
       durationByPkg,
       extras: Array.isArray(priorQuote?.extras) ? priorQuote.extras.map((x) => ({ ...x })) : [],
       pricing: { ...(priorQuote?.pricing || {}) },
+      letterIntro: priorQuote?.letterIntro || "",
+      letterOutro: priorQuote?.letterOutro || "",
     };
     renderQuoteModal();
   }
@@ -12725,11 +12907,13 @@
       toast("Check at least one term to send (1 month, 3 month, 6 month, 12 month).");
       return;
     }
+    ensureQuoteLetterCopy(d, custBy(d.customerId), quoteUseLocs(custBy(d.customerId), d.locationId));
     d.step = "preview";
     renderQuoteModal();
   }
 
   function backQuoteEdit() {
+    captureQuoteLetterCopy();
     if (state.quoteDraft) state.quoteDraft.step = "compose";
     renderQuoteModal();
   }
@@ -12751,7 +12935,6 @@
 
   function toggleQuoteTerm() {
     captureQuoteDraftForm();
-    renderQuoteModal();
   }
 
   function changeQuotePkg() {
@@ -12759,7 +12942,7 @@
     if (!d) return;
     const prevByKind = { ...(d.pkgByKind || {}) };
     if (document.querySelector("[data-quote-extra], [data-act=add-quote-extra]")) d.extras = collectQuoteExtras();
-    const programs = programsForQuote(custBy(d.customerId), d.locationId ? locBy(d.customerId, d.locationId) : null, d.selectedPkgIds, d.termKeysByPkg);
+    const programs = (d.selectedPkgIds || []).flatMap((id) => programsForPackage(id));
     d.pricing = { ...(d.pricing || {}), ...collectQuotePricing(programs) };
     d.pkgByKind = d.pkgByKind || {};
     d.termKeysByPkg = d.termKeysByPkg || {};
@@ -12794,6 +12977,7 @@
   function confirmQuote(id, locationId) {
     const c = custBy(id);
     const d = state.quoteDraft;
+    captureQuoteLetterCopy();
     if (d && d.step !== "preview") {
       captureQuoteDraftForm();
     }
@@ -12839,6 +13023,8 @@
       existing.termKeysByPkg = { ...((d && d.termKeysByPkg) || {}) };
       existing.durationByPkg = { ...((d && d.durationByPkg) || {}) };
       existing.extras = extras;
+      existing.letterIntro = (d && d.letterIntro) || "";
+      existing.letterOutro = (d && d.letterOutro) || "";
     } else {
       state.data.quotes.push({
         id: nid("Q"),
@@ -12856,6 +13042,8 @@
         termKeysByPkg: { ...((d && d.termKeysByPkg) || {}) },
         durationByPkg: { ...((d && d.durationByPkg) || {}) },
         extras,
+        letterIntro: (d && d.letterIntro) || "",
+        letterOutro: (d && d.letterOutro) || "",
       });
     }
     use.forEach((l) => {
@@ -12873,14 +13061,24 @@
         ? `Sent one quote to ${c.billTo || c.name} with program options for ${n} properties — asked same plan on all vs different per property.`
         : `Sent one quote to ${c.billTo || c.name} with program options — waiting on their choice.`) + priceNote + extraNote,
     });
-    const pkgNote = selected.map((pkgId) => packageById(pkgId)?.label || pkgId).join("; ");
-    const extraLines = extras.length ? extras.map((x) => `${x.label}: ${money(x.amount)}`).join("; ") : "";
+    const copy = quoteLetterCopyDefaults(c, use);
     pushOfficeEmail({
       customerId: id,
       locationId: target?.id || locationIds[0] || null,
       subject: "Your iguana removal quote is ready",
-      body: `${fillMailTemplate("proposal", c)}\n\nPackage on this quote: ${pkgNote}${d?.durationByPkg ? `\nDuration: ${Object.values(d.durationByPkg).filter(Boolean).join(", ")} min` : ""}${extraLines ? `\nExtra charges: ${extraLines}` : ""}\nMonitoring includes 2 visits every week. 6- and 12-month: AutoPay monthly or prepaid (last month / last two months free).`,
+      body: quoteLetterPlainText(
+        c,
+        use,
+        selected,
+        pricing,
+        extras,
+        d && d.durationByPkg,
+        d && d.termKeysByPkg,
+        (d && d.letterIntro) || copy.intro,
+        (d && d.letterOutro) || copy.outro
+      ),
       templateKey: "proposal",
+      quoteId: (existing && existing.id) || state.data.quotes[state.data.quotes.length - 1]?.id,
     });
     state.quoteDraft = null;
     state.modal = null;
@@ -12962,22 +13160,27 @@
       price: "io-price", disc: "io-disc", net: "io-net", note: "io-note",
       preview: "io-preview", program: "io-program", customerId: c.id, locationId: loc.id,
     };
+    const letterCopy = invoiceLetterCopyDefaults(c);
     state.modal = {
       wide: true,
       html: `
         <h3>Send invoice</h3>
-        <p>Accepts the proposal for <strong>${esc(loc.name)}</strong> (${esc(locKindLabel(locKind(c, loc)))}${packageById(locPackageId(c, loc)) ? ` · ${esc(packageById(locPackageId(c, loc)).label)}` : ""}). Prepaid: contract + invoice, Ops after payment. Monthly AutoPay: charge the card on file and email a receipt — no invoice.</p>
-        <div class="invoice-sheet">
-          <h3>${esc(loc.name)}</h3>
-          <p class="tiny">${esc(loc.address)}</p>
-        </div>
+        <p class="tiny">Accepts the proposal for <strong>${esc(loc.name)}</strong> (${esc(locKindLabel(locKind(c, loc)))}${packageById(locPackageId(c, loc)) ? ` · ${esc(packageById(locPackageId(c, loc)).label)}` : ""}). Edit the message. Change program or amount here if needed. Monthly AutoPay emails a receipt instead of an invoice.</p>
         <div class="field" style="margin-top:12px">
           <label>Program</label>
           <select id="io-program" data-act="preview-io-program" data-id="${c.id}" data-loc="${loc.id}">${options}</select>
         </div>
         ${invoiceAmountEditorHtml(editorIds, defaults)}
         <div class="field chk-field"><label class="chk"><input type="checkbox" id="io-autopay" ${programIsMonthly(selectedProg) ? "checked" : ""}> Monthly AutoPay — required on 6- and 12-month monthly. Charge the card on file each month and email a receipt (no invoice)</label></div>
-        <div id="io-preview">${convertPreviewInner(selectedProg, c.id, loc.id, defaults.quoted, defaults)}</div>
+        <div class="invoice-sheet quote-letter">
+          ${invoiceLetterEditorHtml("io-letter", letterCopy)}
+          <div class="quote-letter-locked">
+            <div class="quote-locked-tag">Invoice details</div>
+            <h3>${esc(loc.name)}</h3>
+            <p class="tiny">${esc(loc.address)}</p>
+            <div id="io-preview">${convertPreviewInner(selectedProg, c.id, loc.id, defaults.quoted, defaults)}</div>
+          </div>
+        </div>
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
           <button class="btn btn-primary" data-act="confirm-invoice-one" data-id="${c.id}" data-loc="${loc.id}">${programIsMonthly(selectedProg) ? "Charge card &amp; email receipt" : "Send invoice"}</button>
@@ -13053,6 +13256,9 @@
       inv.discount = meta.discount;
       inv.discountNote = meta.note;
     }
+    const letter = readInvoiceLetterCopy("io-letter", c, inv.id);
+    inv.letterIntro = letter.intro;
+    inv.letterOutro = letter.outro;
     inv.status = "sent";
     inv.sent = TODAY;
     inv.periodN = 1;
@@ -13073,8 +13279,9 @@
       customerId: c.id,
       locationId: loc.id,
       subject: `Invoice ${inv.id} is ready`,
-      body: fillMailTemplate("invoice", c, { invoice: inv.id }),
+      body: invoiceEmailBody(c, inv, loc, letter),
       templateKey: "invoice",
+      invoiceId: inv.id,
     });
     state.modal = null;
     state.page = "location";
@@ -13115,11 +13322,15 @@
         <div id="cv-preview-${l.id}">${convertPreviewInner(selected, c.id, l.id, defaults.quoted, defaults)}</div>
       </div>`;
     }).join("");
+    const letterCopy = invoiceLetterCopyDefaults(c);
     state.modal = {
       wide: true,
       html: `
         <h3>Send invoice to all</h3>
-        <p>Bill-To ${esc(c.billTo || c.name)}. Each property gets its own invoice. Ops sets up service after it’s paid in full.</p>
+        <p class="tiny">Bill-To ${esc(c.billTo || c.name)}. Edit the message once — it goes on every invoice. Each property still gets its own amount.</p>
+        <div class="invoice-sheet quote-letter">
+          ${invoiceLetterEditorHtml("cv-letter", letterCopy)}
+        </div>
         ${blocks}
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
@@ -13168,6 +13379,9 @@
         inv.discount = meta.discount;
         inv.discountNote = meta.note;
       }
+      const letter = readInvoiceLetterCopy("cv-letter", c, inv.id);
+      inv.letterIntro = letter.intro;
+      inv.letterOutro = letter.outro;
       created.push(inv);
       const q = locQuote(id, l.id);
       if (q) q.programId = pid;
@@ -13180,12 +13394,14 @@
         text: `Sent ${created.length} contract invoice${created.length === 1 ? "" : "s"} (${created.map((i) => i.id).join(", ")}). Pending payment — Ops after allocation.`,
       });
       created.forEach((inv) => {
+        const loc = locBy(c.id, inv.locationId);
         pushOfficeEmail({
           customerId: c.id,
           locationId: inv.locationId,
           subject: `Invoice ${inv.id} is ready`,
-          body: fillMailTemplate("invoice", c, { invoice: inv.id }),
+          body: invoiceEmailBody(c, inv, loc, { intro: inv.letterIntro, outro: inv.letterOutro }),
           templateKey: "invoice",
+          invoiceId: inv.id,
         });
       });
     }
@@ -13218,10 +13434,13 @@
       const n = Number(amtEl.value);
       if (Number.isFinite(n) && n >= 0) inv.amount = n;
     }
-    inv.status = "sent";
-    inv.sent = TODAY;
     const c = custBy(inv.customerId);
     const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
+    const letter = readInvoiceLetterCopy("inv-letter", c, inv.id);
+    inv.letterIntro = letter.intro;
+    inv.letterOutro = letter.outro;
+    inv.status = "sent";
+    inv.sent = TODAY;
     state.modal = null;
     if (c) {
       state.page = "customer";
@@ -13233,8 +13452,9 @@
         customerId: c.id,
         locationId: loc?.id,
         subject: `Invoice ${inv.id} is ready`,
-        body: fillMailTemplate("invoice", c, { invoice: inv.id }),
+        body: invoiceEmailBody(c, inv, loc, letter),
         templateKey: "invoice",
+        invoiceId: inv.id,
       });
     }
     render();
@@ -16390,7 +16610,7 @@
       s.noticed = true;
     });
     toast(n
-      ? `Friday visit notices emailed — no-reply (${n}). Open the client mailbox to see them.`
+      ? `Friday visit notices emailed — no-reply (${n}).`
       : "Friday visit notices queued — templated, two days ahead, no-reply.");
     render();
   }
