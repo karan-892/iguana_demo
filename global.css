@@ -4991,6 +4991,75 @@ h2 .inline-edit:focus { border-color: var(--line-strong); }
   min-height: 0;
   overflow: hidden;
 }
+.inv-opt-list { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-top: 12px; }
+.inv-opt {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 1.2fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.inv-opt:first-child { border-top: 0; }
+.inv-opt-head { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft, #6b645a); background: var(--sand, #f6f3ee); }
+.inv-new-disc { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.inv-new-disc input { flex: 1; min-width: 120px; }
+.modal.invoice-line {
+  width: min(980px, 96vw);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+.inv-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.7fr) 58px 76px minmax(0, 1.35fr) 36px;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+.inv-line-head {
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink-soft, #6b645a);
+  margin-top: 12px;
+}
+.inv-line input,
+.inv-line select { width: 100%; min-width: 0; }
+.inv-line-tax { display: flex; justify-content: center; }
+.inv-disc { position: relative; }
+.inv-disc-pop {
+  display: none;
+  position: absolute;
+  z-index: 8;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--ink, #2b2620);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(40, 32, 20, .14);
+  font-size: 13px;
+  line-height: 1.35;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.inv-disc.is-on:hover .inv-disc-pop,
+.inv-disc.is-on:focus-within .inv-disc-pop { display: block; }
+.inv-totals {
+  margin-top: 14px;
+  margin-left: auto;
+  width: 220px;
+  display: grid;
+  gap: 6px;
+}
+.inv-totals div { display: flex; justify-content: space-between; gap: 12px; }
+.inv-total-due { font-size: 18px; border-top: 1px solid var(--line); padding-top: 6px; }
+.inv-sheet { margin-top: 8px; }
+.inv-sheet .inv-line { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .mail-list-bar {
   position: sticky;
   top: 0;

@@ -522,6 +522,26 @@
     ensureSeedMonthlyReceipts();
     ensureSeedEmails();
     ensureMunicipalReady();
+    ensureSeedDiscounts();
+  }
+  function discountCatalog() {
+    if (!Array.isArray(state.data.discounts)) state.data.discounts = [];
+    return state.data.discounts;
+  }
+  function ensureSeedDiscounts() {
+    const list = discountCatalog();
+    [
+      { id: "DISC-HOA", name: "HOA courtesy", amount: 200, note: "Courtesy taken off HOA and community invoices." },
+      { id: "DISC-NEIGHBOR", name: "Neighbor", amount: 100, note: "Neighbor or multi-home discount." },
+      { id: "DISC-BEACH", name: "Miami Beach", amount: 150, note: "Miami Beach regional discount. Already set — not typed on the invoice." },
+    ].forEach((d) => {
+      const row = list.find((x) => x.id === d.id);
+      if (!row) list.push(d);
+      else if (!row.note) row.note = d.note;
+    });
+  }
+  function discountById(id) {
+    return discountCatalog().find((d) => d.id === id) || null;
   }
   function ensureMunicipalReady() {
     const city = (state.data.customers || []).find((c) => c.id === "C-1020");
@@ -554,36 +574,59 @@
     if (portal && !portal.invoiceMarked) portal.method = portal.method === "Check" ? "Online" : (portal.method || "Online");
   }
   function ensureSeedMonthlyReceipts() {
-    const dropIds = new Set(
-      (state.data.invoices || [])
-        .filter((i) => i.kind === "autopay" || /^INV-448[4-8]$/.test(i.id))
-        .map((i) => i.id)
-    );
-    if (dropIds.size) {
-      state.data.invoices = (state.data.invoices || []).filter((i) => !dropIds.has(i.id));
-      state.data.paymentAllocations = (state.data.paymentAllocations || []).filter((a) => !dropIds.has(a.invoiceId));
+    const invoices = state.data.invoices || (state.data.invoices = []);
+    const legacy = new Set(invoices.filter((i) => /^INV-448[4-8]$/.test(i.id)).map((i) => i.id));
+    if (legacy.size) {
+      state.data.invoices = invoices.filter((i) => !legacy.has(i.id));
+      state.data.paymentAllocations = (state.data.paymentAllocations || []).filter((a) => !legacy.has(a.invoiceId));
     }
-    const payMap = { 1: "P-9176", 2: "P-9177", 3: "P-9178", 4: "P-9179" };
-    (state.data.billingPeriods || []).forEach((per) => {
-      if (per.contractId !== "CON-1066a") return;
-      if (dropIds.has(per.invoiceId) || String(per.invoiceId || "").startsWith("INV-448")) per.invoiceId = null;
-      if (per.sequence <= 4 && !per.paymentId) per.paymentId = payMap[per.sequence] || null;
-    });
-    (state.data.payments || []).forEach((p) => {
-      if (p.customerId !== "C-1066") return;
-      const src = String(p.source || "").toLowerCase();
-      if (dropIds.has(p.invoiceId) || src === "autopay") {
-        if (dropIds.has(p.invoiceId)) p.invoiceId = null;
-        if (!p.failed) {
-          p.receiptEmailed = true;
-          p.receiptId = p.receiptId || String(p.id || "").replace(/^P-/, "RCPT-");
-          p.invoiceMarked = true;
-          p.appliedAuto = true;
+    const list = state.data.invoices;
+    const months = [
+      { seq: 1, payId: "P-9176", date: "2026-04-02", invId: "INV-AP-1066-1" },
+      { seq: 2, payId: "P-9177", date: "2026-05-02", invId: "INV-AP-1066-2" },
+      { seq: 3, payId: "P-9178", date: "2026-06-02", invId: "INV-AP-1066-3" },
+      { seq: 4, payId: "P-9179", date: "2026-07-02", invId: "INV-AP-1066-4" },
+    ];
+    months.forEach((row) => {
+      if (!list.some((i) => i.id === row.invId)) {
+        list.push({
+          id: row.invId, customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a",
+          amount: 200, status: "paid", sent: null, paidOn: row.date, date: row.date, kind: "autopay",
+          internalOnly: true, periodN: row.seq,
+        });
+      }
+      const pay = (state.data.payments || []).find((p) => p.id === row.payId);
+      if (pay) {
+        pay.invoiceId = row.invId;
+        pay.receiptEmailed = true;
+        pay.receiptId = pay.receiptId || String(pay.id || "").replace(/^P-/, "RCPT-");
+        pay.invoiceMarked = true;
+        pay.appliedAuto = true;
+        const allocs = state.data.paymentAllocations || (state.data.paymentAllocations = []);
+        if (!allocs.some((a) => a.paymentId === pay.id && a.invoiceId === row.invId)) {
+          allocs.push({ id: "ALLOC-" + row.invId, paymentId: pay.id, invoiceId: row.invId, amount: 200 });
         }
       }
+      const per = (state.data.billingPeriods || []).find((p) => p.contractId === "CON-1066a" && p.sequence === row.seq);
+      if (per) {
+        per.invoiceId = row.invId;
+        if (!per.paymentId) per.paymentId = row.payId;
+      }
     });
-    (state.data.notifications || []).forEach((n) => {
-      if (n.invoiceId && dropIds.has(n.invoiceId)) n.invoiceId = null;
+    const internalIds = new Set(list.filter((i) => i.internalOnly).map((i) => i.id));
+    if (internalIds.size) {
+      state.data.emails = (state.data.emails || []).filter((e) => !e.invoiceId || !internalIds.has(e.invoiceId));
+    }
+    (state.data.emails || []).forEach((e) => {
+      if (!e.body) return;
+      if (/does not send an invoice/i.test(e.body)) {
+        if (e.templateKey === "receipt" || /^Receipt /.test(e.subject || "")) {
+          e.body = e.body.replace(/Monthly AutoPay does not send an invoice\.?/g, "This charge is already paid. This email is your receipt.");
+        } else if (/AutoPay declined/i.test(e.subject || "")) {
+          e.body = e.body.replace(/Monthly AutoPay does not send an invoice — /g, "No receipt was sent because the charge did not go through. ");
+        }
+      }
+      e.body = e.body.replace(/did not go through\. please /g, "did not go through. Please ");
     });
   }
   function seedEmailRows() {
@@ -622,7 +665,7 @@
         cc: "ap@harboroaks.com",
         bcc: "",
         subject: "AutoPay declined — month 5",
-        body: "Hello Harbor Oaks Management,\nThe card on file (····3301) declined for this month’s $200 charge. Monthly AutoPay does not send an invoice — please reply with another card or a Zelle/check so we can keep service on.\n— Christy, Iguana Control",
+        body: "Hello Harbor Oaks Management,\nThe card on file (····3301) declined for this month’s $200 charge. No receipt was sent because the charge did not go through. Please reply with another card or a Zelle/check so we can keep service on.\n— Christy, Iguana Control",
         templateKey: "general", date: "2026-08-26", time: "14:20",
         noReply: false, readByOffice: true, readByClient: true,
       },
@@ -658,7 +701,7 @@
         direction: "out", fromName: "Iguana Control", fromEmail: "noreply@iguanacontrol.com",
         toName: "Harbor Oaks Management", toEmail: "mgr@harboroaks.com",
         subject: "Receipt RCPT-9179 — card charged",
-        body: "Hello Harbor Oaks Management,\nReceipt RCPT-9179 — we charged the card on file $200 for month 4. Monthly AutoPay does not send an invoice.\nThis is an automated receipt — you cannot reply.",
+        body: "Hello Harbor Oaks Management,\nReceipt RCPT-9179 — we charged the card on file $200 for month 4. This charge is already paid. This email is your receipt.\nThis is an automated receipt — you cannot reply.",
         templateKey: "receipt", date: "2026-07-02", time: "06:05",
         noReply: true, readByOffice: true, readByClient: true,
       },
@@ -667,7 +710,9 @@
   function ensureSeedEmails() {
     if (!Array.isArray(state.data.emails)) state.data.emails = [];
     const tpls = state.data.templates || (state.data.templates = {});
-    if (!tpls.receipt) tpls.receipt = "Hello {customer_name},\nReceipt {invoice_or_quote} — we charged the card on file. Monthly AutoPay does not send an invoice.\nThis is an automated receipt — you cannot reply.";
+    if (!tpls.receipt || /does not send an invoice/i.test(tpls.receipt)) {
+      tpls.receipt = "Hello {customer_name},\nReceipt {invoice_or_quote} — we charged the card on file. This charge is already paid. This email is your receipt.\nThis is an automated receipt — you cannot reply.";
+    }
     if (!tpls.general) tpls.general = "Hello {customer_name},\n\n\n— Iguana Control";
     seedEmailRows().forEach((row) => {
       const existing = state.data.emails.find((e) => e.id === row.id);
@@ -694,9 +739,37 @@
     const where = use.map((l) => `${l.name}${l.address ? " — " + l.address : ""}`).join("\n");
     return `${fillMailTemplate("proposal", c) || "Your iguana removal quote is ready."}${where ? "\n\n" + where : ""}\n\nQuote ${q.id}`;
   }
+  function renewalInvoiceMailBody(c, loc, inv) {
+    const p = progBy(inv?.programId);
+    const monthly = programIsMonthly(inv?.programId);
+    return [
+      `Hello ${c?.billTo || c?.name || ""},`,
+      `Renewal invoice ${inv.id} for ${loc?.name || "your property"}.`,
+      p?.name || inv.description || "Renewal",
+      `This invoice charges ${money2(inv.amount)}.`,
+      monthly
+        ? "This link charges this amount only. Saving a card does not change this charge. Later months bill the card on file and email a receipt."
+        : "This link charges this amount once. It does not start a monthly plan.",
+      "Reply to this email if you need a change before you pay.",
+    ].join("\n\n");
+  }
+  function emailInvoiceToClient(c, loc, inv, extraBody) {
+    if (!c || !inv) return null;
+    const base = inv.kind === "renewal" ? renewalInvoiceMailBody(c, loc, inv) : sentInvoiceMailBody(inv);
+    return pushOfficeEmail({
+      customerId: c.id,
+      locationId: loc?.id || inv.locationId || null,
+      toEmail: c.email || "",
+      subject: `Invoice ${inv.id}`,
+      body: extraBody ? `${base}\n\n${extraBody}` : base,
+      templateKey: "invoice",
+      invoiceId: inv.id,
+    });
+  }
   function sentInvoiceMailBody(inv) {
     const c = custBy(inv.customerId);
     const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
+    if (inv.kind === "renewal") return renewalInvoiceMailBody(c, loc, inv);
     const plan = c && loc ? locPlan(c, loc) : {};
     const p = progBy(plan.programId || loc?.programId);
     const discount = Number(inv.discount) || 0;
@@ -768,7 +841,7 @@
         time: "09:00",
       });
     });
-    (state.data.invoices || []).filter((inv) => inv && inv.status && inv.status !== "draft").forEach((inv) => {
+    (state.data.invoices || []).filter((inv) => inv && inv.status && inv.status !== "draft" && !inv.internalOnly).forEach((inv) => {
       if (state.data.emails.some((e) => e.invoiceId === inv.id)) return;
       const loose = state.data.emails.find((e) =>
         e.customerId === inv.customerId && e.direction === "out" && !e.invoiceId
@@ -781,12 +854,22 @@
         customerId: inv.customerId,
         locationId: inv.locationId || null,
         invoiceId: inv.id,
-        subject: `Invoice ${inv.id} is ready`,
+        subject: `Invoice ${inv.id}`,
         body: sentInvoiceMailBody(inv),
         templateKey: "invoice",
         date: inv.sent || TODAY,
         time: "09:15",
       });
+    });
+    (state.data.invoices || []).filter((inv) => inv && inv.kind === "renewal").forEach((inv) => {
+      const mail = (state.data.emails || []).find((e) => e.invoiceId === inv.id && e.direction === "out");
+      if (!mail) return;
+      const c = custBy(inv.customerId);
+      const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
+      if (!/This invoice charges/.test(mail.body || "")) mail.body = renewalInvoiceMailBody(c, loc, inv);
+      if (/is ready/.test(mail.subject || "") || !mail.subject) mail.subject = `Invoice ${inv.id}`;
+      mail.templateKey = "invoice";
+      if (c?.email && !mail.toEmail) mail.toEmail = c.email;
     });
   }
   function programBillAmount(p) {
@@ -1049,7 +1132,7 @@
             ...seedLocPkg("corp-1"),
             ...seedLocBilling("12mo", "2026-04-01", null, "past_due", false),
           }],
-          notes: "12-month monthly AutoPay. Card on file is charged each month and a receipt is emailed — no invoice. Service set up once in April. Months 1–4 paid. August charge declined.",
+          notes: "12-month monthly AutoPay. Each month the office keeps a paid invoice. The client only gets the receipt. Months 1–4 paid. August charge declined — no receipt for that month.",
           opsNote: "Card declined Aug 26 — leave off route. Call them; stop service if they cannot pay.",
         },
         {
@@ -1282,7 +1365,7 @@
         { id: "P-9289", invoiceId: "INV-4689", customerId: "C-1188", locationId: "L-1188b", amount: 2000, method: "Check", last4: "9901", source: "check", date: "2026-08-27", memo: "Check #9901 · team entered · Nina Canal house — post payment", invoiceMarked: false, linkPay: false },
         { id: "P-9310", invoiceId: "INV-4710", customerId: "C-1210", locationId: "L-1210a", amount: 2000, method: "Card", last4: "1210", source: "portal", date: "2026-08-21", memo: "Portal · Jony Morales Boca — marked paid", invoiceMarked: true, linkPay: true },
         { id: "P-9311", invoiceId: "INV-4711", customerId: "C-1210", locationId: "L-1210b", amount: 1200, method: "ACH", last4: "", source: "ach", date: "2026-08-21", memo: "ACH · Jony Morales Deerfield — marked paid", invoiceMarked: true, linkPay: true },
-        { id: "P-9340", invoiceId: null, billingPeriodId: "PER-1066a-5", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Zelle", last4: "", source: "EXTERNAL", date: "2026-08-27", memo: "Zelle replacement · Harbor Oaks month 5 — no invoice; monthly charges the card and emails a receipt", invoiceMarked: false, linkPay: false, status: "POSTED" },
+        { id: "P-9340", invoiceId: null, billingPeriodId: "PER-1066a-5", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Zelle", last4: "", source: "EXTERNAL", date: "2026-08-27", memo: "Zelle replacement · Harbor Oaks month 5 — the declined month has no paid invoice", invoiceMarked: false, linkPay: false, status: "POSTED" },
         { id: "P-9401", invoiceId: "INV-4512", customerId: "C-1112", locationId: "L-1112a", amount: 1500, method: "ACH", last4: "", source: "ach", date: "2026-08-18", memo: "Cypress Commons HOA · 2026 renewal", invoiceMarked: true, linkPay: false },
         { id: "P-9402", invoiceId: "INV-4516", customerId: "C-1108", locationId: "L-1108b", amount: 1500, method: "Check", last4: "4516", source: "check", date: "2026-08-22", memo: "Palm Cove Lot 14 · 2026 renewal", invoiceMarked: true, linkPay: false },
       ],
@@ -1396,10 +1479,10 @@
         },
       ],
       notifications: [
-        { id: "N-1", type: "AUTOPAY_FAILED", severity: "alert", title: "AutoPay declined", text: "Harbor Oaks · Campus · CARD_DECLINED ····3301. Monthly plan — no invoice. Card charge failed; no receipt. Contact customer; Rick can stop service if they will not pay.", customerId: "C-1066", locationId: "L-1066a", invoiceId: null, date: "2026-08-26", read: false },
+        { id: "N-1", type: "AUTOPAY_FAILED", severity: "alert", title: "AutoPay declined", text: "Harbor Oaks · Campus · CARD_DECLINED ····3301. Card charge failed, so no paid invoice and no receipt. Contact customer; Rick can stop service if they will not pay.", customerId: "C-1066", locationId: "L-1066a", invoiceId: null, date: "2026-08-26", read: false },
       ],
       tasks: [
-        { id: "TSK-1", customerId: "C-1066", locationId: "L-1066a", title: "Call Harbor Oaks about declined AutoPay", notes: "Month 5 card charge declined. No invoice for monthly AutoPay. Service is already live — do not recreate. Ask for Zelle/check or retry the card, or have Rick stop service.", createdBy: "admin", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
+        { id: "TSK-1", customerId: "C-1066", locationId: "L-1066a", title: "Call Harbor Oaks about declined AutoPay", notes: "Month 5 card charge declined. No paid invoice and no receipt for that month. Service is already live — do not recreate. Ask for Zelle/check or retry the card, or have Rick stop service.", createdBy: "admin", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
         { id: "TSK-1b", customerId: "C-1066", locationId: "L-1066a", title: "Hold / stop Harbor Oaks if unpaid", notes: "After you talk to them: if they cannot pay, stop the service on the customer record. Do not create a new service.", createdBy: "admin", assignee: "ops", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
         { id: "TSK-2", customerId: "C-1188", locationId: "L-1188a", title: "Allocate Nina residence payment", notes: "Portal payment is on the register — allocate so Rick can create service on that property only.", createdBy: "owner", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-27" },
         { id: "TSK-3", customerId: "C-1188", locationId: "L-1188a", title: "Create service after Nina Residence is paid", notes: "Wait for Christy to allocate. Then create service and assign on the map.", createdBy: "admin", assignee: "ops", due: "2026-08-28", priority: "normal", status: "open", createdAt: "2026-08-27" },
@@ -1495,7 +1578,7 @@
           cc: "ap@harboroaks.com",
           bcc: "",
           subject: "AutoPay declined — month 5",
-          body: "Hello Harbor Oaks Management,\nThe card on file (····3301) declined for this month’s $200 charge. Monthly AutoPay does not send an invoice — please reply with another card or a Zelle/check so we can keep service on.\n— Christy, Iguana Control",
+          body: "Hello Harbor Oaks Management,\nThe card on file (····3301) declined for this month’s $200 charge. No receipt was sent because the charge did not go through. Please reply with another card or a Zelle/check so we can keep service on.\n— Christy, Iguana Control",
           templateKey: "general", date: "2026-08-26", time: "14:20",
           noReply: false, readByOffice: true, readByClient: true,
         },
@@ -1531,7 +1614,7 @@
           direction: "out", fromName: "Iguana Control", fromEmail: "noreply@iguanacontrol.com",
           toName: "Harbor Oaks Management", toEmail: "mgr@harboroaks.com",
           subject: "Receipt RCPT-9179 — card charged",
-          body: "Hello Harbor Oaks Management,\nReceipt RCPT-9179 — we charged the card on file $200 for month 4. Monthly AutoPay does not send an invoice.\nThis is an automated receipt — you cannot reply.",
+          body: "Hello Harbor Oaks Management,\nReceipt RCPT-9179 — we charged the card on file $200 for month 4. This charge is already paid. This email is your receipt.\nThis is an automated receipt — you cannot reply.",
           templateKey: "receipt", date: "2026-07-02", time: "06:05",
           noReply: true, readByOffice: true, readByClient: true,
         },
@@ -1586,7 +1669,7 @@
         proposal: "Hello {customer_name},\nAccount {account_id}.\nYour iguana removal program quote is ready. Packages follow the property type.\n\nReply to this email with the program you want. 6- and 12-month: AutoPay monthly or prepaid (last month / last two months free).\n— Iguana Control",
         invoice: "Hello {customer_name},\nInvoice {invoice_or_quote} is due.\nPay by invoice link, website, ACH, or bank transfer.\n\nYou can reply to this email if you have a question.\n— Iguana Control",
         renewal: "Hello {customer_name},\nAccount {account_id} is in the renewal window.\nSame terms unless Administration notes otherwise.\n\nReply if you want to switch prepaid vs monthly.\n— Iguana Control",
-        receipt: "Hello {customer_name},\nReceipt {invoice_or_quote} — we charged the card on file. Monthly AutoPay does not send an invoice.\nThis is an automated receipt — you cannot reply.",
+        receipt: "Hello {customer_name},\nReceipt {invoice_or_quote} — we charged the card on file. This charge is already paid. This email is your receipt.\nThis is an automated receipt — you cannot reply.",
         general: "Hello {customer_name},\n\n\n— Iguana Control",
         visit: "Hi {customer_name}, a technician is scheduled in two days. This is an automated message — you cannot reply.",
       },
@@ -2385,7 +2468,7 @@
     state.data.billingPeriods.push(period);
     if (loc) loc.lifecycle = loc.lifecycle === "active" ? "active" : "waiting_payment";
     if (!silent) {
-      toast(`Month ${count + 1} is due · ${money(period.amount)}. AutoPay charges the card and emails a receipt — no invoice.`);
+      toast(`Month ${count + 1} is due · ${money(period.amount)}. AutoPay will mark an internal invoice paid and email the client a receipt.`);
       render();
     }
     return period;
@@ -2404,13 +2487,14 @@
     const month = period ? ` · month ${period.sequence}` : "";
     state.data.comms.push({
       id: nid("CM"), customerId: c.id, who: "Billing", channel: "Email", date: TODAY,
-      text: `Receipt ${pay.receiptId} emailed to ${c.email || "the Bill-To"} · ${money(pay.amount)} charged to ${card}${month} · ${loc.name}. Monthly AutoPay does not send an invoice.`,
+      text: `Receipt ${pay.receiptId} emailed to ${c.email || "the Bill-To"} · ${money(pay.amount)} charged to ${card}${month} · ${loc.name}. The paid invoice stays internal.`,
     });
     pushOfficeEmail({
       customerId: c.id,
       locationId: loc?.id,
+      toEmail: c.email || "",
       subject: `Receipt ${pay.receiptId} — card charged`,
-      body: fillMailTemplate("receipt", c, { invoice: pay.receiptId }),
+      body: `Hello ${c.billTo || c.name},\nReceipt ${pay.receiptId} — we charged the card on file ${money2(pay.amount)}${period ? " for month " + period.sequence : ""}${loc?.name ? " at " + loc.name : ""}.\nThis charge is already paid. This email is your receipt.\nThis is an automated receipt — you cannot reply.`,
       templateKey: "receipt",
       noReply: true,
     });
@@ -3081,7 +3165,29 @@
     }) || null;
   }
 
-  /** Monthly AutoPay charges the card on file and emails a receipt. No invoice. */
+  function recordAutopayPaidInvoice(c, loc, ct, period, amount) {
+    const invoices = state.data.invoices || (state.data.invoices = []);
+    let inv = period.invoiceId ? invoices.find((i) => i.id === period.invoiceId) : null;
+    if (!inv) {
+      inv = {
+        id: nid("INV"), customerId: c.id, locationId: loc.id, contractId: ct.id,
+        billingPeriodId: period.id, amount, status: "paid", sent: null, paidOn: TODAY, date: TODAY,
+        kind: "autopay", internalOnly: true, periodN: period.sequence,
+        programId: loc.programId || ct.programId || "",
+      };
+      invoices.push(inv);
+      period.invoiceId = inv.id;
+    }
+    inv.status = "paid";
+    inv.paidOn = inv.paidOn || TODAY;
+    inv.kind = "autopay";
+    inv.internalOnly = true;
+    inv.amount = amount;
+    inv.sent = null;
+    return inv;
+  }
+
+  /** Monthly AutoPay writes a paid invoice for the office and emails the client a receipt only. */
   function runAutopayCharge(customerId, locationId, opts) {
     const succeed = !opts || opts.succeed !== false;
     const createIfMissing = !opts || opts.createIfMissing !== false;
@@ -3134,7 +3240,7 @@
         type: "AUTOPAY_FAILED",
         severity: "alert",
         title: "AutoPay declined",
-        text: `${c.billTo || c.name} · ${loc.name} · ${failCode} ····${last4}. Monthly plan — no invoice. Card charge failed so no receipt. Contact the customer. Rick can stop service if they will not pay.`,
+        text: `${c.billTo || c.name} · ${loc.name} · ${failCode} ····${last4}. Card charge failed, so no paid invoice and no receipt. Contact the customer. Rick can stop service if they will not pay.`,
         customerId, locationId,
       });
       const hasOpsTask = (state.data.tasks || []).some((t) =>
@@ -3152,18 +3258,21 @@
         id: nid("CM"), customerId, who: "AutoPay", channel: "System", date: TODAY,
         text: `AutoPay FAILED month ${period.sequence} (${failCode}). No receipt emailed. Route held. Rick may stop service if customer will not pay.`,
       });
-      toast(`AutoPay declined on month ${period.sequence}. No invoice, no receipt. Route blocked — Rick can stop service.`);
+      toast(`AutoPay declined on month ${period.sequence}. No paid invoice and no receipt. Route blocked — Rick can stop service.`);
       render();
       return;
     }
 
+    const inv = recordAutopayPaidInvoice(c, loc, ct, period, amount);
     const p = {
-      id: nid("P"), invoiceId: null, billingPeriodId: period.id, customerId, locationId, amount,
+      id: nid("P"), invoiceId: inv.id, billingPeriodId: period.id, customerId, locationId, amount,
       method: "Auto-pay", last4, source: "AUTOPAY", date: TODAY,
-      memo: `AutoPay charged · ${loc.name} · month ${period.sequence} · receipt emailed`,
+      memo: `AutoPay charged · ${loc.name} · month ${period.sequence} · receipt emailed · invoice ${inv.id} stays internal`,
       invoiceMarked: true, failed: false, linkPay: true, status: "POSTED", posted: true, appliedAuto: true,
     };
     state.data.payments.push(p);
+    const allocs = state.data.paymentAllocations || (state.data.paymentAllocations = []);
+    allocs.push({ id: nid("ALLOC"), paymentId: p.id, invoiceId: inv.id, amount });
     const receiptId = emailMonthlyReceipt(c, loc, p, period);
     period.status = "PAID";
     period.paymentId = p.id;
@@ -3179,10 +3288,10 @@
       type: "AUTOPAY_PAID",
       severity: "ok",
       title: "AutoPay paid",
-      text: `${c.billTo || c.name} · ${loc.name} · month ${period.sequence} charged ${money(p.amount)}. Receipt ${receiptId} emailed. No invoice.`,
+      text: `${c.billTo || c.name} · ${loc.name} · month ${period.sequence} charged ${money(p.amount)}. ${inv.id} is paid and stays in the office. Receipt ${receiptId} emailed to the client.`,
       customerId, locationId,
     });
-    toast(`Card charged ${money(p.amount)} · receipt ${receiptId} emailed. No invoice.`);
+    toast(`Card charged ${money(p.amount)}. ${inv.id} paid internally. Receipt ${receiptId} emailed.`);
     render();
   }
 
@@ -3220,7 +3329,7 @@
       charged += 1;
     });
     if (!charged) toast(skipped ? `Overnight AutoPay: nothing due (${skipped} plan(s) skipped / waiting / exception).` : "No AutoPay plans due.");
-    else toast(`Overnight AutoPay finished · ${charged} card charge(s) · receipts emailed. No invoices.`);
+    else toast(`Overnight AutoPay finished · ${charged} card charge(s). Paid invoices kept in the office. Receipts emailed.`);
   }
   function markLocationPeriodPaid(loc, inv) {
     if (!loc) return;
@@ -5329,7 +5438,7 @@
           severity: "ok",
           title: "External payment recovered AutoPay fail",
           text: `${c?.billTo || c?.name || ""} · ${loc?.name || ""} · ${inv.id} allocated.`
-            + (bp?.frequency === "monthly" ? " Monthly AutoPay has no invoice; retry the card next month or record a replacement charge." : ""),
+            + (bp?.frequency === "monthly" ? " Replacement posted. Retry the card next month." : ""),
           customerId: inv.customerId, locationId: inv.locationId, invoiceId: inv.id,
         });
       }
@@ -6832,16 +6941,19 @@
     const gps = l.lat != null && l.lng != null ? `${Number(l.lat).toFixed(4)}, ${Number(l.lng).toFixed(4)}` : (l.gps || approxGps(l));
     const needsQuote = locNeedsQuote(c, l);
     const canQuote = locCanQuote(c, l);
+    const officeInvoice = (state.role === "admin" || state.role === "owner") && canInvoiceLocation(c, l);
     const readyToInvoice = !needsQuote && canInvoiceLocation(c, l);
-    const primary = canQuote && can("quote.send") && needsQuote
-      ? btn("quote.send", "Send quote", "send-quote", `data-id="${c.id}" data-loc="${l.id}"`)
-      : readyToInvoice && can("invoice.create")
-        ? btn("invoice.create", "Send invoice", "invoice-one-loc", `data-id="${c.id}" data-loc="${l.id}"`)
-        : locNeedsService(c, l)
-          ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`)
-          : locNeedsTech(c, l)
-            ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`)
-            : "";
+    const primary = officeInvoice
+      ? btn("invoice.create", "Send invoice", "invoice-one-loc", `data-id="${c.id}" data-loc="${l.id}"`)
+      : canQuote && can("quote.send") && needsQuote
+        ? btn("quote.send", "Send quote", "send-quote", `data-id="${c.id}" data-loc="${l.id}"`)
+        : readyToInvoice && can("invoice.create")
+          ? btn("invoice.create", "Send invoice", "invoice-one-loc", `data-id="${c.id}" data-loc="${l.id}"`)
+          : locNeedsService(c, l)
+            ? btn("service.create", "Create service", "open-service", `data-id="${c.id}" data-loc="${l.id}"`)
+            : locNeedsTech(c, l)
+              ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}" data-loc="${l.id}"`)
+              : "";
     return `
       <nav class="crumbs">
         <button type="button" data-act="nav" data-page="customers">Customers</button>
@@ -6857,7 +6969,7 @@
         </div>
         <div class="actions">
           ${primary}
-          ${canQuote && can("quote.send") && !needsQuote ? btn("quote.send", "Revise quote", "send-quote", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost") : ""}
+          ${state.role !== "admin" && canQuote && can("quote.send") && !needsQuote ? btn("quote.send", "Revise quote", "send-quote", `data-id="${c.id}" data-loc="${l.id}"`, "btn-ghost") : ""}
           ${can("location.add") || canEditField("address") || state.role === "owner" ? `<button class="btn btn-ghost" data-act="edit-one-loc" data-id="${c.id}" data-loc="${l.id}">Edit</button>` : ""}
           ${live && ["ops", "owner"].includes(state.role) ? btn("schedule.reassign", "Reassign", "open-assign", `data-id="${c.id}" data-loc="${l.id}" data-return="location"`, "btn-ghost") : ""}
           ${["owner", "ops", "admin"].includes(state.role) ? btn("task.create", "Task", "new-task", `data-id="${c.id}" data-loc="${l.id}"`, "btn-text") : ""}
@@ -6876,6 +6988,7 @@
               <dt>GPS</dt><dd>${esc(gps)}</dd>
               <dt>Status</dt><dd>${locationStatus(c, l)}</dd>
               <dt>Instructions</dt><dd>${esc(l.notes || c.opsNote || c.notes || "—")}</dd>
+              <dt>Field note</dt><dd>${esc(l.fieldNote || "—")}</dd>
             </dl>
           </div>
           <div class="card">
@@ -6987,7 +7100,7 @@
           <p class="muted">${esc(c.id)} · Bill-To ${esc(c.billTo || c.name)} · ${statusBadge(c.status)}</p>
         </div>
         <div class="actions">
-          ${canQuote && can("quote.send") ? btn("quote.send", needsQuote ? "Send quote" : "Revise quote", "send-quote", `data-id="${c.id}"`) : ""}
+          ${state.role === "admin" ? "" : (canQuote && can("quote.send") ? btn("quote.send", needsQuote ? "Send quote" : "Revise quote", "send-quote", `data-id="${c.id}"`) : "")}
           ${(can("invoice.create") || state.role === "owner") && (c.locations || []).some((l) => canInvoiceLocation(c, l)) ? btn("invoice.create", "Send invoice to all", "open-convert", `data-id="${c.id}"`, "btn-sun") : ""}
           ${(c.locations || []).some((l) => locNeedsService(c, l)) ? btn("service.create", "Create service", "open-service", `data-id="${c.id}"`) : ""}
           ${(c.locations || []).some((l) => locNeedsTech(c, l)) ? btn("schedule.assign", "Assign on map", "open-assign", `data-id="${c.id}"`) : ""}
@@ -6996,7 +7109,7 @@
         </div>
       </div>
       ${needsQuote ? `<div class="notice">One quote to the Bill-To lists the programs and every property.</div>` : ""}
-      ${quotedReady ? `<div class="notice">Quote is out. Revise prices if needed. Prepaid: send an invoice. Monthly AutoPay: charge the card on file and email a receipt — no invoice.</div>` : ""}
+      ${quotedReady ? `<div class="notice">Quote is out. Revise prices if needed. Prepaid: send an invoice. Monthly AutoPay: the office keeps a paid invoice each month and the client gets the receipt.</div>` : ""}
       <div class="cust-panels">
         <div class="panel-box">
           ${canEditCust ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-billto" data-id="${c.id}">Edit Bill-To</button>` : ""}
@@ -7020,7 +7133,7 @@
           ${canEditLoc ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-locations" data-id="${c.id}">Edit locations</button>` : ""}
           <div class="panel-kicker">Locations</div>
           <h3>${(c.locations || []).length} propert${(c.locations || []).length === 1 ? "y" : "ies"}</h3>
-          <p class="tiny">Quote → invoice (prepaid) or card charge + receipt (monthly) → ready for service.</p>
+          <p class="tiny">Quote → invoice (prepaid) or monthly AutoPay (paid invoice stays here, receipt emailed) → ready for service.</p>
           <div class="panel-locs" data-keep-scroll="panel-locs">
             ${(c.locations || []).map((l) => {
               const plan = locPlan(c, l);
@@ -7062,15 +7175,16 @@
                 <div class="tiny">${esc(l.address)}</div>
                 <div class="tiny">GPS ${esc(gps)}${l.subdivision ? ` · ${esc(l.subdivision)}` : ""}</div>
                 <div class="tiny"><strong>Contract</strong> ${ct ? `${esc(ct.id)} · ${esc(ct.program || "")} · ${esc(fmtUsRange(ct.startDate, ct.endDate))}` : "None yet"}</div>
-                <div class="tiny"><strong>Billing plan</strong> ${esc(billingPlanLabel(l))}${onAutopay ? " · AutoPay charges the card each month and emails a receipt — no invoice" : ""}</div>
-                ${apaFail ? `<div class="tiny" style="color:var(--bad,#b42318)">Declined: call them. Monthly AutoPay has no invoice — take a replacement payment or retry the card. Rick can stop service if they won’t pay.</div>` : ""}
+                <div class="tiny"><strong>Billing plan</strong> ${esc(billingPlanLabel(l))}${onAutopay ? " · Each month AutoPay writes a paid invoice here and emails the client a receipt only" : ""}</div>
+                ${apaFail ? `<div class="tiny" style="color:var(--bad,#b42318)">Declined: call them. That month has no paid invoice and no receipt. Take a replacement payment or retry the card. Rick can stop service if they won’t pay.</div>` : ""}
                 ${billingPeriodLabel(l) ? `<div class="tiny">${esc(billingPeriodLabel(l))}</div>` : ""}
                 ${periods.length ? `<div class="tiny" style="margin-top:6px"><strong>Periods</strong></div>
-                  <table class="mini-table"><thead><tr><th>#</th><th>Dates</th><th>Amt</th><th>Receipt</th><th>Status</th></tr></thead><tbody>
+                  <table class="mini-table"><thead><tr><th>#</th><th>Dates</th><th>Amt</th><th>Invoice</th><th>Receipt</th><th>Status</th></tr></thead><tbody>
                   ${periods.map((p) => {
                     const pay = p.paymentId ? (state.data.payments || []).find((x) => x.id === p.paymentId) : null;
-                    const receipt = pay?.receiptId || (p.status === "PAID" ? "Emailed" : "—");
-                    return `<tr><td>${p.sequence}</td><td>${esc(fmtUsRange(p.periodStart, p.periodEnd))}</td><td>${money(p.amount)}</td><td>${esc(receipt)}</td><td>${esc(p.status)}</td></tr>`;
+                    const receipt = pay?.receiptId || (p.status === "PAID" && pay && !pay.failed ? "Emailed" : "—");
+                    const invCell = p.invoiceId ? invoiceBtn(p.invoiceId) : "—";
+                    return `<tr><td>${p.sequence}</td><td>${esc(fmtUsRange(p.periodStart, p.periodEnd))}</td><td>${money(p.amount)}</td><td>${invCell}</td><td>${esc(receipt)}</td><td>${esc(p.status)}</td></tr>`;
                   }).join("")}
                   </tbody></table>` : ""}
                 ${onAutopay || locIsMonthlyPlan(c, l) ? "" : `<div class="tiny" style="margin-top:6px"><strong>Invoices</strong> ${invs.length ? invs.map((i) => {
@@ -9139,7 +9253,7 @@
 
   /* ---------- Admin ---------- */
   function viewInvoices() {
-    const rows = state.data.invoices.filter((i) => i.kind !== "autopay").map((i) => {
+    const rows = state.data.invoices.map((i) => {
       const c = custBy(i.customerId);
       const st = invoiceFinStatus(i);
       const paid = allocated(i.id);
@@ -9159,12 +9273,12 @@
         money(bal),
         statusBadge(st),
         esc(invKindLabel(i.kind)),
-        i.sent ? fmtUsDate(i.sent) : "—",
+        i.internalOnly ? "Office only" : (i.sent ? fmtUsDate(i.sent) : "—"),
         act,
       ];
     });
     return `
-      ${head("Invoices", "Prepaid, renewal, and municipal invoices only. Monthly AutoPay does not create an invoice — the card on file is charged and a receipt is emailed.")}
+      ${head("Invoices", "Prepaid and renewal invoices are emailed to the client. Each successful monthly AutoPay writes a paid invoice that stays in the office. The client only gets the receipt.")}
       ${writeBar("invoice.send", "Send invoice")}
       <div class="actions" style="margin-bottom:10px">${btn("invoice.create", "Manual municipal invoice", "manual-invoice", "", "btn-ghost")}</div>
       ${table(["Invoice", "Bill-To", "Property", "Amount", "Paid", "Balance", "Status", "Kind", "Sent", ""], rows)}
@@ -9753,10 +9867,10 @@
     });
     const pickedN = (state.renewPick || []).length;
     return `
-      ${head("Renewal report", "Check the ones to send, then Send — you’ll confirm the list.")}
+      ${head("Renewal report", "Each renewal invoice is emailed to the client, the same way other mail is sent.")}
       ${writeBar("renewal.send", "Send renewal")}
       <div class="notice">
-        Select rows, then <strong>Send selected</strong>. Confirm in the modal. Use <strong>Review / edit</strong> only if the program changed (e.g. 1-month → 6/12). Sending a notice does not charge AutoPay.
+        Select rows, then <strong>Send selected</strong>. The invoice is emailed to the client and shows on their Email tab. A monthly AutoPay renewal emails a notice only — the card is not charged on send.
       </div>
       <div class="actions" style="margin-bottom:10px">
         <button class="btn btn-ghost" data-act="renew-select-all">Select all (${pickable.length})</button>
@@ -9965,6 +10079,32 @@
         : `Allocation saved. ${money2(bonusRemaining(b))} remaining.`);
     render();
   }
+  function simpleInvoiceHtml(inv) {
+    const line = inv.line;
+    if (!line) return "";
+    const disc = line.discountName
+      ? `<span class="inv-disc is-on">${esc(line.discountName)}<span class="inv-disc-pop"><strong>${esc(line.discountName)}</strong><div>${money2(line.discount)} off</div>${line.discountNote ? `<div class="tiny">${esc(line.discountNote)}</div>` : ""}</span></span>`
+      : "—";
+    return `
+      <div class="inv-sheet">
+        <div class="inv-line inv-line-head"><span>Service</span><span>Description</span><span>Qty</span><span>Price</span><span>Discount</span><span>Tax</span></div>
+        <div class="inv-line">
+          <span>${esc(line.code || "Service")}</span>
+          <span>${esc(line.description || "")}</span>
+          <span>${esc(line.qty)}</span>
+          <span>${money2(line.price)}</span>
+          <span>${disc}</span>
+          <span>${line.tax ? money2(line.tax) : "—"}</span>
+        </div>
+        <div class="inv-totals">
+          ${line.monthly ? `<div><span>Term after discount</span><strong>${money2(line.termNet)}</strong></div>` : ""}
+          <div><span>Tax</span><strong>${money2(line.tax || 0)}</strong></div>
+          <div class="inv-total-due"><span>This invoice</span><strong>${money2(inv.amount)}</strong></div>
+        </div>
+        ${line.monthly ? `<p class="tiny">Month 1 of ${esc(line.months)}. The pay link charges this amount only. Later months bill the card on file and email a receipt.</p>` : `<p class="tiny">The pay link charges this amount once. It does not start a monthly plan.</p>`}
+        ${inv.clientNote ? `<p class="tiny"><strong>Note.</strong> ${esc(inv.clientNote)}</p>` : ""}
+      </div>`;
+  }
   function openInvoice(id) {
     const inv = (state.data.invoices || []).find((i) => i.id === id);
     if (!inv) return;
@@ -9986,12 +10126,28 @@
       intro: inv.letterIntro || invoiceLetterCopyDefaults(c, inv.id).intro,
       outro: inv.letterOutro || invoiceLetterCopyDefaults(c, inv.id).outro,
     };
+    const choiceBlock = inv.awaitingChoice && Array.isArray(inv.options) && inv.options.length ? `
+        <div class="notice">Sent. The client has not chosen a payment yet${inv.discountNote ? ` · ${esc(inv.discountNote)} −${money(inv.discount)}` : ""}.</div>
+        <div class="inv-opt-list">
+          ${inv.options.map((o) => `<div class="inv-opt"><strong>${esc(o.label)}</strong><span class="tiny">List ${money(o.list)}</span><span>${o.monthly != null ? money(o.monthly) + "/mo · term " + money(o.net) : money(o.net)}</span></div>`).join("")}
+        </div>
+        <div class="field" style="margin-top:10px">
+          <label>Client chose</label>
+          <select id="client-choice">
+            ${inv.options.map((o) => `<option value="${esc(o.programId)}">${esc(o.label)} — ${o.monthly != null ? money(o.monthly) + "/mo" : money(o.net)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="actions"><button class="btn btn-primary" data-act="record-client-choice" data-id="${esc(inv.id)}">Record the client’s choice</button></div>
+      ` : "";
     state.modal = {
-      wide: true,
+      wide: !inv.line,
+      invoiceLine: !!inv.line,
       html: `
         <h3>${esc(inv.id)}</h3>
-        <p class="tiny">${esc(invKindLabel(inv.kind))} · ${statusBadge(st)} · sent ${esc(fmtUsDate(inv.sent))}${inv.paidOn ? ` · paid ${esc(fmtUsDate(inv.paidOn))}` : ""}${draft ? " · Edit the message. Amount stays on the invoice below." : ""}</p>
-        <div class="invoice-sheet quote-letter">
+        <p class="tiny">${esc(invKindLabel(inv.kind))} · ${statusBadge(st)}${inv.internalOnly ? " · office only · not emailed" : ` · sent ${esc(fmtUsDate(inv.sent))}`}${inv.paidOn ? ` · paid ${esc(fmtUsDate(inv.paidOn))}` : ""}${inv.awaitingChoice ? " · waiting for the client to choose a payment" : ""}${draft ? " · Edit the message. Amount stays on the invoice below." : ""}</p>
+        ${choiceBlock}
+        ${inv.line ? simpleInvoiceHtml(inv) : ""}
+        ${inv.awaitingChoice || inv.line || inv.internalOnly ? "" : `<div class="invoice-sheet quote-letter">
           ${invoiceLetterEditorHtml("inv-letter", letterCopy, { readOnly: !draft })}
           <div class="quote-letter-locked">
             <div class="quote-locked-tag">Invoice amount — locked in this letter</div>
@@ -10000,13 +10156,14 @@
             <p>${esc(prog?.name || "Program")} · ${money(inv.amount)}${inv.discount ? ` · discount ${money(inv.discount)}${inv.discountNote ? " (" + esc(inv.discountNote) + ")" : ""}` : ""}</p>
             ${renewal ? `<p class="tiny"><strong>Renewal invoice</strong> · ${esc(renewalLabelForInvoice(inv))}. This property already has service; payment funds the next term and opens a trapper bonus.</p>` : `<p class="tiny">This invoice is only for this property. Other properties on the same Bill-To have their own invoices.</p>`}
           </div>
-        </div>
+        </div>`}
         <dl class="kv bonus-kv">
           <dt>Customer</dt><dd>${custBtn(inv.customerId, c?.billTo || c?.name || "—")}</dd>
           <dt>Location</dt><dd>${loc
             ? `<button class="btn btn-ghost linkish" data-act="open-location" data-id="${esc(inv.customerId)}" data-loc="${esc(inv.locationId)}">${esc(loc.name)}</button><div class="tiny">${esc(loc.address || "")}</div>`
             : "—"}</dd>
-          <dt>Invoice type</dt><dd>${esc(invKindLabel(inv.kind))}${renewal ? " · trapper bonus eligible" : ""}</dd>
+          <dt>Invoice type</dt><dd>${esc(invKindLabel(inv.kind))}${renewal ? " · trapper bonus eligible" : ""}${inv.internalOnly ? " · office only" : ""}</dd>
+          ${inv.internalOnly ? `<dt>Client</dt><dd>This invoice is already paid. The client received the receipt, not this invoice.</dd>` : ""}
           <dt>Amount</dt><dd>${inv.status === "draft" && can("invoice.create")
             ? `<input id="inv-send-amt" type="number" min="0" step="0.01" value="${esc(inv.amount)}" style="max-width:140px">`
             : `${money2(inv.amount)} · paid ${money2(allocated(inv.id))} · balance ${money2(invoiceBalance(inv))}`}</dd>
@@ -10030,10 +10187,44 @@
           <button class="btn btn-ghost" data-act="close-modal">Close</button>
           ${inv.status === "draft" ? `<button class="btn btn-primary" data-act="confirm-invoice" data-id="${esc(inv.id)}">Send invoice</button>` : ""}
           ${bonus ? `<button class="btn btn-primary" data-act="open-bonus" data-id="${esc(bonus.id)}">Open trapper bonus</button>` : ""}
-          ${st !== "PAID" && inv.status !== "draft" && can("payment.post") ? btn("payment.post", "Post invoice", "open-record-pay", `data-id="${inv.id}"`) : ""}
+          ${st !== "PAID" && inv.status !== "draft" && inv.status !== "void" && can("payment.post") ? btn("payment.post", "Post invoice", "open-record-pay", `data-id="${inv.id}"`) : ""}
+          ${st !== "PAID" && inv.status !== "void" && (can("invoice.create") || state.role === "owner") ? `<button class="btn btn-ghost" data-act="void-invoice" data-id="${esc(inv.id)}">Void</button>` : ""}
         </div>
       `,
     };
+    render();
+  }
+
+  function voidInvoice(id) {
+    const inv = (state.data.invoices || []).find((i) => i.id === id);
+    if (!inv || inv.status === "void") return;
+    if (inv.status === "paid" || invoiceFinStatus(inv) === "PAID") {
+      toast("A paid invoice stays on the account.");
+      return;
+    }
+    inv.status = "void";
+    const c = custBy(inv.customerId);
+    const loc = inv.locationId ? locBy(inv.customerId, inv.locationId) : null;
+    const live = loc
+      ? locInvoices(c.id, loc.id).some((i) => i.id !== inv.id && ["draft", "sent", "failed", "paid"].includes(i.status))
+      : true;
+    if (loc && c && !live && !loc.paid) {
+      loc.programId = "";
+      loc.autoPay = false;
+      loc.commitment = null;
+      loc.contractId = null;
+      loc.amount = 0;
+      if (loc.lifecycle !== "active") loc.lifecycle = "inquiry";
+      if (!(c.locations || []).some((l) => l.autoPay)) c.autoPay = false;
+      syncCustomerLifecycle(c);
+    }
+    state.data.comms.push({
+      id: nid("CM"), customerId: inv.customerId, who: role().name, channel: "Office", date: TODAY,
+      text: `Voided ${inv.id}. Send a new invoice if the amount was wrong.`,
+    });
+    persist();
+    state.modal = null;
+    toast(`${inv.id} voided. Send a new invoice for the correct amount.`);
     render();
   }
 
@@ -11064,7 +11255,7 @@
     const done = s.status === "complete";
     const missed = s.status === "missed" || s.status === "noshow";
     const traps = s.customerId && s.locationId ? trapsForLocation(s.customerId, s.locationId) : [];
-    const notes = [c?.opsNote, loc?.instructions].filter(Boolean);
+    const notes = [c?.opsNote, loc?.instructions, loc?.fieldNote].filter(Boolean);
     const elapsed = started && s.startedAt ? Date.now() - Number(s.startedAt) : 0;
     const gps = stopGps(s);
     const mapsHref = googleMapsDirUrl(gps);
@@ -11152,7 +11343,12 @@
           <div class="field"><label>How you are paying</label>
             <select id="pay-method">${pay().optionsHtml("Portal", { publicPage: true })}</select>
           </div>
-          ${inv ? `<div class="preview"><strong>${esc(c?.name)}</strong><div>${esc(inv.id)} · ${money(inv.amount)} · ${esc(inv.status)}</div></div>` : state.payInvoice ? `<div class="notice locked">No invoice with that number.</div>` : ""}
+          ${inv ? `<div class="preview"><strong>${esc(c?.name)}</strong><div>${esc(inv.id)} · ${money2(inv.amount)} · ${esc(inv.status)}</div>
+            <p class="tiny" style="margin-top:8px">${inv.line?.monthly
+              ? `This payment is month 1 of ${esc(inv.line.months)} only (${money2(inv.amount)}). It will not charge the rest of the term.`
+              : `This payment is ${money2(inv.amount)}, the full amount on this invoice. It will not switch you to a monthly plan.`}</p>
+            <label class="tiny" style="display:flex;gap:8px;align-items:flex-start;margin-top:8px"><input id="pay-save-card" type="checkbox"> Save this card for later. This does not change the amount.</label>
+          </div>` : state.payInvoice ? `<div class="notice locked">No invoice with that number.</div>` : ""}
           <div class="actions" style="margin-top:12px">
             <button class="btn btn-ghost" data-act="lookup-pay">Look up</button>
             <button class="btn btn-primary" data-act="pay-now" ${inv && inv.status !== "paid" ? "" : "disabled"}>Pay ${inv ? money(inv.amount) : ""}</button>
@@ -11183,7 +11379,7 @@
   }
   function renderModal() {
     if (!state.modal) return "";
-    return `<div class="overlay"><div class="modal ${state.modal.wide ? "wide" : ""} ${state.modal.quoteXl ? "quote-xl" : ""} ${state.modal.applyPay ? "apply-pay" : ""} ${state.modal.postPay ? "post-pay" : ""} ${state.modal.sched ? "sched-day" : ""} ${state.modal.setup ? "setup" : ""} ${state.modal.previewMap ? "map-preview" : ""}">${state.modal.html}</div></div>`;
+    return `<div class="overlay"><div class="modal ${state.modal.wide ? "wide" : ""} ${state.modal.quoteXl ? "quote-xl" : ""} ${state.modal.invoiceLine ? "invoice-line" : ""} ${state.modal.applyPay ? "apply-pay" : ""} ${state.modal.postPay ? "post-pay" : ""} ${state.modal.sched ? "sched-day" : ""} ${state.modal.setup ? "setup" : ""} ${state.modal.previewMap ? "map-preview" : ""}">${state.modal.html}</div></div>`;
   }
   function searchHits(q) {
     const needle = String(q || "").trim().toLowerCase();
@@ -11380,6 +11576,14 @@
         changeQuotePkg();
         return;
       }
+      if (e.target.dataset.act === "invoice-discount-pick") {
+        refreshInvoiceOptionNets();
+        return;
+      }
+      if (e.target.dataset.act === "invoice-line-sync") {
+        refreshInvoiceLine(e.target.id === "io-service");
+        return;
+      }
       if (e.target.dataset.edit) {
         applyInlineEdit(e.target);
         if (e.target.tagName === "SELECT" || e.target.type === "checkbox") render();
@@ -11493,6 +11697,10 @@
       }
       if (e.target.closest("[data-act=invoice-price-sync]")) {
         syncInvoiceAmountPreview(e.target.closest("[data-act=invoice-price-sync]"));
+        return;
+      }
+      if (e.target.id === "io-qty" || e.target.id === "io-price" || e.target.id === "io-desc") {
+        refreshInvoiceLine(false);
         return;
       }
       if (e.target.dataset.listFilter) {
@@ -11935,7 +12143,11 @@
       "open-convert": () => openConvertInvoice(ds.id),
       "confirm-convert": () => convertInvoice(ds.id),
       "invoice-one-loc": () => openInvoiceOneLocation(ds.id, ds.loc),
+      "save-invoice-discount": () => saveInvoiceDiscount(ds.id, ds.loc),
+      "invoice-discount-pick": () => refreshInvoiceOptionNets(),
+      "record-client-choice": () => recordClientChoice(ds.id),
       "confirm-invoice-one": () => createAndSendLocInvoice(ds.id, ds.loc),
+      "void-invoice": () => voidInvoice(ds.id),
       "send-invoice": () => openInvoice(ds.id),
       "confirm-invoice": () => confirmInvoice(ds.id),
       "send-renewal": () => openRenewal(ds.id),
@@ -11963,7 +12175,7 @@
         const loc = ds.loc ? locBy(ds.id, ds.loc) : c.locations?.[0];
         state.data.comms.unshift({
           id: nid("CM"), customerId: c.id, who: role()?.name || "Christy Brown", channel: "Phone", date: TODAY,
-          text: `Called about AutoPay decline${loc ? ` at ${loc.name}` : ""}. Asked them to pay by check / Zelle / portal. Monthly AutoPay has no invoice — retry the card or take a replacement payment.`,
+          text: `Called about AutoPay decline${loc ? ` at ${loc.name}` : ""}. Asked them to pay by check / Zelle / portal. That month has no paid invoice and no receipt — retry the card or take a replacement payment.`,
         });
         pushNotify({
           type: "AUTOPAY_CONTACT",
@@ -12301,9 +12513,10 @@
       id: nid("P"), invoiceId: inv.id, customerId: inv.customerId, locationId: inv.locationId || null, amount: inv.amount,
       method, date: TODAY, source: "ONLINE", linkPay: true, invoiceMarked: false, posted: true, status: "POSTED",
       last4: String(Math.floor(1000 + Math.random() * 9000)),
-      memo: `Invoice link · ${c?.name || "client"} · on register — allocate to activate`,
+      memo: `Invoice link · ${c?.name || "client"} · ${money2(inv.amount)} only${document.getElementById("pay-save-card")?.checked ? " · card saved for later" : ""} — allocate to activate`,
     });
-    toast("Payment is on the register. Christy allocates to the invoice to activate service.");
+    if (c && document.getElementById("pay-save-card")?.checked) c.cardOnFile = true;
+    toast(`Payment of ${money2(inv.amount)} is on the register. The link charged this invoice only.`);
     state.payView = false;
     render();
   }
@@ -13190,14 +13403,14 @@
       discountLine = `<div class="tiny">Quoted ${money(amount)}${unit} (list ${money(list)})</div>`;
     }
     const billing = commitment.billingFrequency === "monthly"
-      ? `Monthly AutoPay: ${money(amount)} × ${commitment.periods} (term ${money(commitment.totalValue)}). Each month the card on file is charged and a receipt is emailed. No invoice is generated.`
+      ? `Monthly AutoPay: ${money(amount)} × ${commitment.periods} (term ${money(commitment.totalValue)}). Each month the office keeps a paid invoice. The client only receives the receipt.`
       : (p.prepaid != null
         ? `Upfront commitment: ${money(amount)} now${Math.abs(amount - list) > 0.009 ? "" : ` (list ${money(p.list)}${p.freeMonths ? `, ${p.freeMonths} promotional months` : ""})`}. One billing period for the term.`
         : `Upfront / term invoice ${money(amount)}.`);
     return `
       <div class="preview">
         <strong>${esc(p.name)}</strong>
-        <div>Billing: ${commitment.billingFrequency === "monthly" ? "Monthly · charge card + email receipt (no invoice)" : "Upfront"} · Amount: ${money(amount)}${commitment.autoPay ? " · AutoPay" : ""}</div>
+        <div>Billing: ${commitment.billingFrequency === "monthly" ? "Monthly · paid invoice stays in the office, receipt emailed" : "Upfront"} · Amount: ${money(amount)}${commitment.autoPay ? " · AutoPay" : ""}</div>
         <div>Visit pattern: ${esc(p.freq)}</div>
         <div>Start ${fmtUsDate(TODAY)} → expires ${fmtUsDate(expires)} <span class="tiny">(calculated from the program)</span></div>
         ${discountLine}
@@ -13206,6 +13419,143 @@
     `;
   }
 
+  function invoiceChoicePrograms(c, loc) {
+    const pkgId = locPackageId(c, loc);
+    const list = pkgId ? programsForPackage(pkgId) : programsForLocation(c, loc);
+    return list.filter((p) => p && !p.aliasOf);
+  }
+  function optionMoney(p, discountAmt) {
+    const monthly = programIsMonthly(p);
+    const gross = monthly ? Number(p.list || 0) : programBillAmount(p);
+    const off = Math.min(Math.max(0, gross), Math.max(0, Number(discountAmt) || 0));
+    const net = quoteLineQuoted(gross, off);
+    const months = Math.max(1, Math.round(Number(p.months) || 1));
+    return {
+      gross,
+      off,
+      net,
+      months,
+      monthly: monthly ? Math.round((net / months) * 100) / 100 : null,
+    };
+  }
+  function invoiceOptionRows(programs, discountAmt) {
+    return programs.map((p) => {
+      const fig = optionMoney(p, discountAmt);
+      const pay = fig.monthly != null ? `${money(fig.monthly)}/mo · term ${money(fig.net)}` : money(fig.net);
+      return `
+        <div class="inv-opt" data-opt-gross="${fig.gross}" data-opt-months="${fig.months}" data-opt-monthly="${fig.monthly != null ? "1" : "0"}">
+          <strong>${esc(termCheckTitle({ key: programTermKey(p), months: p.months }))}</strong>
+          <span class="tiny">List ${money(fig.gross)}</span>
+          <span data-opt-net>${pay}</span>
+        </div>`;
+    }).join("");
+  }
+  function invoiceServiceCode(p) {
+    const key = programTermKey(p);
+    const map = {
+      "1mo": "1 - 1 MON",
+      "3mo": "3 - 3 MON",
+      "6mo": "6 - 6 MON",
+      "6pre": "6 - 6 PRE",
+      "12mo": "12 - 12 MON",
+      "12pre": "12 - 12 PRE",
+      "2wk": "2 - 2 WK",
+    };
+    return map[key] || key || p.shortName || "Service";
+  }
+  function invoiceServiceDesc(p) {
+    if (!p) return "";
+    const pkg = packageById(p.pkgId);
+    const term = termCheckTitle({ key: programTermKey(p), months: p.months });
+    return `Monitoring — ${term}${pkg ? " — " + pkg.short : ""}`;
+  }
+  function invoiceTermPrice(p) {
+    if (!p) return 0;
+    if (programIsMonthly(p)) return Number(p.list) || 0;
+    return programBillAmount(p);
+  }
+  function figureInvoiceCharge(p, qty, price, disc, taxOn) {
+    const monthly = !!(p && programIsMonthly(p));
+    const months = monthly ? Math.max(1, Math.round(Number(p.months) || 1)) : 1;
+    const gross = Math.round(Math.max(0, Number(qty) || 0) * Math.max(0, Number(price) || 0) * 100) / 100;
+    const off = disc ? Math.min(gross, Math.max(0, Number(disc.amount) || 0)) : 0;
+    const termNet = Math.round((gross - off) * 100) / 100;
+    const dueBase = monthly ? Math.round((termNet / months) * 100) / 100 : termNet;
+    const tax = taxOn ? Math.round(dueBase * 0.07 * 100) / 100 : 0;
+    return {
+      monthly,
+      months,
+      qty: Number(qty) || 0,
+      price: Number(price) || 0,
+      gross,
+      off,
+      termNet,
+      dueBase,
+      tax,
+      taxOn: !!taxOn,
+      due: Math.round((dueBase + tax) * 100) / 100,
+      disc,
+    };
+  }
+  function invoiceChargeNote(fig) {
+    if (!fig) return "";
+    if (fig.monthly) {
+      return `Discount comes off the full term, then that net is split into ${fig.months} months. This link charges month 1 only (${money2(fig.due)}). Saving a card does not change this charge. Later months bill ${money2(fig.dueBase)} to the card on file and email a receipt.`;
+    }
+    return `This link charges ${money2(fig.due)} once. It does not start a monthly plan. Saving a card only stores it.`;
+  }
+  function invoiceLineFigures() {
+    return figureInvoiceCharge(
+      progBy(val("io-service")),
+      val("io-qty"),
+      val("io-price"),
+      discountById(val("io-discount")),
+      !!document.getElementById("io-tax")?.checked
+    );
+  }
+  function discountPopInner(d) {
+    if (!d) return "";
+    return `<strong>${esc(d.name)}</strong><div>${money2(d.amount)} off</div><div class="tiny">${esc(d.note || d.name)}</div>`;
+  }
+  function refreshInvoiceLine(fromService) {
+    if (fromService) {
+      const p = progBy(val("io-service"));
+      const desc = document.getElementById("io-desc");
+      const price = document.getElementById("io-price");
+      if (p && desc) desc.value = invoiceServiceDesc(p);
+      if (p && price) price.value = String(invoiceTermPrice(p));
+    }
+    const fig = invoiceLineFigures();
+    const taxEl = document.getElementById("io-tax-amt");
+    const totEl = document.getElementById("io-total");
+    const termEl = document.getElementById("io-term-net");
+    const termRow = document.getElementById("io-term-row");
+    const noteEl = document.getElementById("io-charge-note");
+    if (taxEl) taxEl.textContent = money2(fig.tax);
+    if (totEl) totEl.textContent = money2(fig.due);
+    if (termEl) termEl.textContent = money2(fig.termNet);
+    if (termRow) termRow.hidden = !fig.monthly;
+    if (noteEl) noteEl.textContent = invoiceChargeNote(fig);
+    const wrap = document.getElementById("io-disc-wrap");
+    const pop = document.getElementById("io-disc-pop");
+    if (wrap) wrap.classList.toggle("is-on", !!fig.disc);
+    if (pop) pop.innerHTML = discountPopInner(fig.disc);
+    state.invoiceDiscountId = fig.disc?.id || "";
+  }
+  function captureInvoiceLineDraft() {
+    const svc = document.getElementById("io-service");
+    if (!svc) return;
+    state.invoiceLineDraft = {
+      programId: svc.value,
+      desc: val("io-desc"),
+      qty: val("io-qty"),
+      price: val("io-price"),
+      discountId: val("io-discount"),
+      tax: !!document.getElementById("io-tax")?.checked,
+      clientNote: val("io-client-note"),
+      fieldNote: val("io-field-note"),
+    };
+  }
   function openInvoiceOneLocation(customerId, locationId) {
     if (!can("invoice.create") && state.role !== "owner") {
       toast("Only Administration creates and sends invoices.");
@@ -13221,48 +13571,149 @@
       toast("That location already has an invoice or is paid.");
       return;
     }
-    const plan = locPlan(c, loc);
-    const selectedProg = plan.programId && programsForLocation(c, loc).some((p) => p.id === plan.programId)
-      ? plan.programId
-      : (plan.programId || defaultProgramIdForLoc(c, loc));
-    const options = programsForLocation(c, loc).concat(
-      plan.programId && !programsForLocation(c, loc).some((p) => p.id === plan.programId) ? [progBy(plan.programId)].filter(Boolean) : []
-    ).map((p) =>
-      `<option value="${p.id}" ${p.id === selectedProg ? "selected" : ""}>${esc(programOptionLabel(p))}</option>`
-    ).join("");
-    const defaults = invoicePriceDefaults(c.id, loc.id, selectedProg);
-    const editorIds = {
-      price: "io-price", disc: "io-disc", net: "io-net", note: "io-note",
-      preview: "io-preview", program: "io-program", customerId: c.id, locationId: loc.id,
-    };
-    const letterCopy = invoiceLetterCopyDefaults(c);
+    ensureSeedDiscounts();
+    const programs = invoiceChoicePrograms(c, loc);
+    if (!programs.length) {
+      toast("This property has no service to put on an invoice.");
+      return;
+    }
+    const draft = state.invoiceLineDraft || {};
+    state.invoiceLineDraft = null;
+    const selectedId = draft.programId && programs.some((p) => p.id === draft.programId)
+      ? draft.programId
+      : (programs.find((p) => programTermKey(p) === "3mo") || programs[0]).id;
+    const selected = progBy(selectedId);
+    const desc = draft.desc != null && draft.desc !== "" ? draft.desc : invoiceServiceDesc(selected);
+    const price = draft.price != null && draft.price !== "" ? draft.price : invoiceTermPrice(selected);
+    const qty = draft.qty != null && draft.qty !== "" ? draft.qty : "1";
+    const discId = draft.discountId || "";
+    const disc = discountById(discId);
+    const taxOn = !!draft.tax;
+    const fig0 = figureInvoiceCharge(selected, qty, price, disc, taxOn);
+    const clientNote = draft.clientNote != null ? draft.clientNote : "";
+    const fieldNote = draft.fieldNote != null ? draft.fieldNote : (loc.fieldNote || "");
+    const pkg = packageById(locPackageId(c, loc));
     state.modal = {
-      wide: true,
+      invoiceLine: true,
       html: `
         <h3>Send invoice</h3>
-        <p class="tiny">Accepts the proposal for <strong>${esc(loc.name)}</strong> (${esc(locKindLabel(locKind(c, loc)))}${packageById(locPackageId(c, loc)) ? ` · ${esc(packageById(locPackageId(c, loc)).label)}` : ""}). Edit the message. Change program or amount here if needed. Monthly AutoPay emails a receipt instead of an invoice.</p>
-        <div class="field" style="margin-top:12px">
-          <label>Program</label>
-          <select id="io-program" data-act="preview-io-program" data-id="${c.id}" data-loc="${loc.id}">${options}</select>
-        </div>
-        ${invoiceAmountEditorHtml(editorIds, defaults)}
-        <div class="field chk-field"><label class="chk"><input type="checkbox" id="io-autopay" ${programIsMonthly(selectedProg) ? "checked" : ""}> Monthly AutoPay — required on 6- and 12-month monthly. Charge the card on file each month and email a receipt (no invoice)</label></div>
-        <div class="invoice-sheet quote-letter">
-          ${invoiceLetterEditorHtml("io-letter", letterCopy)}
-          <div class="quote-letter-locked">
-            <div class="quote-locked-tag">Invoice details</div>
-            <h3>${esc(loc.name)}</h3>
-            <p class="tiny">${esc(loc.address)}</p>
-            <div id="io-preview">${convertPreviewInner(selectedProg, c.id, loc.id, defaults.quoted, defaults)}</div>
+        <p class="tiny"><strong>${esc(loc.name)}</strong> · ${esc(pkg?.label || locKindLabel(locKind(c, loc)))}. Price is the full term. The discount comes off that, then a monthly plan is split into equal months.</p>
+        <div class="inv-line inv-line-head"><span>Service</span><span>Description</span><span>Qty</span><span>Price</span><span>Discount</span><span>Tax</span></div>
+        <div class="inv-line">
+          <select id="io-service" data-act="invoice-line-sync" aria-label="Service">
+            ${programs.map((p) => `<option value="${esc(p.id)}" ${p.id === selectedId ? "selected" : ""}>${esc(invoiceServiceCode(p))}</option>`).join("")}
+          </select>
+          <input id="io-desc" data-act="invoice-line-sync" aria-label="Description" value="${esc(desc)}">
+          <input id="io-qty" data-act="invoice-line-sync" type="number" min="0" step="1" aria-label="Quantity" value="${esc(qty)}">
+          <input id="io-price" data-act="invoice-line-sync" type="number" min="0" step="0.01" aria-label="Price" value="${esc(price)}">
+          <div class="inv-disc${disc ? " is-on" : ""}" id="io-disc-wrap">
+            <select id="io-discount" data-act="invoice-line-sync" aria-label="Discount">
+              <option value="">None</option>
+              ${discountCatalog().map((d) => `<option value="${esc(d.id)}" ${d.id === discId ? "selected" : ""}>${esc(d.name)} — ${money(d.amount)}</option>`).join("")}
+            </select>
+            <span class="inv-disc-pop" id="io-disc-pop">${discountPopInner(disc)}</span>
           </div>
+          <label class="inv-line-tax"><input id="io-tax" data-act="invoice-line-sync" type="checkbox" aria-label="Tax" ${taxOn ? "checked" : ""}></label>
+        </div>
+        <div class="inv-new-disc">
+          <input id="io-new-disc-name" placeholder="New discount name" aria-label="New discount name">
+          <input id="io-new-disc-amt" type="number" min="0" step="0.01" placeholder="Amount off" aria-label="Discount amount">
+          <input id="io-new-disc-note" placeholder="Description" aria-label="Discount description">
+          <button type="button" class="btn btn-ghost" data-act="save-invoice-discount" data-id="${esc(c.id)}" data-loc="${esc(loc.id)}">Save discount</button>
+        </div>
+        <div class="inv-totals">
+          <div id="io-term-row" ${fig0.monthly ? "" : "hidden"}><span>Term after discount</span><strong id="io-term-net">${money2(fig0.termNet)}</strong></div>
+          <div><span>Tax</span><strong id="io-tax-amt">${money2(fig0.tax)}</strong></div>
+          <div class="inv-total-due"><span>This invoice</span><strong id="io-total">${money2(fig0.due)}</strong></div>
+        </div>
+        <p class="tiny" id="io-charge-note">${esc(invoiceChargeNote(fig0))}</p>
+        <div class="field" style="margin-top:12px">
+          <label>Note the client sees</label>
+          <textarea id="io-client-note" rows="2" placeholder="Shown on the invoice and in the email.">${esc(clientNote)}</textarea>
+        </div>
+        <div class="field">
+          <label>Field note — crew only</label>
+          <textarea id="io-field-note" rows="2" placeholder="Gate, dog, PIN. Never on the invoice or the email.">${esc(fieldNote)}</textarea>
         </div>
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="close-modal">Cancel</button>
-          <button class="btn btn-primary" data-act="confirm-invoice-one" data-id="${c.id}" data-loc="${loc.id}">${programIsMonthly(selectedProg) ? "Charge card &amp; email receipt" : "Send invoice"}</button>
+          <button class="btn btn-primary" data-act="confirm-invoice-one" data-id="${c.id}" data-loc="${loc.id}">Send invoice</button>
         </div>
       `,
     };
     render();
+  }
+  function saveInvoiceDiscount(customerId, locationId) {
+    const name = (val("io-new-disc-name") || "").trim();
+    const amount = Number(val("io-new-disc-amt"));
+    const note = (val("io-new-disc-note") || "").trim();
+    if (!name) {
+      toast("Name the discount first.");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast("Enter how many dollars come off.");
+      return;
+    }
+    captureInvoiceLineDraft();
+    const row = { id: nid("DISC"), name, amount, note };
+    discountCatalog().push(row);
+    state.invoiceDiscountId = row.id;
+    if (state.invoiceLineDraft) state.invoiceLineDraft.discountId = row.id;
+    persist();
+    toast(`${name} saved. It is selected on this line.`);
+    openInvoiceOneLocation(customerId, locationId);
+  }
+  function recordClientChoice(invoiceId) {
+    const inv = (state.data.invoices || []).find((i) => i.id === invoiceId);
+    if (!inv || !inv.awaitingChoice) return;
+    const programId = val("client-choice");
+    const opt = (inv.options || []).find((o) => o.programId === programId) || inv.options?.[0];
+    if (!opt) {
+      toast("Pick the payment the client chose.");
+      return;
+    }
+    const c = custBy(inv.customerId);
+    const loc = locBy(inv.customerId, inv.locationId);
+    const due = opt.monthly != null ? opt.monthly : opt.net;
+    inv.awaitingChoice = false;
+    inv.programId = opt.programId;
+    inv.amount = due;
+    inv.choiceLabel = opt.label;
+    if (loc && c) {
+      commitLocationPlan(loc, opt.programId, TODAY, inv.id, c.id, due);
+      if (opt.monthly != null) {
+        const bp = planForContract(loc.contractId);
+        if (bp) bp.autopay = true;
+        loc.autoPay = true;
+        c.autoPay = true;
+        inv.kind = "autopay";
+      }
+      syncCustomerFromLocations(c);
+      syncCustomerLifecycle(c);
+    }
+    state.data.comms.push({
+      id: nid("CM"), customerId: inv.customerId, who: role().name, channel: "Email", date: TODAY,
+      text: `Client chose ${opt.label} on ${inv.id}${opt.monthly != null ? " · " + money(opt.monthly) + "/mo" : " · " + money(opt.net)}.`,
+    });
+    toast(`Client chose ${opt.label}. Due now ${money(due)}.`);
+    openInvoice(inv.id);
+  }
+  function refreshInvoiceOptionNets() {
+    const disc = discountById(val("io-discount"));
+    state.invoiceDiscountId = disc?.id || "";
+    const off = disc ? Number(disc.amount) || 0 : 0;
+    document.querySelectorAll("#io-options [data-opt-gross]").forEach((row) => {
+      const gross = Number(row.dataset.optGross) || 0;
+      const months = Math.max(1, Number(row.dataset.optMonths) || 1);
+      const monthly = row.dataset.optMonthly === "1";
+      const net = Math.max(0, Math.round((gross - off) * 100) / 100);
+      const cell = row.querySelector("[data-opt-net]");
+      if (!cell) return;
+      cell.textContent = monthly
+        ? `${money(Math.round((net / months) * 100) / 100)}/mo · term ${money(net)}`
+        : money(net);
+    });
   }
 
   function createAndSendLocInvoice(customerId, locationId) {
@@ -13284,6 +13735,96 @@
     if (existing?.status === "sent" || existing?.status === "failed") {
       state.modal = null;
       openInvoice(existing.id);
+      return;
+    }
+    if (document.getElementById("io-service")) {
+      const pid = val("io-service");
+      const p = progBy(pid);
+      if (!p) {
+        toast("Select a service.");
+        return;
+      }
+      const fig = invoiceLineFigures();
+      if (!(fig.qty > 0)) {
+        toast("Enter a quantity.");
+        return;
+      }
+      const desc = (val("io-desc") || "").trim() || invoiceServiceDesc(p);
+      const monthly = programIsMonthly(p);
+      const inv = existing || {
+        id: nid("INV"), customerId: c.id, locationId: loc.id, amount: 0,
+        status: "draft", sent: null, paidOn: null, kind: "initial", periodN: 1,
+      };
+      if (!existing) state.data.invoices.push(inv);
+      inv.amount = fig.due;
+      inv.status = "sent";
+      inv.sent = TODAY;
+      inv.awaitingChoice = false;
+      inv.options = null;
+      inv.programId = pid;
+      inv.kind = monthly ? "autopay" : "initial";
+      inv.discount = fig.off;
+      inv.discountId = fig.disc?.id || "";
+      inv.discountNote = fig.disc?.note || fig.disc?.name || "";
+      inv.clientNote = (val("io-client-note") || "").trim();
+      inv.packageId = locPackageId(c, loc) || "";
+      inv.line = {
+        code: invoiceServiceCode(p),
+        programId: pid,
+        description: desc,
+        qty: fig.qty,
+        price: fig.price,
+        discount: fig.off,
+        discountId: fig.disc?.id || "",
+        discountName: fig.disc?.name || "",
+        discountNote: fig.disc?.note || "",
+        tax: fig.tax,
+        monthly,
+        months: fig.months,
+        termNet: fig.termNet,
+      };
+      const fieldNote = (val("io-field-note") || "").trim();
+      if (fieldNote) loc.fieldNote = fieldNote;
+      commitLocationPlan(loc, pid, TODAY, inv.id, c.id, fig.due);
+      if (monthly) {
+        const bp = planForContract(loc.contractId);
+        if (bp) bp.autopay = true;
+        loc.autoPay = true;
+        c.autoPay = true;
+      }
+      syncCustomerFromLocations(c);
+      syncCustomerLifecycle(c);
+      const discLine = fig.disc ? `Discount: ${fig.disc.name} — ${money2(fig.off)} off the term. ${fig.disc.note || ""}`.trim() : "No discount.";
+      const body = [
+        `Hello ${c.billTo || c.name},`,
+        `Invoice ${inv.id} for ${loc.name}.`,
+        `${inv.line.code} — ${desc}`,
+        `Term price ${money2(fig.gross)}`,
+        discLine,
+        fig.monthly ? `Term after discount ${money2(fig.termNet)}, split into ${fig.months} months.` : "",
+        `Tax ${money2(fig.tax)}`,
+        `This invoice charges ${money2(fig.due)}.`,
+        invoiceChargeNote(fig),
+        inv.clientNote ? `Note: ${inv.clientNote}` : "",
+      ].filter(Boolean).join("\n\n");
+      pushOfficeEmail({
+        customerId: c.id,
+        locationId: loc.id,
+        subject: `Invoice ${inv.id}`,
+        body,
+        templateKey: "invoice",
+        invoiceId: inv.id,
+      });
+      state.data.comms.push({
+        id: nid("CM"), customerId: c.id, who: role().name, channel: "Email", date: TODAY,
+        text: `Invoice ${inv.id} sent for ${loc.name} · ${inv.line.code} · ${money2(fig.total)}${fig.disc ? " · " + fig.disc.name : ""}.`,
+      });
+      state.modal = null;
+      state.page = "location";
+      state.selectedCustomer = c.id;
+      state.selectedLocation = loc.id;
+      toast(`Invoice ${inv.id} sent · ${money2(fig.due)}.`);
+      render();
       return;
     }
     const pid = val("io-program") || locPlan(c, loc).programId || defaultProgramIdForLoc(c, loc);
@@ -13488,7 +14029,7 @@
       return;
     }
     if (!n && monthlyCharges) {
-      toast(`${monthlyCharges} monthly AutoPay charge${monthlyCharges === 1 ? "" : "s"} · receipt emailed · no invoice.`);
+      toast(`${monthlyCharges} monthly AutoPay charge${monthlyCharges === 1 ? "" : "s"}. Paid invoice kept in the office. Receipt emailed.`);
       state.page = "customer";
       state.selectedCustomer = c.id;
       render();
@@ -13600,7 +14141,7 @@
       wide: true,
       html: `
         <h3>Send renewals</h3>
-        <p>${picked.length} selected. Review the list, then send. AutoPay is <strong>not</strong> charged.</p>
+        <p>${picked.length} selected. Each renewal invoice is emailed to that client. AutoPay is <strong>not</strong> charged on send.</p>
         <div class="preview" style="max-height:min(50vh,420px);overflow:auto">${list}</div>
         <div class="actions" style="margin-top:14px">
           <button class="btn btn-ghost" data-act="close-modal">Back</button>
@@ -13646,7 +14187,7 @@
     state.modal = {
       html: `
         <h3>Review renewal · ${esc(row.locName)}</h3>
-        <p>Choose the renewal program (can differ from the current plan), edit terms, then send. AutoPay is <strong>not</strong> charged on send.</p>
+        <p>Choose the renewal program, then send. The invoice is emailed to ${esc(custBy(row.customerId)?.email || "the client")} and shows on the account Email tab. AutoPay is <strong>not</strong> charged on send.</p>
         <div class="preview">
           <strong>${esc(row.name)}</strong> · ${esc(row.locName)} · expires ${esc(fmtUsDate(row.expires))}
           <div class="tiny">Current program: ${esc(currentName)} · ${esc(m.flag)}</div>
@@ -13765,6 +14306,7 @@
         pushOfficeEmail({
           customerId: c.id,
           locationId: row.locationId,
+          toEmail: c.email || "",
           subject: "Your iguana removal program is in the renewal window",
           body: fillMailTemplate("renewal", c) + (proposed ? "\n\n" + proposed : ""),
           templateKey: "renewal",
@@ -13793,17 +14335,17 @@
       id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY,
       text: `Renewal ${inv.id} emailed for ${row.locName}: ${proposed} (${planLabel}). No AutoPay charge on send.`,
     });
-    if (c) {
-      pushOfficeEmail({
-        customerId: c.id,
-        locationId: row.locationId,
-        subject: "Your iguana removal program is in the renewal window",
-        body: fillMailTemplate("renewal", c, { invoice: inv.id }) + (proposed ? "\n\n" + proposed : ""),
-        templateKey: "renewal",
-      });
-    }
+    const mail = c ? emailInvoiceToClient(c, l, inv, proposed) : null;
     state.modal = null;
-    toast(`Renewal ${inv.id} sent · ${planLabel} · ${row.name} · ${row.locName}.`);
+    if (c && mail) {
+      state.page = "customer";
+      state.selectedCustomer = c.id;
+      state.customerTab = "email";
+      state.mailCompose = false;
+      state.mailReplyThread = null;
+      state.mailThreadId = mail.threadId;
+    }
+    toast(`Renewal ${inv.id} emailed to ${c?.email || row.name}.`);
     render();
   }
 
@@ -13877,15 +14419,15 @@
       r.programId = programId;
       r.amount = amount;
       const noticeOnly = (m.noticeOnly || row.autoPay) && programIsMonthly(programId);
-      if (stayAutopayNotice) {
+      if (noticeOnly) {
         state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal notice for ${row.locName}: ${r.proposedText} (${p?.name || programId}). AutoPay not charged.` });
-        if (c) pushOfficeEmail({ customerId: c.id, locationId: row.locationId, subject: "Your iguana removal program is in the renewal window", body: fillMailTemplate("renewal", c) + (r.proposedText ? "\n\n" + r.proposedText : ""), templateKey: "renewal" });
+        if (c) pushOfficeEmail({ customerId: c.id, locationId: row.locationId, toEmail: c.email || "", subject: "Your iguana removal program is in the renewal window", body: fillMailTemplate("renewal", c) + (r.proposedText ? "\n\n" + r.proposedText : ""), templateKey: "renewal" });
       } else {
         const inv = { id: nid("INV"), customerId: row.customerId, locationId: row.locationId, contractId: l?.contractId || r.contractId, amount, status: "sent", sent: TODAY, paidOn: null, kind: "renewal", description: r.proposedText, programId };
         state.data.invoices.push(inv);
         if (l && programId) commitLocationPlan(l, programId, termStart, inv.id, row.customerId);
-        state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Batch renewal ${inv.id} to ${row.name} · ${row.locName} · ${p?.name || programId}. No AutoPay charge.` });
-        if (c) pushOfficeEmail({ customerId: c.id, locationId: row.locationId, subject: "Your iguana removal program is in the renewal window", body: fillMailTemplate("renewal", c, { invoice: inv.id }) + (r.proposedText ? "\n\n" + r.proposedText : ""), templateKey: "renewal" });
+        state.data.comms.push({ id: nid("CM"), customerId: row.customerId, who: role().name, channel: "Email", date: TODAY, text: `Renewal ${inv.id} emailed to ${c?.email || row.name} · ${row.locName}.` });
+        if (c) emailInvoiceToClient(c, l, inv, r.proposedText);
       }
     });
     const n = list.length;
