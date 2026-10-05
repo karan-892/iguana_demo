@@ -575,48 +575,38 @@
   }
   function ensureSeedMonthlyReceipts() {
     const invoices = state.data.invoices || (state.data.invoices = []);
-    const legacy = new Set(invoices.filter((i) => /^INV-448[4-8]$/.test(i.id)).map((i) => i.id));
-    if (legacy.size) {
-      state.data.invoices = invoices.filter((i) => !legacy.has(i.id));
-      state.data.paymentAllocations = (state.data.paymentAllocations || []).filter((a) => !legacy.has(a.invoiceId));
+    const dropIds = new Set(
+      invoices
+        .filter((i) => i.internalOnly || /^INV-448[4-8]$/.test(i.id) || /^INV-AP-/.test(i.id))
+        .map((i) => i.id)
+    );
+    if (dropIds.size) {
+      state.data.invoices = invoices.filter((i) => !dropIds.has(i.id));
+      state.data.paymentAllocations = (state.data.paymentAllocations || []).filter((a) => !dropIds.has(a.invoiceId));
+      (state.data.payments || []).forEach((p) => {
+        if (dropIds.has(p.invoiceId)) p.invoiceId = null;
+      });
+      (state.data.billingPeriods || []).forEach((per) => {
+        if (dropIds.has(per.invoiceId)) per.invoiceId = null;
+      });
+      state.data.emails = (state.data.emails || []).filter((e) => !e.invoiceId || !dropIds.has(e.invoiceId));
     }
-    const list = state.data.invoices;
-    const months = [
-      { seq: 1, payId: "P-9176", date: "2026-04-02", invId: "INV-AP-1066-1" },
-      { seq: 2, payId: "P-9177", date: "2026-05-02", invId: "INV-AP-1066-2" },
-      { seq: 3, payId: "P-9178", date: "2026-06-02", invId: "INV-AP-1066-3" },
-      { seq: 4, payId: "P-9179", date: "2026-07-02", invId: "INV-AP-1066-4" },
-    ];
-    months.forEach((row) => {
-      if (!list.some((i) => i.id === row.invId)) {
-        list.push({
-          id: row.invId, customerId: "C-1066", locationId: "L-1066a", contractId: "CON-1066a",
-          amount: 200, status: "paid", sent: null, paidOn: row.date, date: row.date, kind: "autopay",
-          internalOnly: true, periodN: row.seq,
-        });
-      }
-      const pay = (state.data.payments || []).find((p) => p.id === row.payId);
-      if (pay) {
-        pay.invoiceId = row.invId;
-        pay.receiptEmailed = true;
-        pay.receiptId = pay.receiptId || String(pay.id || "").replace(/^P-/, "RCPT-");
-        pay.invoiceMarked = true;
-        pay.appliedAuto = true;
-        const allocs = state.data.paymentAllocations || (state.data.paymentAllocations = []);
-        if (!allocs.some((a) => a.paymentId === pay.id && a.invoiceId === row.invId)) {
-          allocs.push({ id: "ALLOC-" + row.invId, paymentId: pay.id, invoiceId: row.invId, amount: 200 });
-        }
-      }
-      const per = (state.data.billingPeriods || []).find((p) => p.contractId === "CON-1066a" && p.sequence === row.seq);
-      if (per) {
-        per.invoiceId = row.invId;
-        if (!per.paymentId) per.paymentId = row.payId;
-      }
+    const payMap = { 1: "P-9176", 2: "P-9177", 3: "P-9178", 4: "P-9179" };
+    (state.data.billingPeriods || []).forEach((per) => {
+      if (per.contractId !== "CON-1066a" || per.sequence > 4) return;
+      per.invoiceId = null;
+      if (!per.paymentId) per.paymentId = payMap[per.sequence] || null;
     });
-    const internalIds = new Set(list.filter((i) => i.internalOnly).map((i) => i.id));
-    if (internalIds.size) {
-      state.data.emails = (state.data.emails || []).filter((e) => !e.invoiceId || !internalIds.has(e.invoiceId));
-    }
+    (state.data.payments || []).forEach((p) => {
+      if (p.customerId !== "C-1066") return;
+      const src = String(p.source || "").toLowerCase();
+      if (src !== "autopay" || p.failed) return;
+      p.invoiceId = null;
+      p.receiptEmailed = true;
+      p.receiptId = p.receiptId || String(p.id || "").replace(/^P-/, "RCPT-");
+      p.invoiceMarked = true;
+      p.appliedAuto = true;
+    });
     (state.data.emails || []).forEach((e) => {
       if (!e.body) return;
       if (/does not send an invoice/i.test(e.body)) {
@@ -1132,7 +1122,7 @@
             ...seedLocPkg("corp-1"),
             ...seedLocBilling("12mo", "2026-04-01", null, "past_due", false),
           }],
-          notes: "12-month monthly AutoPay. Each month the office keeps a paid invoice. The client only gets the receipt. Months 1–4 paid. August charge declined — no receipt for that month.",
+          notes: "12-month monthly AutoPay. The first invoice starts the agreement. Each later month charges the card and emails a receipt — no further invoice. Months 1–4 paid. August charge declined — no receipt for that month.",
           opsNote: "Card declined Aug 26 — leave off route. Call them; stop service if they cannot pay.",
         },
         {
@@ -1365,7 +1355,7 @@
         { id: "P-9289", invoiceId: "INV-4689", customerId: "C-1188", locationId: "L-1188b", amount: 2000, method: "Check", last4: "9901", source: "check", date: "2026-08-27", memo: "Check #9901 · team entered · Nina Canal house — post payment", invoiceMarked: false, linkPay: false },
         { id: "P-9310", invoiceId: "INV-4710", customerId: "C-1210", locationId: "L-1210a", amount: 2000, method: "Card", last4: "1210", source: "portal", date: "2026-08-21", memo: "Portal · Jony Morales Boca — marked paid", invoiceMarked: true, linkPay: true },
         { id: "P-9311", invoiceId: "INV-4711", customerId: "C-1210", locationId: "L-1210b", amount: 1200, method: "ACH", last4: "", source: "ach", date: "2026-08-21", memo: "ACH · Jony Morales Deerfield — marked paid", invoiceMarked: true, linkPay: true },
-        { id: "P-9340", invoiceId: null, billingPeriodId: "PER-1066a-5", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Zelle", last4: "", source: "EXTERNAL", date: "2026-08-27", memo: "Zelle replacement · Harbor Oaks month 5 — the declined month has no paid invoice", invoiceMarked: false, linkPay: false, status: "POSTED" },
+        { id: "P-9340", invoiceId: null, billingPeriodId: "PER-1066a-5", customerId: "C-1066", locationId: "L-1066a", amount: 200, method: "Zelle", last4: "", source: "EXTERNAL", date: "2026-08-27", memo: "Zelle replacement · Harbor Oaks month 5 — monthly AutoPay has no invoice", invoiceMarked: false, linkPay: false, status: "POSTED" },
         { id: "P-9401", invoiceId: "INV-4512", customerId: "C-1112", locationId: "L-1112a", amount: 1500, method: "ACH", last4: "", source: "ach", date: "2026-08-18", memo: "Cypress Commons HOA · 2026 renewal", invoiceMarked: true, linkPay: false },
         { id: "P-9402", invoiceId: "INV-4516", customerId: "C-1108", locationId: "L-1108b", amount: 1500, method: "Check", last4: "4516", source: "check", date: "2026-08-22", memo: "Palm Cove Lot 14 · 2026 renewal", invoiceMarked: true, linkPay: false },
       ],
@@ -1479,10 +1469,10 @@
         },
       ],
       notifications: [
-        { id: "N-1", type: "AUTOPAY_FAILED", severity: "alert", title: "AutoPay declined", text: "Harbor Oaks · Campus · CARD_DECLINED ····3301. Card charge failed, so no paid invoice and no receipt. Contact customer; Rick can stop service if they will not pay.", customerId: "C-1066", locationId: "L-1066a", invoiceId: null, date: "2026-08-26", read: false },
+        { id: "N-1", type: "AUTOPAY_FAILED", severity: "alert", title: "AutoPay declined", text: "Harbor Oaks · Campus · CARD_DECLINED ····3301. Card charge failed; no receipt. Contact customer; Rick can stop service if they will not pay.", customerId: "C-1066", locationId: "L-1066a", invoiceId: null, date: "2026-08-26", read: false },
       ],
       tasks: [
-        { id: "TSK-1", customerId: "C-1066", locationId: "L-1066a", title: "Call Harbor Oaks about declined AutoPay", notes: "Month 5 card charge declined. No paid invoice and no receipt for that month. Service is already live — do not recreate. Ask for Zelle/check or retry the card, or have Rick stop service.", createdBy: "admin", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
+        { id: "TSK-1", customerId: "C-1066", locationId: "L-1066a", title: "Call Harbor Oaks about declined AutoPay", notes: "Month 5 card charge declined. No receipt for that month. Service is already live — do not recreate. Ask for Zelle/check or retry the card, or have Rick stop service.", createdBy: "admin", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
         { id: "TSK-1b", customerId: "C-1066", locationId: "L-1066a", title: "Hold / stop Harbor Oaks if unpaid", notes: "After you talk to them: if they cannot pay, stop the service on the customer record. Do not create a new service.", createdBy: "admin", assignee: "ops", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-26" },
         { id: "TSK-2", customerId: "C-1188", locationId: "L-1188a", title: "Allocate Nina residence payment", notes: "Portal payment is on the register — allocate so Rick can create service on that property only.", createdBy: "owner", assignee: "admin", due: "2026-08-27", priority: "high", status: "open", createdAt: "2026-08-27" },
         { id: "TSK-3", customerId: "C-1188", locationId: "L-1188a", title: "Create service after Nina Residence is paid", notes: "Wait for Christy to allocate. Then create service and assign on the map.", createdBy: "admin", assignee: "ops", due: "2026-08-28", priority: "normal", status: "open", createdAt: "2026-08-27" },
@@ -2468,7 +2458,7 @@
     state.data.billingPeriods.push(period);
     if (loc) loc.lifecycle = loc.lifecycle === "active" ? "active" : "waiting_payment";
     if (!silent) {
-      toast(`Month ${count + 1} is due · ${money(period.amount)}. AutoPay will mark an internal invoice paid and email the client a receipt.`);
+      toast(`Month ${count + 1} is due · ${money(period.amount)}. AutoPay charges the card and emails a receipt — no invoice.`);
       render();
     }
     return period;
@@ -2487,7 +2477,7 @@
     const month = period ? ` · month ${period.sequence}` : "";
     state.data.comms.push({
       id: nid("CM"), customerId: c.id, who: "Billing", channel: "Email", date: TODAY,
-      text: `Receipt ${pay.receiptId} emailed to ${c.email || "the Bill-To"} · ${money(pay.amount)} charged to ${card}${month} · ${loc.name}. The paid invoice stays internal.`,
+      text: `Receipt ${pay.receiptId} emailed to ${c.email || "the Bill-To"} · ${money(pay.amount)} charged to ${card}${month} · ${loc.name}. Monthly AutoPay does not send an invoice.`,
     });
     pushOfficeEmail({
       customerId: c.id,
@@ -3165,29 +3155,7 @@
     }) || null;
   }
 
-  function recordAutopayPaidInvoice(c, loc, ct, period, amount) {
-    const invoices = state.data.invoices || (state.data.invoices = []);
-    let inv = period.invoiceId ? invoices.find((i) => i.id === period.invoiceId) : null;
-    if (!inv) {
-      inv = {
-        id: nid("INV"), customerId: c.id, locationId: loc.id, contractId: ct.id,
-        billingPeriodId: period.id, amount, status: "paid", sent: null, paidOn: TODAY, date: TODAY,
-        kind: "autopay", internalOnly: true, periodN: period.sequence,
-        programId: loc.programId || ct.programId || "",
-      };
-      invoices.push(inv);
-      period.invoiceId = inv.id;
-    }
-    inv.status = "paid";
-    inv.paidOn = inv.paidOn || TODAY;
-    inv.kind = "autopay";
-    inv.internalOnly = true;
-    inv.amount = amount;
-    inv.sent = null;
-    return inv;
-  }
-
-  /** Monthly AutoPay writes a paid invoice for the office and emails the client a receipt only. */
+  /** A successful monthly AutoPay charge is a payment and a receipt. It does not create another invoice. */
   function runAutopayCharge(customerId, locationId, opts) {
     const succeed = !opts || opts.succeed !== false;
     const createIfMissing = !opts || opts.createIfMissing !== false;
@@ -3240,7 +3208,7 @@
         type: "AUTOPAY_FAILED",
         severity: "alert",
         title: "AutoPay declined",
-        text: `${c.billTo || c.name} · ${loc.name} · ${failCode} ····${last4}. Card charge failed, so no paid invoice and no receipt. Contact the customer. Rick can stop service if they will not pay.`,
+        text: `${c.billTo || c.name} · ${loc.name} · ${failCode} ····${last4}. Card charge failed, so no receipt. Contact the customer. Rick can stop service if they will not pay.`,
         customerId, locationId,
       });
       const hasOpsTask = (state.data.tasks || []).some((t) =>
@@ -3258,21 +3226,18 @@
         id: nid("CM"), customerId, who: "AutoPay", channel: "System", date: TODAY,
         text: `AutoPay FAILED month ${period.sequence} (${failCode}). No receipt emailed. Route held. Rick may stop service if customer will not pay.`,
       });
-      toast(`AutoPay declined on month ${period.sequence}. No paid invoice and no receipt. Route blocked — Rick can stop service.`);
+      toast(`AutoPay declined on month ${period.sequence}. No receipt. Route blocked — Rick can stop service.`);
       render();
       return;
     }
 
-    const inv = recordAutopayPaidInvoice(c, loc, ct, period, amount);
     const p = {
-      id: nid("P"), invoiceId: inv.id, billingPeriodId: period.id, customerId, locationId, amount,
+      id: nid("P"), invoiceId: null, billingPeriodId: period.id, customerId, locationId, amount,
       method: "Auto-pay", last4, source: "AUTOPAY", date: TODAY,
-      memo: `AutoPay charged · ${loc.name} · month ${period.sequence} · receipt emailed · invoice ${inv.id} stays internal`,
+      memo: `AutoPay charged · ${loc.name} · month ${period.sequence} · receipt emailed · no invoice`,
       invoiceMarked: true, failed: false, linkPay: true, status: "POSTED", posted: true, appliedAuto: true,
     };
     state.data.payments.push(p);
-    const allocs = state.data.paymentAllocations || (state.data.paymentAllocations = []);
-    allocs.push({ id: nid("ALLOC"), paymentId: p.id, invoiceId: inv.id, amount });
     const receiptId = emailMonthlyReceipt(c, loc, p, period);
     period.status = "PAID";
     period.paymentId = p.id;
@@ -3288,10 +3253,10 @@
       type: "AUTOPAY_PAID",
       severity: "ok",
       title: "AutoPay paid",
-      text: `${c.billTo || c.name} · ${loc.name} · month ${period.sequence} charged ${money(p.amount)}. ${inv.id} is paid and stays in the office. Receipt ${receiptId} emailed to the client.`,
+      text: `${c.billTo || c.name} · ${loc.name} · month ${period.sequence} charged ${money(p.amount)}. Receipt ${receiptId} emailed. No invoice.`,
       customerId, locationId,
     });
-    toast(`Card charged ${money(p.amount)}. ${inv.id} paid internally. Receipt ${receiptId} emailed.`);
+    toast(`Card charged ${money(p.amount)} · receipt ${receiptId} emailed. No invoice.`);
     render();
   }
 
@@ -3329,7 +3294,7 @@
       charged += 1;
     });
     if (!charged) toast(skipped ? `Overnight AutoPay: nothing due (${skipped} plan(s) skipped / waiting / exception).` : "No AutoPay plans due.");
-    else toast(`Overnight AutoPay finished · ${charged} card charge(s). Paid invoices kept in the office. Receipts emailed.`);
+    else toast(`Overnight AutoPay finished · ${charged} card charge(s) · receipts emailed. No invoices.`);
   }
   function markLocationPeriodPaid(loc, inv) {
     if (!loc) return;
@@ -7109,7 +7074,7 @@
         </div>
       </div>
       ${needsQuote ? `<div class="notice">One quote to the Bill-To lists the programs and every property.</div>` : ""}
-      ${quotedReady ? `<div class="notice">Quote is out. Revise prices if needed. Prepaid: send an invoice. Monthly AutoPay: the office keeps a paid invoice each month and the client gets the receipt.</div>` : ""}
+      ${quotedReady ? `<div class="notice">Quote is out. Revise prices if needed. Prepaid: send an invoice. Monthly AutoPay: charge the card and email a receipt — no further invoice.</div>` : ""}
       <div class="cust-panels">
         <div class="panel-box">
           ${canEditCust ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-billto" data-id="${c.id}">Edit Bill-To</button>` : ""}
@@ -7133,7 +7098,7 @@
           ${canEditLoc ? `<button type="button" class="btn btn-ghost panel-edit" data-act="edit-locations" data-id="${c.id}">Edit locations</button>` : ""}
           <div class="panel-kicker">Locations</div>
           <h3>${(c.locations || []).length} propert${(c.locations || []).length === 1 ? "y" : "ies"}</h3>
-          <p class="tiny">Quote → invoice (prepaid) or monthly AutoPay (paid invoice stays here, receipt emailed) → ready for service.</p>
+          <p class="tiny">First invoice starts the agreement. After that, monthly AutoPay is a card charge and a receipt — no further invoice.</p>
           <div class="panel-locs" data-keep-scroll="panel-locs">
             ${(c.locations || []).map((l) => {
               const plan = locPlan(c, l);
@@ -7175,8 +7140,8 @@
                 <div class="tiny">${esc(l.address)}</div>
                 <div class="tiny">GPS ${esc(gps)}${l.subdivision ? ` · ${esc(l.subdivision)}` : ""}</div>
                 <div class="tiny"><strong>Contract</strong> ${ct ? `${esc(ct.id)} · ${esc(ct.program || "")} · ${esc(fmtUsRange(ct.startDate, ct.endDate))}` : "None yet"}</div>
-                <div class="tiny"><strong>Billing plan</strong> ${esc(billingPlanLabel(l))}${onAutopay ? " · Each month AutoPay writes a paid invoice here and emails the client a receipt only" : ""}</div>
-                ${apaFail ? `<div class="tiny" style="color:var(--bad,#b42318)">Declined: call them. That month has no paid invoice and no receipt. Take a replacement payment or retry the card. Rick can stop service if they won’t pay.</div>` : ""}
+                <div class="tiny"><strong>Billing plan</strong> ${esc(billingPlanLabel(l))}${onAutopay ? " · Each month AutoPay charges the card and emails a receipt — no further invoice" : ""}</div>
+                ${apaFail ? `<div class="tiny" style="color:var(--bad,#b42318)">Declined: call them. That month has no receipt. Take a replacement payment or retry the card. Rick can stop service if they won’t pay.</div>` : ""}
                 ${billingPeriodLabel(l) ? `<div class="tiny">${esc(billingPeriodLabel(l))}</div>` : ""}
                 ${periods.length ? `<div class="tiny" style="margin-top:6px"><strong>Periods</strong></div>
                   <table class="mini-table"><thead><tr><th>#</th><th>Dates</th><th>Amt</th><th>Invoice</th><th>Receipt</th><th>Status</th></tr></thead><tbody>
@@ -9278,7 +9243,7 @@
       ];
     });
     return `
-      ${head("Invoices", "Prepaid and renewal invoices are emailed to the client. Each successful monthly AutoPay writes a paid invoice that stays in the office. The client only gets the receipt.")}
+      ${head("Invoices", "The first invoice is emailed and starts the agreement. A successful monthly AutoPay charge is a payment and a receipt — it does not create another invoice.")}
       ${writeBar("invoice.send", "Send invoice")}
       <div class="actions" style="margin-bottom:10px">${btn("invoice.create", "Manual municipal invoice", "manual-invoice", "", "btn-ghost")}</div>
       ${table(["Invoice", "Bill-To", "Property", "Amount", "Paid", "Balance", "Status", "Kind", "Sent", ""], rows)}
@@ -12175,7 +12140,7 @@
         const loc = ds.loc ? locBy(ds.id, ds.loc) : c.locations?.[0];
         state.data.comms.unshift({
           id: nid("CM"), customerId: c.id, who: role()?.name || "Christy Brown", channel: "Phone", date: TODAY,
-          text: `Called about AutoPay decline${loc ? ` at ${loc.name}` : ""}. Asked them to pay by check / Zelle / portal. That month has no paid invoice and no receipt — retry the card or take a replacement payment.`,
+          text: `Called about AutoPay decline${loc ? ` at ${loc.name}` : ""}. Asked them to pay by check / Zelle / portal. That month has no receipt — retry the card or take a replacement payment.`,
         });
         pushNotify({
           type: "AUTOPAY_CONTACT",
@@ -13403,14 +13368,14 @@
       discountLine = `<div class="tiny">Quoted ${money(amount)}${unit} (list ${money(list)})</div>`;
     }
     const billing = commitment.billingFrequency === "monthly"
-      ? `Monthly AutoPay: ${money(amount)} × ${commitment.periods} (term ${money(commitment.totalValue)}). Each month the office keeps a paid invoice. The client only receives the receipt.`
+      ? `Monthly AutoPay: ${money(amount)} × ${commitment.periods} (term ${money(commitment.totalValue)}). After the first invoice is paid, each month charges the card and emails a receipt. No further invoice.`
       : (p.prepaid != null
         ? `Upfront commitment: ${money(amount)} now${Math.abs(amount - list) > 0.009 ? "" : ` (list ${money(p.list)}${p.freeMonths ? `, ${p.freeMonths} promotional months` : ""})`}. One billing period for the term.`
         : `Upfront / term invoice ${money(amount)}.`);
     return `
       <div class="preview">
         <strong>${esc(p.name)}</strong>
-        <div>Billing: ${commitment.billingFrequency === "monthly" ? "Monthly · paid invoice stays in the office, receipt emailed" : "Upfront"} · Amount: ${money(amount)}${commitment.autoPay ? " · AutoPay" : ""}</div>
+        <div>Billing: ${commitment.billingFrequency === "monthly" ? "Monthly · card charge + receipt, no further invoice" : "Upfront"} · Amount: ${money(amount)}${commitment.autoPay ? " · AutoPay" : ""}</div>
         <div>Visit pattern: ${esc(p.freq)}</div>
         <div>Start ${fmtUsDate(TODAY)} → expires ${fmtUsDate(expires)} <span class="tiny">(calculated from the program)</span></div>
         ${discountLine}
@@ -14029,7 +13994,7 @@
       return;
     }
     if (!n && monthlyCharges) {
-      toast(`${monthlyCharges} monthly AutoPay charge${monthlyCharges === 1 ? "" : "s"}. Paid invoice kept in the office. Receipt emailed.`);
+      toast(`${monthlyCharges} monthly AutoPay charge${monthlyCharges === 1 ? "" : "s"} · receipt emailed · no invoice.`);
       state.page = "customer";
       state.selectedCustomer = c.id;
       render();
